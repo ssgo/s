@@ -1,0 +1,9 @@
+package tests
+
+import "github.com/ssgo/db"
+
+func init() {
+	key := []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
+	iv := []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
+	db.SetEncryptKeys(key, iv)
+}
