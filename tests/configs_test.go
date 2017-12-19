@@ -1,13 +1,14 @@
 package base
 
 import (
+	".."
 	"testing"
 	"os"
 )
 
 func TestForMap(t *testing.T) {
 	testConf := map[string]interface{}{}
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
@@ -29,7 +30,7 @@ type testConfType struct {
 
 func TestForStruct(t *testing.T) {
 	testConf := testConfType{}
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
@@ -44,7 +45,7 @@ func TestForStruct(t *testing.T) {
 func TestForMapWithEnv(t *testing.T) {
 	os.Setenv("TEST_NAME", "\"ttt\"")
 	testConf := new(map[string]interface{})
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
@@ -62,7 +63,7 @@ func TestForMapWithEnv(t *testing.T) {
 func TestForStructWithBadEnv(t *testing.T) {
 	os.Setenv("TEST_NAME", "ttt")
 	testConf := testConfType{}
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
@@ -78,7 +79,7 @@ func TestForStructWithEnv(t *testing.T) {
 	os.Setenv("TEST_NAME", "\"ttt\"")
 	os.Setenv("TEST_SETS_1", "222")
 	testConf := testConfType{}
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
@@ -94,7 +95,7 @@ func TestForStructWithEnvForSlice(t *testing.T) {
 	os.Setenv("TEST_NAME", "\"ttt\"")
 	os.Setenv("TEST_SETS", "[11,22,33]")
 	testConf := testConfType{}
-	err := LoadConfig("test", &testConf)
+	err := base.LoadConfig("test", &testConf)
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
