@@ -66,22 +66,22 @@ func TestIndex(tt *testing.T) {
 
 ```go
 // 注册服务
-func Register(name string, service interface{})
+func Register(name string, service interface{}){}
 
 // 注册以正则匹配的服务
-func RegisterByRegex(name string, service interface{})
+func RegisterByRegex(name string, service interface{}){}
 
 // 设置上下文内容，可以在服务函数的参数中直接得到并使用
-func SetContext(name string, context interface{})
+func SetContext(name string, context interface{}){}
 
 // 设置前置过滤器
-func SetInFilter(filter func(map[string]interface{}) *Result) 
+func SetInFilter(filter func(map[string]interface{}) *Result){}
 
 // 设置后置过滤器
-func SetOutFilter(filter func(map[string]interface{}, *Result) *Result)
+func SetOutFilter(filter func(map[string]interface{}, *Result) *Result){}
 
 // 启动服务
-func Start()
+func Start(){}
 ```
 
 
