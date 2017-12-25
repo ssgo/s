@@ -465,9 +465,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 					// 异步调用 action 处理
 					action := ws.actions[actionName]
 					if action != nil {
-						go doWebsocketAction(action, client, &messageData, sessionValue)
+						doWebsocketAction(action, client, &messageData, sessionValue)
 					} else if ws.actions[""] != nil {
-						go doWebsocketAction(ws.actions[""], client, &messageData, sessionValue)
+						doWebsocketAction(ws.actions[""], client, &messageData, sessionValue)
 					}
 				}
 			}

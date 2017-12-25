@@ -27,6 +27,8 @@ type echo2Args struct {
 	FilterTag2 int
 }
 
+
+
 func Echo1(in echo1Args, headers struct{ Cid string }) (code int, message string, data interface{}) {
 	return 211, "OK", []interface{}{in, headers}
 }
@@ -45,6 +47,7 @@ type echoWsSession struct {
 	UserId   int
 	UserName string
 	RoomId   int
+	//Lock sync.Mutex
 	UserInfo struct {
 		Age int
 	}
@@ -73,11 +76,13 @@ func OnEchoMessage(in struct {
 	Action string
 	Age    int
 }, client *websocket.Conn, sess *echoWsSession) {
+	//sess.Lock.Lock()
 	client.WriteJSON(map[string]interface{}{
 		"action": "echo",
 		"oldAge": sess.UserInfo.Age,
 		"newAge": in.Age,
 	})
+	//sess.Lock.Unlock()
 	sess.UserInfo.Age = in.Age
 }
 
