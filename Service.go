@@ -15,6 +15,7 @@ import (
 	"fmt"
 )
 
+type Arr []interface{}
 type Map map[string]interface{}
 
 type webServiceType struct {
@@ -51,7 +52,7 @@ type websocketServiceType struct {
 	closeSessionIndex int
 	closeFuncType     reflect.Type
 	closeFuncValue    reflect.Value
-	decoder func(*interface{}) (string, Map, error)
+	decoder func(*interface{}) (string, map[string]interface{}, error)
 	actions map[string]*websocketActionType
 }
 
@@ -79,10 +80,10 @@ var regexWebServices = make(map[string]*webServiceType)
 var websocketServices = make(map[string]*websocketServiceType)
 var regexWebsocketServices = make(map[string]*websocketServiceType)
 
-var inFilters = make([]func(Map) *Result, 0)
-var outFilters = make([]func(Map, *Result) *Result, 0)
+var inFilters = make([]func(map[string]interface{}) *Result, 0)
+var outFilters = make([]func(map[string]interface{}, *Result) *Result, 0)
 
-//var contexts = make(Map)
+//var contexts = make(map[string]interface{})
 //var cachedWebsocketActions = make(map[string]map[string]*websocketActionType)
 var recordLogs = true
 
@@ -138,7 +139,7 @@ func RegisterWebsocket(name string, updater *websocket.Upgrader,
 	onOpen interface{},
 //onMessage func(*websocket.Conn, []byte),
 	onClose interface{},
-	decoder func(*interface{}) (string, Map, error)) {
+	decoder func(*interface{}) (string, map[string]interface{}, error)) {
 
 	s := new(websocketServiceType)
 	if updater == nil {
@@ -257,12 +258,12 @@ func RegisterWebsocketAction(serviceName, actionName string, action interface{})
 //}
 
 // 设置前置过滤器
-func SetInFilter(filter func(Map) *Result) {
+func SetInFilter(filter func(map[string]interface{}) *Result) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(Map, *Result) *Result) {
+func SetOutFilter(filter func(map[string]interface{}, *Result) *Result) {
 	outFilters = append(outFilters, filter)
 }
 
@@ -282,8 +283,8 @@ func EnableLogs(enabled bool) {
 func ResetAllSets() {
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make(map[string]*webServiceType)
-	inFilters = make([]func(Map) *Result, 0)
-	outFilters = make([]func(Map, *Result) *Result, 0)
+	inFilters = make([]func(map[string]interface{}) *Result, 0)
+	outFilters = make([]func(map[string]interface{}, *Result) *Result, 0)
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make(map[string]*websocketServiceType)
 	recordLogs = true
@@ -300,7 +301,7 @@ func (*routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Reque
 	if pos != -1 {
 		requestPath = requestPath[0:pos]
 	}
-	args := make(Map)
+	args := make(map[string]interface{})
 
 	// 先看缓存中是否有
 	s := webServices[requestPath]
@@ -371,7 +372,7 @@ func (*routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Reque
 	}
 
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-	headers := make(Map)
+	headers := make(map[string]interface{})
 	for k, v := range request.Header {
 		headerKey := strings.Replace(k, "-", "", -1)
 		if len(v) > 1 {
@@ -389,7 +390,7 @@ func (*routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Reque
 	}
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response http.ResponseWriter, args *Map, headers *Map, startTime *time.Time) {
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response http.ResponseWriter, args *map[string]interface{}, headers *map[string]interface{}, startTime *time.Time) {
 	// 前置过滤器
 	var result *Result = nil
 	for _, filter := range inFilters {
@@ -495,7 +496,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	}
 }
 
-func doWebsocketAction(action *websocketActionType, client *websocket.Conn, data *Map, sess reflect.Value) {
+func doWebsocketAction(action *websocketActionType, client *websocket.Conn, data *map[string]interface{}, sess reflect.Value) {
 	//startt := time.Now()
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
@@ -514,7 +515,7 @@ func doWebsocketAction(action *websocketActionType, client *websocket.Conn, data
 	//log.Println(" !!!@@@###$$$%%%^^^&&&***", stopt.Nanosecond() - startt.Nanosecond())
 }
 
-func doWebService(service *webServiceType, request *http.Request, response http.ResponseWriter, args *Map, headers *Map, startTime *time.Time) {
+func doWebService(service *webServiceType, request *http.Request, response http.ResponseWriter, args *map[string]interface{}, headers *map[string]interface{}, startTime *time.Time) {
 	// 前置过滤器
 	var result *Result = nil
 	for _, filter := range inFilters {
@@ -560,7 +561,7 @@ func doWebService(service *webServiceType, request *http.Request, response http.
 	// 后置过滤器
 	if len(outFilters) > 0 {
 		byteResults := makeBytesResult(result.Code, result.Message, result.Data)
-		mapedResult := make(Map)
+		mapedResult := make(map[string]interface{})
 		err := json.Unmarshal(byteResults, &mapedResult)
 		if err == nil {
 			result.Data = mapedResult["data"]

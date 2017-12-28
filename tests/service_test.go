@@ -68,7 +68,7 @@ func TestFilters(tt *testing.T) {
 	d, _ := data.(map[string]interface{})
 	t.Test(code == 211 && d["filterTag"] == "", "[Test InFilter 1] Response", code, message, data)
 
-	s.SetInFilter(func(in s.Map) *s.Result {
+	s.SetInFilter(func(in map[string]interface{}) *s.Result {
 		in["filterTag"] = "Abc"
 		in["filterTag2"] = 1000
 		return nil
@@ -77,7 +77,7 @@ func TestFilters(tt *testing.T) {
 	d, _ = data.(map[string]interface{})
 	t.Test(code == 211 && d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", code, message, data)
 
-	s.SetOutFilter(func(in s.Map, result *s.Result) *s.Result {
+	s.SetOutFilter(func(in map[string]interface{}, result *s.Result) *s.Result {
 		result.Code ++
 		data := result.Data.(map[string]interface{})
 		data["filterTag2"] = data["filterTag2"].(float64) + 100
@@ -88,7 +88,7 @@ func TestFilters(tt *testing.T) {
 	d, _ = data.(map[string]interface{})
 	t.Test(code == 212 && d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", code, message, data)
 
-	s.SetOutFilter(func(in s.Map, result *s.Result) *s.Result {
+	s.SetOutFilter(func(in map[string]interface{}, result *s.Result) *s.Result {
 		result.Code *= 2
 		data := result.Data.(map[string]interface{})
 		return &s.Result{Code: result.Code, Message: result.Message, Data: s.Map{
@@ -100,7 +100,7 @@ func TestFilters(tt *testing.T) {
 	d, _ = data.(map[string]interface{})
 	t.Test(code == 424 && d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", code, message, data)
 
-	s.SetInFilter(func(in s.Map) (*s.Result) {
+	s.SetInFilter(func(in map[string]interface{}) (*s.Result) {
 		return &s.Result{Code: 212, Message: "OK", Data: s.Map{
 			"filterTag":  in["filterTag"],
 			"filterTag2": in["filterTag2"].(int) + 100,

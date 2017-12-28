@@ -90,7 +90,7 @@ func OnEchoMessage(in struct {
 func OnEchoClose(client *websocket.Conn, sess *echoWsSession) {
 }
 
-func EchoDecoder(srcData *interface{}) (string, s.Map, error) {
+func EchoDecoder(srcData *interface{}) (string, map[string]interface{}, error) {
 	dstData := (*srcData).(map[string]interface{})
 	return dstData["action"].(string), dstData, nil
 }

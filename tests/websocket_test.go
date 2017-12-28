@@ -21,7 +21,7 @@ func TestEchoWS(tt *testing.T) {
 	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
 
-	r := make(s.Map)
+	r := make(map[string]interface{})
 	err = c.ReadJSON(&r)
 	t.Test(err == nil, "Read welcome", err)
 	t.Test(r["action"] == "welcome" && r["token"] == "abc-123" && r["roomId"].(float64) == 99 && r["oldAge"].(float64) == 1, "Welcome", r, c, err)
@@ -82,7 +82,7 @@ func BenchmarkWSEcho(b *testing.B) {
 				continue
 			}
 
-			r := make(s.Map)
+			r := make(map[string]interface{})
 			err = c.ReadJSON(&r)
 			if err != nil {
 				b.Error("Read welcome error", err)
@@ -134,7 +134,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 		return
 	}
 
-	r := make(s.Map)
+	r := make(map[string]interface{})
 	err = c.ReadJSON(&r)
 	if err != nil {
 		b.Error("Read welcome error", err)
