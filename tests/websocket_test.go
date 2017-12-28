@@ -21,14 +21,14 @@ func TestEchoWS(tt *testing.T) {
 	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
 
-	r := make(map[string]interface{})
+	r := make(s.Map)
 	err = c.ReadJSON(&r)
 	t.Test(err == nil, "Read welcome", err)
 	t.Test(r["action"] == "welcome" && r["token"] == "abc-123" && r["roomId"].(float64) == 99 && r["oldAge"].(float64) == 1, "Welcome", r, c, err)
 
 	oldAge := 1
 	for newAge := 10; newAge < 12; newAge++ {
-		err = c.WriteJSON(map[string]interface{}{
+		err = c.WriteJSON(s.Map{
 			"action": "echo",
 			"age":    newAge,
 		})
@@ -82,7 +82,7 @@ func BenchmarkWSEcho(b *testing.B) {
 				continue
 			}
 
-			r := make(map[string]interface{})
+			r := make(s.Map)
 			err = c.ReadJSON(&r)
 			if err != nil {
 				b.Error("Read welcome error", err)
@@ -91,7 +91,7 @@ func BenchmarkWSEcho(b *testing.B) {
 
 			oldAge := 1
 			for newAge := 10; newAge < 210; newAge++ {
-				err = c.WriteJSON(map[string]interface{}{
+				err = c.WriteJSON(s.Map{
 					"action": "echo",
 					"age":    newAge,
 				})
@@ -134,7 +134,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 		return
 	}
 
-	r := make(map[string]interface{})
+	r := make(s.Map)
 	err = c.ReadJSON(&r)
 	if err != nil {
 		b.Error("Read welcome error", err)
@@ -144,7 +144,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 
 	oldAge := 1
 	for newAge:=0; newAge<b.N; newAge++ {
-		err = c.WriteJSON(map[string]interface{}{
+		err = c.WriteJSON(s.Map{
 			"action": "echo",
 			"age":    newAge,
 		})

@@ -61,7 +61,7 @@ func TestGet(path string) (*http.Response, []byte, error) {
 //	return testRequest("POST", path, nil)
 //}
 
-func TestService(path string, args map[string]interface{}) (int, string, interface{}) {
+func TestService(path string, args Map) (int, string, interface{}) {
 
 	argsObjectBytes, _ := json.Marshal(args)
 
@@ -70,7 +70,7 @@ func TestService(path string, args map[string]interface{}) (int, string, interfa
 		return 500, err.Error(), nil
 	}
 
-	resultObject := make(map[string]interface{})
+	resultObject := make(Map)
 	err = json.Unmarshal(result, &resultObject)
 	if err != nil {
 		return 500, err.Error(), nil

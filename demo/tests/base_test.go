@@ -30,7 +30,7 @@ func TestLoginOK(tt *testing.T) {
 	s.StartTestService()
 	defer s.StopTestService()
 
-	code, _, result := s.TestService("/login", map[string]interface{}{
+	code, _, result := s.TestService("/login", s.Map{
 		"account": "admin",
 		"password": "admin123",
 	})

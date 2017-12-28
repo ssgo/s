@@ -3,6 +3,7 @@ package tests
 import (
 	"net/http"
 	"github.com/gorilla/websocket"
+	".."
 )
 
 type echo1Args struct {
@@ -64,7 +65,7 @@ func OnEchoOpen(in struct {
 	sess.UserInfo.Age = 1
 	sess.RoomId = in.RoomId
 
-	client.WriteJSON(map[string]interface{}{
+	client.WriteJSON(s.Map{
 		"action": "welcome",
 		"token":  in.Token,
 		"roomId": in.RoomId,
@@ -77,7 +78,7 @@ func OnEchoMessage(in struct {
 	Age    int
 }, client *websocket.Conn, sess *echoWsSession) {
 	//sess.Lock.Lock()
-	client.WriteJSON(map[string]interface{}{
+	client.WriteJSON(s.Map{
 		"action": "echo",
 		"oldAge": sess.UserInfo.Age,
 		"newAge": in.Age,
@@ -89,7 +90,7 @@ func OnEchoMessage(in struct {
 func OnEchoClose(client *websocket.Conn, sess *echoWsSession) {
 }
 
-func EchoDecoder(srcData *interface{}) (string, map[string]interface{}, error) {
+func EchoDecoder(srcData *interface{}) (string, s.Map, error) {
 	dstData := (*srcData).(map[string]interface{})
 	return dstData["action"].(string), dstData, nil
 }

@@ -27,7 +27,7 @@ func TestLoginWithBadPassword(tt *testing.T) {
 	s.StartTestService()
 	defer s.StopTestService()
 
-	code, message, result := s.TestService("/login", map[string]interface{}{
+	code, message, result := s.TestService("/login", s.Map{
 		"account": "admin",
 		"password": "xxx",
 	})
