@@ -7,14 +7,28 @@ import (
 	"fmt"
 	"strings"
 	"log"
+	"os/user"
 )
 
 func LoadConfig(name string, conf interface{}) error {
-	file, _ := os.Open(name + ".json")
+
+	var file *os.File
+	var err error
+	file, err = os.Open(name + ".json")
+	if err != nil {
+		execPath := os.Args[0][0:strings.LastIndex(os.Args[0],string(os.PathSeparator))]
+		fmt.Println(execPath + "/" + name + ".json")
+		file, err = os.Open(execPath + "/" + name + ".json")
+		if err != nil {
+			u, _ := user.Current()
+			fmt.Println(u.HomeDir + "/" + name + ".json")
+			file, err = os.Open(u.HomeDir + "/" + name + ".json")
+		}
+	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	err := decoder.Decode(conf)
+	err = decoder.Decode(conf)
 	makeEnvConfig(strings.ToUpper(name), reflect.ValueOf(conf))
 	return err
 }
@@ -36,7 +50,7 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 				log.Println("base.makeEnvConfig", prefix, ev, err)
 			}
 			return
-		}else{
+		} else {
 			log.Println("base.makeEnvConfig", prefix, ev, "Can't set config for interface{}")
 		}
 	}

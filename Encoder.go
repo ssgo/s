@@ -5,9 +5,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"bytes"
+	"fmt"
 )
 
 func EncryptAes(origData string, key []byte, iv []byte) string {
+	key, iv = makeKeyIv(key, iv)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return ""
@@ -22,9 +24,11 @@ func EncryptAes(origData string, key []byte, iv []byte) string {
 }
 
 func DecryptAes(crypted string, key []byte, iv []byte) string {
+	key, iv = makeKeyIv(key, iv)
 	cryptedBytes, err := base64.StdEncoding.DecodeString(crypted)
 	block, err := aes.NewCipher(key)
 	if err != nil {
+		fmt.Println(err)
 		return ""
 	}
 	blockSize := block.BlockSize()
@@ -45,4 +49,22 @@ func pkcs5UnPadding(origData []byte) []byte {
 	length := len(origData)
 	unpadding := int(origData[length-1])
 	return origData[:(length - unpadding)]
+}
+
+func makeKeyIv(key []byte, iv []byte) ([]byte, []byte) {
+	if len(key) >= 32 {
+		key = key[0:32]
+	}else if len(key) >= 16 {
+		key = key[0:16]
+	}else{
+		for i:=len(key); i<16; i++ {
+			key = append(key, 0)
+		}
+	}
+	if len(iv) < len(key){
+		for i:=len(iv); i<len(key); i++ {
+			iv = append(iv, 0)
+		}
+	}
+	return key, iv
 }
