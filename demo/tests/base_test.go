@@ -8,29 +8,29 @@ import (
 )
 
 func init() {
-	service.Register("/", userServices.Index)
-	service.Register("/login", userServices.Login)
+	s.Register("/", userServices.Index)
+	s.Register("/login", userServices.Login)
 }
 
 func TestIndex(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.StartTestService()
-	defer service.StopTestService()
+	s.StartTestService()
+	defer s.StopTestService()
 
-	_, result, err := service.TestGet("/")
+	_, result, err := s.TestGet("/")
 	t.Test( strings.Contains(string(result), "Hello World!"), "Index", string(result), err)
 }
 
 
 func TestLoginOK(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.SetTestHeader("ClientId", "aabbcc")
-	service.StartTestService()
-	defer service.StopTestService()
+	s.SetTestHeader("ClientId", "aabbcc")
+	s.StartTestService()
+	defer s.StopTestService()
 
-	code, _, result := service.TestService("/login", map[string]interface{}{
+	code, _, result := s.TestService("/login", map[string]interface{}{
 		"account": "admin",
 		"password": "admin123",
 	})

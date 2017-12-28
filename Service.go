@@ -1,4 +1,4 @@
-package service
+package s
 
 import (
 	"github.com/ssgo/base"
@@ -14,6 +14,8 @@ import (
 	"github.com/gorilla/websocket"
 	"fmt"
 )
+
+type Map map[string]interface{}
 
 type webServiceType struct {
 	pathMatcher   *regexp.Regexp
@@ -125,7 +127,7 @@ func Register(name string, service interface{}) {
 //func RegisterByRegex(name string, service interface{}) {
 //	s, err := makeCachedService(service)
 //	if err != nil {
-//		log.Fatalln("bad service", name, service)
+//		log.Fatalln("bad s", name, s)
 //		return
 //	}
 //	regexWebServices[name] = s

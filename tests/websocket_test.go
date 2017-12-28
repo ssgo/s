@@ -8,15 +8,15 @@ import (
 )
 
 func TestEchoWS(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.ResetAllSets()
-	service.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	service.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
-	service.EnableLogs(false)
+	s.ResetAllSets()
+	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
+	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	s.EnableLogs(false)
 
-	serv := service.StartTestService()
-	defer service.StopTestService()
+	serv := s.StartTestService()
+	defer s.StopTestService()
 
 	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
@@ -48,12 +48,12 @@ func TestEchoWS(tt *testing.T) {
 
 func BenchmarkWSEcho(b *testing.B) {
 	b.StopTimer()
-	service.ResetAllSets()
-	service.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	service.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
-	service.EnableLogs(false)
-	serv := service.StartTestService()
-	defer service.StopTestService()
+	s.ResetAllSets()
+	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
+	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	s.EnableLogs(false)
+	serv := s.StartTestService()
+	defer s.StopTestService()
 	b.StartTimer()
 
 	//threadIndex := 0
@@ -120,12 +120,12 @@ func BenchmarkWSEcho(b *testing.B) {
 
 func BenchmarkWSEchoAction(b *testing.B) {
 	b.StopTimer()
-	service.ResetAllSets()
-	service.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	service.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
-	service.EnableLogs(false)
-	serv := service.StartTestService()
-	defer service.StopTestService()
+	s.ResetAllSets()
+	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
+	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	s.EnableLogs(false)
+	serv := s.StartTestService()
+	defer s.StopTestService()
 
 	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
 

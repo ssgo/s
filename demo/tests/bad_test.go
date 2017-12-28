@@ -7,29 +7,29 @@ import (
 )
 
 func init() {
-	service.Register("/login", userServices.Login)
+	s.Register("/login", userServices.Login)
 }
 
 func TestLoginWithoutClientId(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.StartTestService()
-	defer service.StopTestService()
+	s.StartTestService()
+	defer s.StopTestService()
 
-	code, message, result := service.TestService("/login", nil)
-	t.Test( code == 403 && message == "Not a valid client" && result.(bool) == false, "Login", message, result)
+	code, message, result := s.TestService("/login", nil)
+	t.Test( code == 403 && message == "Not a valid client" && result.(bool) == false, "Login", code, message, result)
 }
 
 func TestLoginWithBadPassword(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.SetTestHeader("ClientId", "aabbcc")
-	service.StartTestService()
-	defer service.StopTestService()
+	s.SetTestHeader("ClientId", "aabbcc")
+	s.StartTestService()
+	defer s.StopTestService()
 
-	code, message, result := service.TestService("/login", map[string]interface{}{
+	code, message, result := s.TestService("/login", map[string]interface{}{
 		"account": "admin",
 		"password": "xxx",
 	})
-	t.Test( code == 403 && message == "No Access" && result.(bool) == false, "Login", message, result)
+	t.Test( code == 403 && message == "No Access" && result.(bool) == false, "Login", code, message, result)
 }

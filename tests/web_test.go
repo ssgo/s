@@ -23,30 +23,30 @@ func WelcomePicture(in struct{PicName string}, response http.ResponseWriter) []b
 }
 
 func TestWelcome(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.ResetAllSets()
-	service.Register("/", Welcome)
-	service.EnableLogs(false)
+	s.ResetAllSets()
+	s.Register("/", Welcome)
+	s.EnableLogs(false)
 
-	service.StartTestService()
-	defer service.StopTestService()
+	s.StartTestService()
+	defer s.StopTestService()
 
-	_, result, err := service.TestGet("/")
+	_, result, err := s.TestGet("/")
 	t.Test(err == nil && string(result) == "Hello World!", "Welcome", string(result), err)
 }
 
 func TestWelcomePicture(tt *testing.T) {
-	t := service.T(tt)
+	t := s.T(tt)
 
-	service.ResetAllSets()
-	service.Register("/w/{picName}.png", WelcomePicture)
-	service.EnableLogs(false)
+	s.ResetAllSets()
+	s.Register("/w/{picName}.png", WelcomePicture)
+	s.EnableLogs(false)
 
-	service.StartTestService()
-	defer service.StopTestService()
+	s.StartTestService()
+	defer s.StopTestService()
 
-	res, result, err := service.TestGet("/w/abc.png")
+	res, result, err := s.TestGet("/w/abc.png")
 	t.Test(err == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, err)
 	t.Test(res.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, err)
 }
