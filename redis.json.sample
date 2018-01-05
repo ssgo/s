@@ -1,0 +1,12 @@
+{
+  "test": {
+    "host": "127.0.0.1:6379",
+    "password": "",
+    "db": 1,
+    "maxActive": 100,
+    "maxIdles": 30,
+    "idleTimeout": 0,
+    "connTimeout": 3,
+    "rwTimeout": 2
+  }
+}
