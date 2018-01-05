@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"github.com/gorilla/websocket"
 	"fmt"
+	"os"
 )
 
 type Arr []interface{}
@@ -80,8 +81,8 @@ var regexWebServices = make(map[string]*webServiceType)
 var websocketServices = make(map[string]*websocketServiceType)
 var regexWebsocketServices = make(map[string]*websocketServiceType)
 
-var inFilters = make([]func(map[string]interface{}) *Result, 0)
-var outFilters = make([]func(map[string]interface{}, *Result) *Result, 0)
+var inFilters = make([]func(map[string]interface{}) interface{}, 0)
+var outFilters = make([]func(map[string]interface{}, interface{}) (interface{}, bool), 0)
 
 //var contexts = make(map[string]interface{})
 //var cachedWebsocketActions = make(map[string]map[string]*websocketActionType)
@@ -89,12 +90,29 @@ var recordLogs = true
 
 var config = struct {
 	Listen string
+	LogFile string
 }{}
 
+//var log *_log.Logger
 func init() {
 	base.LoadConfig("service", &config)
 	if config.Listen == "" {
 		config.Listen = ":8001"
+	}
+
+	if config.LogFile != "" {
+		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err == nil {
+			//log = _log.New(f, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
+			log.SetOutput(f)
+		}else{
+			//log = _log.New(os.Stdout, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
+			log.SetOutput(os.Stdout)
+			log.Print("ERROR	", err)
+		}
+	}else{
+		log.SetOutput(os.Stdout)
+		//log = _log.New(os.Stdout, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
 	}
 }
 
@@ -102,7 +120,7 @@ func init() {
 func Register(name string, service interface{}) {
 	s, err := makeCachedService(service)
 	if err != nil {
-		log.Fatalln("bad service", name, service)
+		log.Printf("ERROR	%s	%s	", name, err)
 		return
 	}
 
@@ -128,7 +146,7 @@ func Register(name string, service interface{}) {
 //func RegisterByRegex(name string, service interface{}) {
 //	s, err := makeCachedService(service)
 //	if err != nil {
-//		log.Fatalln("bad s", name, s)
+//		log.Print("bad s", name, s)
 //		return
 //	}
 //	regexWebServices[name] = s
@@ -222,7 +240,7 @@ func RegisterWebsocketAction(serviceName, actionName string, action interface{})
 		s = regexWebsocketServices[serviceName]
 	}
 	if s == nil {
-		log.Fatalln("no websocket servive", serviceName, "for register action")
+		log.Printf("ERROR	no websocket servive	%s	for register action", serviceName)
 		return
 	}
 
@@ -258,12 +276,12 @@ func RegisterWebsocketAction(serviceName, actionName string, action interface{})
 //}
 
 // 设置前置过滤器
-func SetInFilter(filter func(map[string]interface{}) *Result) {
+func SetInFilter(filter func(map[string]interface{}) interface{}) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(map[string]interface{}, *Result) *Result) {
+func SetOutFilter(filter func(map[string]interface{}, interface{}) (interface{}, bool)) {
 	outFilters = append(outFilters, filter)
 }
 
@@ -272,7 +290,7 @@ func Start() {
 	http.Handle("/", &routeHandler{})
 	err := http.ListenAndServe(config.Listen, nil)
 	if err != nil {
-		log.Fatalln("Failed to start service", err)
+		log.Printf("ERROR	Failed to start service	%s", err)
 	}
 }
 
@@ -283,8 +301,8 @@ func EnableLogs(enabled bool) {
 func ResetAllSets() {
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make(map[string]*webServiceType)
-	inFilters = make([]func(map[string]interface{}) *Result, 0)
-	outFilters = make([]func(map[string]interface{}, *Result) *Result, 0)
+	inFilters = make([]func(map[string]interface{}) interface{}, 0)
+	outFilters = make([]func(map[string]interface{}, interface{}) (interface{}, bool), 0)
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make(map[string]*websocketServiceType)
 	recordLogs = true
@@ -294,13 +312,13 @@ type routeHandler struct{}
 
 func (*routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	startTime := time.Now()
-
 	// 获取路径
 	requestPath := request.RequestURI
 	pos := strings.LastIndex(requestPath, "?")
 	if pos != -1 {
 		requestPath = requestPath[0:pos]
 	}
+	request.RequestURI = requestPath
 	args := make(map[string]interface{})
 
 	// 先看缓存中是否有
@@ -392,7 +410,7 @@ func (*routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Reque
 
 func doWebsocketService(ws *websocketServiceType, request *http.Request, response http.ResponseWriter, args *map[string]interface{}, headers *map[string]interface{}, startTime *time.Time) {
 	// 前置过滤器
-	var result *Result = nil
+	var result interface{} = nil
 	for _, filter := range inFilters {
 		result = filter(*args)
 		if result != nil {
@@ -413,9 +431,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 
 	if recordLogs {
 		nowTime := time.Now()
-		usedTime := float32(nowTime.Nanosecond()-startTime.Nanosecond()) / 1e6
+		usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
 		*startTime = nowTime
-		log.Printf("WSOPEN\t%s\t%s\t%.6f\t%d\t%s\t%s\t%s\n", request.RemoteAddr, request.RequestURI, usedTime, code, message, byteArgs, byteHeaders)
+		log.Printf("WSOPEN	%s	%s	%.6f	%d	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, code, message, byteArgs, byteHeaders)
 	}
 
 	if err == nil {
@@ -462,7 +480,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if ws.decoder != nil {
 					actionName, messageData, err := ws.decoder(msg)
 					if err != nil {
-						log.Fatalln("Read a bad message", request.RemoteAddr, request.RequestURI, msg)
+						log.Printf("ERROR	Read a bad message	%s	%s	%s", request.RemoteAddr, request.RequestURI, msg)
 					}
 
 					// 异步调用 action 处理
@@ -488,8 +506,8 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			}
 
 			if recordLogs {
-				usedTime := float32(time.Now().Nanosecond()-startTime.Nanosecond()) / 1e6
-				log.Printf("WSCLOSE\t%s\t%s\t%.6f\t%d\t%s\t%s\t%s\n", request.RemoteAddr, request.RequestURI, usedTime, code, message, byteArgs, byteHeaders)
+				usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
+				log.Printf("WSCLOSE	%s	%s	%.6f	%d	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, code, message, byteArgs, byteHeaders)
 			}
 
 		}
@@ -512,12 +530,11 @@ func doWebsocketAction(action *websocketActionType, client *websocket.Conn, data
 	}
 	action.funcValue.Call(messageParms)
 	//stopt := time.Now()
-	//log.Println(" !!!@@@###$$$%%%^^^&&&***", stopt.Nanosecond() - startt.Nanosecond())
+	//log.Println(" !!!@@@###$$$%%%^^^&&&***", stopt.UnixNano() - startt.UnixNano())
 }
 
 func doWebService(service *webServiceType, request *http.Request, response http.ResponseWriter, args *map[string]interface{}, headers *map[string]interface{}, startTime *time.Time) {
-	// 前置过滤器
-	var result *Result = nil
+	var result interface{} = nil
 	for _, filter := range inFilters {
 		result = filter(*args)
 		if result != nil {
@@ -545,63 +562,70 @@ func doWebService(service *webServiceType, request *http.Request, response http.
 		if service.responseIndex >= 0 {
 			parms[service.responseIndex] = reflect.ValueOf(response)
 		}
-
+		for i, parm := range parms{
+			if parm.Kind() == reflect.Invalid{
+				parms[i] = reflect.New(service.funcType.In(i)).Elem()
+			}
+		}
 		outs := service.funcValue.Call(parms)
-		if service.isService {
-			code := int(outs[0].Int())
-			message := outs[1].String()
-			data := outs[2].Interface()
-			result = &Result{code, message, data}
+		if len(outs) > 0 {
+			result = outs[0].Interface()
 		} else {
-			data := outs[0].Interface()
-			result = &Result{200, "OK", data}
+			result = ""
 		}
 	}
 
 	// 后置过滤器
-	if len(outFilters) > 0 {
-		byteResults := makeBytesResult(result.Code, result.Message, result.Data)
-		mapedResult := make(map[string]interface{})
-		err := json.Unmarshal(byteResults, &mapedResult)
-		if err == nil {
-			result.Data = mapedResult["data"]
-			for _, filter := range outFilters {
-				newResult := filter(*args, result)
-				if newResult != nil {
-					// 使用新的结果
-					result = newResult
-					break
-				}
-			}
+	for _, filter := range outFilters {
+		newResult, done := filter(*args, result)
+		if newResult != nil {
+			result = newResult
+		}
+		if done {
+			break
 		}
 	}
 
+	// 返回结果
+	outType := reflect.TypeOf(result)
+	if outType.Kind() == reflect.Ptr {
+		outType = outType.Elem()
+	}
+	var outBytes []byte
+	if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8 ) {
+		outBytes = makeBytesResult(result)
+	} else if outType.Kind() == reflect.String {
+		outBytes = []byte(result.(string))
+	} else {
+		outBytes = result.([]byte)
+	}
+	response.Write(outBytes)
+
 	// 记录访问日志
-	if result != nil {
-		if service.isService {
-			response.Write(makeBytesResult(result.Code, result.Message, result.Data))
-		} else {
-			var outBytes []byte
-			if reflect.TypeOf(result.Data).Kind() == reflect.String {
-				outBytes = []byte(result.Data.(string))
-			} else {
-				outBytes = result.Data.([]byte)
+	if recordLogs {
+		usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
+		byteArgs, _ := json.Marshal(*args)
+		byteHeaders, _ := json.Marshal(*headers)
+		if len(outBytes) > 1024 {
+			outBytes = outBytes[0:1024]
+		}
+		n := len(outBytes)
+		for i := 1; i < n-1; i++ {
+			c := outBytes[i]
+			if c == '\t' || c == '\n' || c == '\r' {
+				outBytes[i] = ' '
+			} else if c < 32 || c > 126 {
+				outBytes[i] = '?'
 			}
-			response.Write(outBytes)
 		}
-		if recordLogs {
-			usedTime := float32(time.Now().Nanosecond()-startTime.Nanosecond()) / 1e6
-			byteArgs, _ := json.Marshal(*args)
-			byteHeaders, _ := json.Marshal(*headers)
-			log.Printf("ACCESS\t%s\t%s\t%.6f\t%d\t%s\t%s\n\t%s", request.RemoteAddr, request.RequestURI, usedTime, result.Code, result.Message, byteArgs, byteHeaders)
-		}
+		log.Printf("ACCESS	%s	%s	%.6f	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes))
 	}
 }
 
 func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	// 类型或参数返回值个数不对
 	funcType := reflect.TypeOf(matchedServie)
-	if funcType.Kind() != reflect.Func || (funcType.NumOut() != 3 && funcType.NumOut() != 1) {
+	if funcType.Kind() != reflect.Func {
 		return nil, fmt.Errorf("Bad Service")
 	}
 
@@ -630,19 +654,17 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 		}
 	}
 
-	// 返回值类型不对
-	if funcType.NumOut() == 1 {
-		targetService.isService = false
+	if funcType.NumIn() > 0 {
+		// 返回值类型不对
 		outType := funcType.Out(0)
-		if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
-			return nil, fmt.Errorf("Bad Service Outputs")
+		if outType.Kind() == reflect.Ptr {
+			outType = outType.Elem()
 		}
-	} else {
-		targetService.isService = true
-		outCodeType := funcType.Out(0)
-		outMessageType := funcType.Out(1)
-		if outCodeType.Kind() != reflect.Int || outMessageType.Kind() != reflect.String {
-			return nil, fmt.Errorf("Bad Service Outputs")
+		if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
+			targetService.isService = false
+			outType = funcType.Out(0)
+		} else {
+			targetService.isService = true
 		}
 	}
 
@@ -705,33 +727,17 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 //	return targetService, nil
 //}
 
-type Result struct {
-	Code    int
-	Message string
-	Data    interface{}
-}
+//type Result struct {
+//	Code    int
+//	Message string
+//	Data    interface{}
+//}
 
-func makeBytesResult(code int, message string, data interface{}) []byte {
-	bytesResult, err := json.Marshal(Map{
-		"code":    code,
-		"message": message,
-		"data":    data,
-	})
+func makeBytesResult(data interface{}) []byte {
+	bytesResult, err := json.Marshal(data)
 	if err != nil {
-		bytesResult = []byte("{\"code\":511,\"message\":\"Bad Result\",\"data\":null}")
+		bytesResult = []byte("{}")
 	}
-	n := len(bytesResult)
-	inObject := false
-	for i := 1; i < n-1; i++ {
-		if bytesResult[i] == '{' {
-			inObject = true
-		} else if bytesResult[i] == '}' {
-			inObject = false
-		}
-		if bytesResult[i] == '"' && (bytesResult[i-1] == '{' || (bytesResult[i-1] == ',' && inObject)) && (bytesResult[i+1] >= 'A' && bytesResult[i+1] <= 'Z') {
-			bytesResult[i+1] += 32
-		}
-	}
-
+	base.FixUpperCase(bytesResult)
 	return bytesResult
 }

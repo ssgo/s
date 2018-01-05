@@ -30,18 +30,20 @@ type echo2Args struct {
 
 
 
-func Echo1(in echo1Args, headers struct{ Cid string }) (code int, message string, data interface{}) {
-	return 211, "OK", []interface{}{in, headers}
+func Echo1(in echo1Args, headers struct{ Cid string }) (out struct{In echo1Args; Headers struct{ Cid string }}) {
+	out.In = in
+	out.Headers = headers
+	return
 }
 
-func Echo2(req *http.Request, in echo2Args) (code int, message string, data interface{}) {
-	return 211, "OK", in
+func Echo2(req *http.Request, in echo2Args) echo2Args {
+	return in
 }
 
 func Echo3(res http.ResponseWriter, in struct {
 	Name string
-}, req *http.Request) (code int, message string, data interface{}) {
-	return 211, "OK", []interface{}{in.Name, req.RequestURI}
+}, req *http.Request) []string {
+	return []string{in.Name, req.RequestURI}
 }
 
 type echoWsSession struct {
