@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 	"strings"
+	"log"
+	"runtime"
 )
 
 type dbInfo struct {
@@ -17,7 +19,7 @@ type dbInfo struct {
 	DB          string
 	MaxOpens    int
 	MaxIdles    int
-	MaxLifeTime time.Duration
+	MaxLifeTime int
 }
 
 type DB struct {
@@ -44,6 +46,12 @@ func SetEncryptKeys(key, iv []byte) {
 	}
 }
 
+var enabledLogs = true
+
+func EnableLogs(enabled bool) {
+	enabledLogs = enabled
+}
+
 var dbConfigs = make(map[string]dbInfo)
 var dbInstances = make(map[string]*DB)
 
@@ -58,7 +66,9 @@ func GetDB(name string) (*DB, error) {
 
 	conf := dbConfigs[name]
 	if conf.Host == "" {
-		return nil, fmt.Errorf("No db seted for %s", name)
+		err := fmt.Errorf("No db seted for %s", name)
+		logError(err, 0)
+		return nil, err
 	}
 	if conf.Type == "" {
 		conf.Type = "mysql"
@@ -71,6 +81,7 @@ func GetDB(name string) (*DB, error) {
 
 	conn, err := sql.Open(conf.Type, fmt.Sprintf("%s:%s@%s(%s)/%s", conf.User, base.DecryptAes(conf.Password, settedKey, settedIv), connectType, conf.Host, conf.DB))
 	if err != nil {
+		logError(err, 0)
 		return nil, err
 	}
 	db := new(DB)
@@ -82,14 +93,16 @@ func GetDB(name string) (*DB, error) {
 		conn.SetMaxOpenConns(conf.MaxOpens)
 	}
 	if conf.MaxLifeTime > 0 {
-		conn.SetConnMaxLifetime(conf.MaxLifeTime)
+		conn.SetConnMaxLifetime(time.Second*time.Duration(conf.MaxLifeTime))
 	}
 	dbInstances[name] = db
 	return db, err
 }
 
 func (this *DB) Destroy() error {
-	return this.conn.Close()
+	err := this.conn.Close()
+	logError(err, 0)
+	return err
 }
 
 func (this *DB) GetConnection() *sql.DB {
@@ -97,16 +110,21 @@ func (this *DB) GetConnection() *sql.DB {
 }
 
 func (this *Tx) Commit() error {
-	return this.conn.Commit()
+	err := this.conn.Commit()
+	logError(err, 0)
+	return err
 }
 
 func (this *Tx) Rollback() error {
-	return this.conn.Rollback()
+	err := this.conn.Rollback()
+	logError(err, 0)
+	return err
 }
 
 func (this *Stmt) Exec(args ...interface{}) (int64, error) {
 	r, err := this.conn.Exec(args...)
 	if err != nil {
+		logError(err, 0)
 		return 0, err
 	}
 	numChanges, err := r.RowsAffected()
@@ -117,24 +135,29 @@ func (this *Stmt) Exec(args ...interface{}) (int64, error) {
 }
 
 func (this *Stmt) Close() error {
-	return this.conn.Close()
+	err := this.conn.Close()
+	logError(err, 0)
+	return err
 }
 
 func (this *DB) Prepare(requestSql string) (*Stmt, error) {
-	return basePrepare(this.conn, nil, requestSql)
+	stmt, err := basePrepare(this.conn, nil, requestSql)
+	return stmt, err
 }
 func (this *Tx) Prepare(requestSql string) (*Stmt, error) {
-	return basePrepare(nil, this.conn, requestSql)
+	stmt, err := basePrepare(nil, this.conn, requestSql)
+	return stmt, err
 }
 func basePrepare(db *sql.DB, tx *sql.Tx, requestSql string) (*Stmt, error) {
 	var sqlStmt *sql.Stmt
 	var err error
 	if tx != nil {
 		sqlStmt, err = tx.Prepare(requestSql)
-	}else{
+	} else {
 		sqlStmt, err = db.Prepare(requestSql)
 	}
 	if err != nil {
+		logError(err, 1)
 		return nil, err
 	}
 	stmt := new(Stmt)
@@ -145,6 +168,7 @@ func basePrepare(db *sql.DB, tx *sql.Tx, requestSql string) (*Stmt, error) {
 func (this *DB) Begin() (*Tx, error) {
 	sqlTx, err := this.conn.Begin()
 	if err != nil {
+		logError(err, 1)
 		return nil, err
 	}
 	tx := new(Tx)
@@ -163,15 +187,17 @@ func baseExec(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface{}) (i
 	var err error
 	if tx != nil {
 		r, err = tx.Exec(requestSql, args...)
-	}else{
+	} else {
 		r, err = db.Exec(requestSql, args...)
 	}
 
 	if err != nil {
+		logError(err, 1)
 		return 0, err
 	}
 	numChanges, err := r.RowsAffected()
 	if err != nil {
+		logError(err, 1)
 		return 0, nil
 	}
 	return numChanges, nil
@@ -188,15 +214,17 @@ func baseExecInsert(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface
 	var err error
 	if tx != nil {
 		r, err = tx.Exec(requestSql, args...)
-	}else{
+	} else {
 		r, err = db.Exec(requestSql, args...)
 	}
 
 	if err != nil {
+		logError(err, 1)
 		return 0, err
 	}
 	insertId, err := r.LastInsertId()
 	if err != nil {
+		logError(err, 1)
 		return 0, nil
 	}
 	return insertId, nil
@@ -204,33 +232,43 @@ func baseExecInsert(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface
 func (this *Stmt) ExecInsert(args ...interface{}) (int64, error) {
 	r, err := this.conn.Exec(args...)
 	if err != nil {
+		logError(err, 0)
 		return 0, err
 	}
 	insertId, err := r.LastInsertId()
 	if err != nil {
+		logError(err, 0)
 		return 0, nil
 	}
 	return insertId, nil
 }
 
 func (this *DB) Query(results interface{}, requestSql string, args ...interface{}) error {
-	return baseQuery(this.conn, nil, results, requestSql, args...)
+	err := baseQuery(this.conn, nil, results, requestSql, args...)
+	return err
 }
 func (this *Tx) Query(results interface{}, requestSql string, args ...interface{}) error {
-	return baseQuery(nil, this.conn, results, requestSql, args...)
+	err := baseQuery(nil, this.conn, results, requestSql, args...)
+	return err
 }
 func baseQuery(db *sql.DB, tx *sql.Tx, results interface{}, requestSql string, args ...interface{}) error {
 	var rows *sql.Rows
 	var err error
 	if tx != nil {
 		rows, err = tx.Query(requestSql, args...)
-	}else{
+	} else {
 		rows, err = db.Query(requestSql, args...)
 	}
 	if err != nil {
+		logError(err, 1)
 		return err
 	}
-	return makeResults(results, rows)
+	err = makeResults(results, rows)
+	if err != nil {
+		logError(err, 1)
+		return err
+	}
+	return err
 }
 
 func (this *DB) Insert(table string, data interface{}) (int64, error) {
@@ -259,14 +297,16 @@ func baseInsert(db *sql.DB, tx *sql.Tx, table string, data interface{}, useRepla
 	var err error
 	if tx != nil {
 		result, err = tx.Exec(requestSql, values...)
-	}else{
+	} else {
 		result, err = db.Exec(requestSql, values...)
 	}
 	if err != nil {
+		logError(err, 1)
 		return 0, err
 	}
 	lastInsertId, err := result.LastInsertId()
 	if err != nil {
+		logError(err, 1)
 		return 0, nil
 	}
 	return lastInsertId, nil
@@ -281,7 +321,7 @@ func (this *Tx) Update(table string, data interface{}, wheres string, args ...in
 func baseUpdate(db *sql.DB, tx *sql.Tx, table string, data interface{}, wheres string, args ...interface{}) (int64, error) {
 	keys, vars, values := makeKeysVarsValues(data)
 	for i, k := range keys {
-		keys[i] = fmt.Sprintf( "`%s`=%s", k, vars[i] )
+		keys[i] = fmt.Sprintf("`%s`=%s", k, vars[i])
 	}
 	for _, v := range args {
 		values = append(values, v)
@@ -292,17 +332,20 @@ func baseUpdate(db *sql.DB, tx *sql.Tx, table string, data interface{}, wheres s
 	var err error
 	if tx != nil {
 		result, err = tx.Exec(requestSql, values...)
-	}else{
+	} else {
 		result, err = db.Exec(requestSql, values...)
 	}
 	if err != nil {
+		logError(err, 1)
 		return 0, err
 	}
 	if err != nil {
+		logError(err, 1)
 		return 0, err
 	}
 	numChanges, err := result.RowsAffected()
 	if err != nil {
+		logError(err, 1)
 		return 0, nil
 	}
 	return numChanges, nil
@@ -343,7 +386,7 @@ func makeKeysVarsValues(data interface{}) ([]string, []string, []interface{}) {
 				v = v.Elem()
 			}
 			keys = append(keys, k.String())
-			if v.Kind() == reflect.String && []byte(v.String())[0] == ':' {
+			if v.Kind() == reflect.String && v.Len() > 0 && []byte(v.String())[0] == ':' {
 				vars = append(vars, string([]byte(v.String())[1:]))
 			} else {
 				vars = append(vars, "?")
@@ -359,7 +402,8 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 	rowType := reflect.TypeOf(results)
 	resultsValue := reflect.ValueOf(results)
 	if rowType.Kind() != reflect.Ptr {
-		return fmt.Errorf("results must be a pointer")
+		err := fmt.Errorf("results must be a pointer")
+		return err
 	}
 	rowType = rowType.Elem()
 	resultsValue = resultsValue.Elem()
@@ -426,7 +470,6 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 
 		err = rows.Scan(scanValues...)
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 		if rowType.Kind() == reflect.Struct {
@@ -520,4 +563,15 @@ func makeValue(t reflect.Type) interface{} {
 	//if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8{
 	//	return new(string)
 	//}
+}
+
+func logError (err error, skips int){
+	if enabledLogs && err != nil {
+		_, file, lineno, _ := runtime.Caller(skips + 1)
+		_, file2, lineno2, _ := runtime.Caller(skips + 2)
+		_, file3, lineno3, _ := runtime.Caller(skips + 3)
+		_, file4, lineno4, _ := runtime.Caller(skips + 4)
+		_, file5, lineno5, _ := runtime.Caller(skips + 5)
+		log.Printf("DB	%s	%s:%d	%s:%d	%s:%d	%s:%d	%s:%d", err.Error(), file, lineno, file2, lineno2, file3, lineno3, file4, lineno4, file5, lineno5)
+	}
 }
