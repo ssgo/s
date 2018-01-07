@@ -23,15 +23,28 @@ type dbInfo struct {
 }
 
 type DB struct {
-	conn *sql.DB
+	conn  *sql.DB
+	Error error
 }
 
 type Tx struct {
-	conn *sql.Tx
+	conn  *sql.Tx
+	Error error
 }
 
 type Stmt struct {
-	conn *sql.Stmt
+	conn  *sql.Stmt
+	Error error
+}
+
+type QueryResult struct {
+	rows  *sql.Rows
+	Error error
+}
+
+type ExecResult struct {
+	result sql.Result
+	Error  error
 }
 
 var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
@@ -55,9 +68,9 @@ func EnableLogs(enabled bool) {
 var dbConfigs = make(map[string]dbInfo)
 var dbInstances = make(map[string]*DB)
 
-func GetDB(name string) (*DB, error) {
+func GetDB(name string) DB {
 	if dbInstances[name] != nil {
-		return dbInstances[name], nil
+		return *dbInstances[name]
 	}
 
 	if len(dbConfigs) == 0 {
@@ -68,7 +81,7 @@ func GetDB(name string) (*DB, error) {
 	if conf.Host == "" {
 		err := fmt.Errorf("No db seted for %s", name)
 		logError(err, 0)
-		return nil, err
+		return DB{conn: nil, Error: err}
 	}
 	if conf.Type == "" {
 		conf.Type = "mysql"
@@ -82,10 +95,11 @@ func GetDB(name string) (*DB, error) {
 	conn, err := sql.Open(conf.Type, fmt.Sprintf("%s:%s@%s(%s)/%s", conf.User, base.DecryptAes(conf.Password, settedKey, settedIv), connectType, conf.Host, conf.DB))
 	if err != nil {
 		logError(err, 0)
-		return nil, err
+		return DB{conn: nil, Error: err}
 	}
 	db := new(DB)
 	db.conn = conn
+	db.Error = nil
 	if conf.MaxIdles > 0 {
 		conn.SetMaxIdleConns(conf.MaxIdles)
 	}
@@ -93,197 +107,163 @@ func GetDB(name string) (*DB, error) {
 		conn.SetMaxOpenConns(conf.MaxOpens)
 	}
 	if conf.MaxLifeTime > 0 {
-		conn.SetConnMaxLifetime(time.Second*time.Duration(conf.MaxLifeTime))
+		conn.SetConnMaxLifetime(time.Second * time.Duration(conf.MaxLifeTime))
 	}
 	dbInstances[name] = db
-	return db, err
+	return *db
 }
 
 func (this *DB) Destroy() error {
+	if this.conn == nil {
+		return fmt.Errorf("Operat on a bad connection")
+	}
 	err := this.conn.Close()
 	logError(err, 0)
 	return err
 }
 
-func (this *DB) GetConnection() *sql.DB {
+func (this *DB) GetOriginDB() *sql.DB {
+	if this.conn == nil {
+		return nil
+	}
 	return this.conn
 }
 
 func (this *Tx) Commit() error {
+	if this.conn == nil {
+		return fmt.Errorf("Operat on a bad connection")
+	}
 	err := this.conn.Commit()
 	logError(err, 0)
 	return err
 }
 
 func (this *Tx) Rollback() error {
+	if this.conn == nil {
+		return fmt.Errorf("Operat on a bad connection")
+	}
 	err := this.conn.Rollback()
 	logError(err, 0)
 	return err
 }
 
-func (this *Stmt) Exec(args ...interface{}) (int64, error) {
+func (this *Stmt) Exec(args ...interface{}) ExecResult {
+	if this.conn == nil {
+		return ExecResult{Error: fmt.Errorf("Operat on a bad connection")}
+	}
 	r, err := this.conn.Exec(args...)
 	if err != nil {
 		logError(err, 0)
-		return 0, err
+		return ExecResult{Error: err}
 	}
-	numChanges, err := r.RowsAffected()
-	if err != nil {
-		return 0, nil
-	}
-	return numChanges, nil
+	return ExecResult{result: r}
 }
 
 func (this *Stmt) Close() error {
+	if this.conn == nil {
+		return fmt.Errorf("Operat on a bad connection")
+	}
 	err := this.conn.Close()
 	logError(err, 0)
 	return err
 }
 
-func (this *DB) Prepare(requestSql string) (*Stmt, error) {
-	stmt, err := basePrepare(this.conn, nil, requestSql)
-	return stmt, err
+func (this *DB) Prepare(requestSql string) Stmt {
+	return basePrepare(this.conn, nil, requestSql)
 }
-func (this *Tx) Prepare(requestSql string) (*Stmt, error) {
-	stmt, err := basePrepare(nil, this.conn, requestSql)
-	return stmt, err
+func (this *Tx) Prepare(requestSql string) Stmt {
+	return basePrepare(nil, this.conn, requestSql)
 }
-func basePrepare(db *sql.DB, tx *sql.Tx, requestSql string) (*Stmt, error) {
+func basePrepare(db *sql.DB, tx *sql.Tx, requestSql string) Stmt {
 	var sqlStmt *sql.Stmt
 	var err error
 	if tx != nil {
 		sqlStmt, err = tx.Prepare(requestSql)
-	} else {
+	} else if db != nil {
 		sqlStmt, err = db.Prepare(requestSql)
+	} else {
+		return Stmt{Error: fmt.Errorf("Operat on a bad connection")}
 	}
 	if err != nil {
 		logError(err, 1)
-		return nil, err
+		return Stmt{Error: err}
 	}
-	stmt := new(Stmt)
-	stmt.conn = sqlStmt
-	return stmt, nil
+	return Stmt{conn: sqlStmt}
 }
 
-func (this *DB) Begin() (*Tx, error) {
+func (this *DB) Begin() Tx {
+	if this.conn == nil {
+		return Tx{Error: fmt.Errorf("Operat on a bad connection")}
+	}
 	sqlTx, err := this.conn.Begin()
 	if err != nil {
 		logError(err, 1)
-		return nil, err
+		return Tx{Error: nil}
 	}
-	tx := new(Tx)
-	tx.conn = sqlTx
-	return tx, nil
+	return Tx{conn: sqlTx}
 }
 
-func (this *DB) Exec(requestSql string, args ...interface{}) (int64, error) {
+func (this *DB) Exec(requestSql string, args ...interface{}) ExecResult {
 	return baseExec(this.conn, nil, requestSql, args...)
 }
-func (this *Tx) Exec(requestSql string, args ...interface{}) (int64, error) {
+func (this *Tx) Exec(requestSql string, args ...interface{}) ExecResult {
 	return baseExec(nil, this.conn, requestSql, args...)
 }
-func baseExec(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface{}) (int64, error) {
+func baseExec(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface{}) ExecResult {
 	var r sql.Result
 	var err error
 	if tx != nil {
 		r, err = tx.Exec(requestSql, args...)
-	} else {
+	} else if db != nil {
 		r, err = db.Exec(requestSql, args...)
-	}
-
-	if err != nil {
-		logError(err, 1)
-		return 0, err
-	}
-	numChanges, err := r.RowsAffected()
-	if err != nil {
-		logError(err, 1)
-		return 0, nil
-	}
-	return numChanges, nil
-}
-
-func (this *DB) ExecInsert(requestSql string, args ...interface{}) (int64, error) {
-	return baseExecInsert(this.conn, nil, requestSql, args...)
-}
-func (this *Tx) ExecInsert(requestSql string, args ...interface{}) (int64, error) {
-	return baseExecInsert(nil, this.conn, requestSql, args...)
-}
-func baseExecInsert(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface{}) (int64, error) {
-	var r sql.Result
-	var err error
-	if tx != nil {
-		r, err = tx.Exec(requestSql, args...)
 	} else {
-		r, err = db.Exec(requestSql, args...)
+		return ExecResult{Error: fmt.Errorf("Operat on a bad connection")}
 	}
 
 	if err != nil {
 		logError(err, 1)
-		return 0, err
+		return ExecResult{Error: err}
 	}
-	insertId, err := r.LastInsertId()
-	if err != nil {
-		logError(err, 1)
-		return 0, nil
-	}
-	return insertId, nil
-}
-func (this *Stmt) ExecInsert(args ...interface{}) (int64, error) {
-	r, err := this.conn.Exec(args...)
-	if err != nil {
-		logError(err, 0)
-		return 0, err
-	}
-	insertId, err := r.LastInsertId()
-	if err != nil {
-		logError(err, 0)
-		return 0, nil
-	}
-	return insertId, nil
+	return ExecResult{result: r}
 }
 
-func (this *DB) Query(results interface{}, requestSql string, args ...interface{}) error {
-	err := baseQuery(this.conn, nil, results, requestSql, args...)
-	return err
+func (this *DB) Query(requestSql string, args ...interface{}) QueryResult {
+	return baseQuery(this.conn, nil, requestSql, args...)
 }
-func (this *Tx) Query(results interface{}, requestSql string, args ...interface{}) error {
-	err := baseQuery(nil, this.conn, results, requestSql, args...)
-	return err
+func (this *Tx) Query(requestSql string, args ...interface{}) QueryResult {
+	return baseQuery(nil, this.conn, requestSql, args...)
 }
-func baseQuery(db *sql.DB, tx *sql.Tx, results interface{}, requestSql string, args ...interface{}) error {
+func baseQuery(db *sql.DB, tx *sql.Tx, requestSql string, args ...interface{}) QueryResult {
 	var rows *sql.Rows
 	var err error
 	if tx != nil {
 		rows, err = tx.Query(requestSql, args...)
-	} else {
+	} else if db != nil {
 		rows, err = db.Query(requestSql, args...)
+	} else {
+		return QueryResult{Error: fmt.Errorf("Operat on a bad connection")}
 	}
+
 	if err != nil {
 		logError(err, 1)
-		return err
+		return QueryResult{Error: err}
 	}
-	err = makeResults(results, rows)
-	if err != nil {
-		logError(err, 1)
-		return err
-	}
-	return err
+	return QueryResult{rows: rows}
 }
 
-func (this *DB) Insert(table string, data interface{}) (int64, error) {
+func (this *DB) Insert(table string, data interface{}) ExecResult {
 	return baseInsert(this.conn, nil, table, data, false)
 }
-func (this *Tx) Insert(table string, data interface{}) (int64, error) {
+func (this *Tx) Insert(table string, data interface{}) ExecResult {
 	return baseInsert(nil, this.conn, table, data, false)
 }
-func (this *DB) Replace(table string, data interface{}) (int64, error) {
+func (this *DB) Replace(table string, data interface{}) ExecResult {
 	return baseInsert(this.conn, nil, table, data, true)
 }
-func (this *Tx) Replace(table string, data interface{}) (int64, error) {
+func (this *Tx) Replace(table string, data interface{}) ExecResult {
 	return baseInsert(nil, this.conn, table, data, true)
 }
-func baseInsert(db *sql.DB, tx *sql.Tx, table string, data interface{}, useReplace bool) (int64, error) {
+func baseInsert(db *sql.DB, tx *sql.Tx, table string, data interface{}, useReplace bool) ExecResult {
 	keys, vars, values := makeKeysVarsValues(data)
 	var operation string
 	if useReplace {
@@ -297,28 +277,26 @@ func baseInsert(db *sql.DB, tx *sql.Tx, table string, data interface{}, useRepla
 	var err error
 	if tx != nil {
 		result, err = tx.Exec(requestSql, values...)
-	} else {
+	} else if db != nil {
 		result, err = db.Exec(requestSql, values...)
+	} else {
+		return ExecResult{Error: fmt.Errorf("Operat on a bad connection")}
 	}
+
 	if err != nil {
 		logError(err, 1)
-		return 0, err
+		return ExecResult{Error: err}
 	}
-	lastInsertId, err := result.LastInsertId()
-	if err != nil {
-		logError(err, 1)
-		return 0, nil
-	}
-	return lastInsertId, nil
+	return ExecResult{result: result}
 }
 
-func (this *DB) Update(table string, data interface{}, wheres string, args ...interface{}) (int64, error) {
+func (this *DB) Update(table string, data interface{}, wheres string, args ...interface{}) ExecResult {
 	return baseUpdate(this.conn, nil, table, data, wheres, args...)
 }
-func (this *Tx) Update(table string, data interface{}, wheres string, args ...interface{}) (int64, error) {
+func (this *Tx) Update(table string, data interface{}, wheres string, args ...interface{}) ExecResult {
 	return baseUpdate(nil, this.conn, table, data, wheres, args...)
 }
-func baseUpdate(db *sql.DB, tx *sql.Tx, table string, data interface{}, wheres string, args ...interface{}) (int64, error) {
+func baseUpdate(db *sql.DB, tx *sql.Tx, table string, data interface{}, wheres string, args ...interface{}) ExecResult {
 	keys, vars, values := makeKeysVarsValues(data)
 	for i, k := range keys {
 		keys[i] = fmt.Sprintf("`%s`=%s", k, vars[i])
@@ -332,23 +310,107 @@ func baseUpdate(db *sql.DB, tx *sql.Tx, table string, data interface{}, wheres s
 	var err error
 	if tx != nil {
 		result, err = tx.Exec(requestSql, values...)
-	} else {
+	} else if db != nil {
 		result, err = db.Exec(requestSql, values...)
+	} else {
+		return ExecResult{Error: fmt.Errorf("Operat on a bad connection")}
 	}
 	if err != nil {
 		logError(err, 1)
-		return 0, err
+		return ExecResult{Error: err}
 	}
+	return ExecResult{result: result}
+}
+
+func (this *ExecResult) Changes() int64 {
+	if this.result == nil {
+		return 0
+	}
+	numChanges, err := this.result.RowsAffected()
 	if err != nil {
 		logError(err, 1)
-		return 0, err
+		return 0
 	}
-	numChanges, err := result.RowsAffected()
+	return numChanges
+}
+
+func (this *ExecResult) Id() int64 {
+	if this.result == nil {
+		return 0
+	}
+	insertId, err := this.result.LastInsertId()
 	if err != nil {
 		logError(err, 1)
-		return 0, nil
+		return 0
 	}
-	return numChanges, nil
+	return insertId
+}
+
+func (this *QueryResult) To(result interface{}) error {
+	if this.rows == nil {
+		return nil
+	}
+	return makeResults(result, this.rows)
+}
+
+func (this *QueryResult) MapResults() []map[string]interface{} {
+	result := make([]map[string]interface{}, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) SliceResults() [][]interface{} {
+	result := make([][]interface{}, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) StringMapResults() []map[string]string {
+	result := make([]map[string]string, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) StringSliceResults() [][]string {
+	result := make([][]string, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) MapOnR1() map[string]interface{} {
+	result := make(map[string]interface{})
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) SliceOnR1() []interface{} {
+	result := make([]interface{}, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) IntsOnC1() []int64 {
+	result := make([]int64, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) StringsOnC1() []string {
+	result := make([]string, 0)
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) IntOnR1C1() int64 {
+	var result int64 = 0
+	makeResults(&result, this.rows)
+	return result
+}
+
+func (this *QueryResult) StringOnR1C1() string {
+	result := ""
+	makeResults(&result, this.rows)
+	return result
 }
 
 func makeKeysVarsValues(data interface{}) ([]string, []string, []interface{}) {
@@ -565,7 +627,7 @@ func makeValue(t reflect.Type) interface{} {
 	//}
 }
 
-func logError (err error, skips int){
+func logError(err error, skips int) {
 	if enabledLogs && err != nil {
 		_, file, lineno, _ := runtime.Caller(skips + 1)
 		_, file2, lineno2, _ := runtime.Caller(skips + 2)
