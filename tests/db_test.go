@@ -65,11 +65,7 @@ func TestBaseSelect(t *testing.T) {
 	}
 
 	//results5 := make([][]string, 0)
-	r = db.Query(sql)
-	if r.Error != nil {
-		t.Error("Query error", sql, r)
-	}
-	results5 := r.StringSliceResults()
+	results5 := db.Query(sql).StringSliceResults()
 	if results5[0][0] != "1002" || results5[0][1] != "13800000001" {
 		t.Error("Result error", sql, results5, r)
 	}
@@ -285,7 +281,7 @@ func initDB(t *testing.T) *db.DB {
 		return nil
 	}
 
-	finishDB(&db, t)
+	finishDB(db, t)
 	er := db.Exec(`CREATE TABLE IF NOT EXISTS tempUsersForDBTest (
 				id INT NOT NULL AUTO_INCREMENT,
 				name VARCHAR(45) NOT NULL,
@@ -295,7 +291,7 @@ func initDB(t *testing.T) *db.DB {
 	if er.Error != nil {
 		t.Error("Failed to create table", er)
 	}
-	return &db
+	return db
 }
 
 func finishDB(db *db.DB, t *testing.T) {
