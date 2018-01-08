@@ -25,7 +25,8 @@ type redisConfig struct {
 }
 
 type Redis struct {
-	pool *redis.Pool
+	pool  *redis.Pool
+	Error error
 }
 
 var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
@@ -49,9 +50,9 @@ func EnableLogs(enabled bool) {
 var redisConfigs = make(map[string]redisConfig)
 var redisInstances = make(map[string]*Redis)
 
-func GetRedis(name string) (*Redis, error) {
+func GetRedis(name string) *Redis {
 	if redisInstances[name] != nil {
-		return redisInstances[name], nil
+		return redisInstances[name]
 	}
 
 	if len(redisConfigs) == 0 {
@@ -62,7 +63,7 @@ func GetRedis(name string) (*Redis, error) {
 	if conf.Host == "" {
 		err := fmt.Errorf("No redis seted for %s", name)
 		logError(err, 0)
-		return nil, err
+		return &Redis{Error:err}
 	}
 	if conf.DB == 0 {
 		conf.DB = 1
@@ -103,10 +104,13 @@ func GetRedis(name string) (*Redis, error) {
 	redis.pool = conn
 
 	redisInstances[name] = redis
-	return redis, nil
+	return redis
 }
 
 func (this *Redis) Destroy() error {
+	if this.pool == nil {
+		return fmt.Errorf("Operat on a bad redis pool")
+	}
 	err := this.pool.Close()
 	logError(err, 0)
 	return err
@@ -117,10 +121,16 @@ func (this *Redis) GetPool() *redis.Pool {
 }
 
 func (this *Redis) GetConnection() redis.Conn {
+	if this.pool == nil {
+		return nil
+	}
 	return this.pool.Get()
 }
 
 func (this *Redis) Do(cmd string, values ... interface{}) *Result {
+	if this.pool == nil {
+		return &Result{Error:fmt.Errorf("Operat on a bad redis pool")}
+	}
 	conn := this.pool.Get()
 	defer conn.Close()
 	return _do(conn, cmd, values...)
@@ -138,6 +148,7 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 	replyData, err := conn.Do(cmd, values...)
 	if err != nil {
 		logError(err, 1)
+		return &Result{Error:err}
 	}
 
 	r := new(Result)
@@ -169,10 +180,10 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 			i1 := 0
 			i2 := 0
 			for i, v := range realValue {
-				if i % 2 == 0{
+				if i%2 == 0 {
 					r.keys[i1] = string(v.([]byte))
 					i1 ++
-				}else {
+				} else {
 					switch subRealValue := v.(type) {
 					case []byte:
 						r.bytesDatas[i2] = subRealValue
@@ -181,11 +192,12 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 					default:
 						logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
 						r.bytesDatas[i2] = make([]byte, 0)
+						r.Error = err
 					}
 					i2 ++
 				}
 			}
-		}else {
+		} else {
 			r.bytesDatas = make([][]byte, len(realValue))
 			for i, v := range realValue {
 				switch subRealValue := v.(type) {
@@ -196,13 +208,16 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 				default:
 					logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
 					r.bytesDatas[i] = make([]byte, 0)
+					r.Error = err
 				}
 			}
 		}
 	case nil:
 		r.bytesData = []byte{}
 	default:
-		logError(fmt.Errorf("Unknow reply type", cmd, reflect.TypeOf(replyData), replyData), 1)
+		err := fmt.Errorf("Unknow reply type", cmd, reflect.TypeOf(replyData), replyData)
+		r.Error = err
+		logError(err, 1)
 		r.bytesData = make([]byte, 0)
 	}
 	return r

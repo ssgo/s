@@ -14,14 +14,14 @@ type userInfo struct {
 }
 
 func TestBase(t *testing.T) {
-	redis, err := redis.GetRedis("test")
-	if err != nil {
-		t.Error("GetRedis error", err)
+	redis := redis.GetRedis("test")
+	if redis.Error != nil {
+		t.Error("GetRedis error", redis)
 		return
 	}
 
 	r := redis.GET("rtestNotExists")
-	if r.String() != "" || r.Int() != 0 {
+	if r.Error != nil && r.String() != "" || r.Int() != 0 {
 		t.Error("GET NotExists", r, r.String(), r.Int())
 	}
 
@@ -32,7 +32,7 @@ func TestBase(t *testing.T) {
 
 	redis.SET("rtestName", "12345")
 	r = redis.GETSET("rtestName", 12345)
-	if r.String() != "12345" {
+	if r.Error != nil && r.String() != "12345" {
 		t.Error("String", r)
 	}
 	if r.Int() != 12345 {
@@ -51,7 +51,7 @@ func TestBase(t *testing.T) {
 	}
 
 	r = redis.GET("rtestName")
-	if r.String() != "12345" {
+	if r.Error != nil && r.String() != "12345" {
 		t.Error("String", r)
 	}
 	if r.Int() != 12345 {
@@ -63,7 +63,7 @@ func TestBase(t *testing.T) {
 
 	redis.SET("rtestName", 12345.67)
 	r = redis.GET("rtestName")
-	if r.String() != "12345.67" {
+	if r.Error != nil && r.String() != "12345.67" {
 		t.Error("String", r)
 	}
 	if r.Float() != 12345.67 {
@@ -82,7 +82,7 @@ func TestBase(t *testing.T) {
 	r = redis.GET("rtestUser")
 	ru := new(userInfo)
 	r.To(ru)
-	if ru.Name != "aaa" || ru.Id != 123 || !ru.Time.Equal(u.Time) {
+	if r.Error != nil && ru.Name != "aaa" || ru.Id != 123 || !ru.Time.Equal(u.Time) {
 		t.Error("userInfo Struct", ru)
 	}
 
@@ -148,9 +148,9 @@ func TestBase(t *testing.T) {
 
 
 func TestHash(t *testing.T) {
-	redis, err := redis.GetRedis("test")
-	if err != nil {
-		t.Error("GetRedis error", err)
+	redis := redis.GetRedis("test")
+	if redis.Error != nil {
+		t.Error("GetRedis error", redis)
 		return
 	}
 
@@ -229,7 +229,7 @@ func TestHash(t *testing.T) {
 	r = redis.Do("HMGET", "htest", "Name", "User")
 	r1 := make([]string, 0)
 	r.To(&r1)
-	if len(r1) != 2 || r1[0] != "Sam Lee"{
+	if r.Error != nil && len(r1) != 2 || r1[0] != "Sam Lee"{
 		t.Error("HMGET r1", r1)
 	}
 

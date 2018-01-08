@@ -11,6 +11,7 @@ type Result struct {
 	bytesData  []byte
 	keys       []string
 	bytesDatas [][]byte
+	Error      error
 }
 
 func toInt64(s string) int64 {
@@ -156,10 +157,11 @@ func (this *Result) ToValue(t reflect.Type) reflect.Value {
 	return reflect.ValueOf(this.String())
 }
 
-func (this *Result) To(result interface{}) {
+func (this *Result) To(result interface{}) error {
+	var err error = nil
 	if this.bytesData != nil {
 		base.FixUpperCase(this.bytesData)
-		err := json.Unmarshal(this.bytesData, result)
+		err = json.Unmarshal(this.bytesData, result)
 		if err != nil {
 			logError(err, 0)
 		}
@@ -196,4 +198,5 @@ func (this *Result) To(result interface{}) {
 		}
 
 	}
+	return err
 }
