@@ -348,7 +348,7 @@ func (this *ExecResult) Id() int64 {
 
 func (this *QueryResult) To(result interface{}) error {
 	if this.rows == nil {
-		return nil
+		return fmt.Errorf("Operat on a bad query")
 	}
 	return makeResults(result, this.rows)
 }
