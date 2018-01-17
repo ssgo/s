@@ -39,8 +39,8 @@ var outFilters = make([]func(*map[string]interface{}, *map[string]string, *http.
 var webAuthChecker func(uint, *string, *map[string]interface{}, *map[string]string) bool
 
 // 注册服务
-func Register(authLevel uint, name string, service interface{}) {
-	s, err := makeCachedService(service)
+func Register(authLevel uint, name string, serviceFunc interface{}) {
+	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		log.Printf("ERROR	%s	%s	", name, err)
 		return
@@ -75,7 +75,7 @@ func SetOutFilter(filter func(in *map[string]interface{}, headers *map[string]st
 	outFilters = append(outFilters, filter)
 }
 
-func RegisterWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {
+func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {
 	webAuthChecker = authChecker
 }
 

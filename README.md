@@ -146,7 +146,7 @@ export SERVICE_CALLS_NEWS_ACCESSTOKEN=real_token
 
 ```go
 // 注册服务
-func Register(authLevel uint, name string, service interface{}) {}
+func Register(authLevel uint, name string, serviceFunc interface{}) {}
 
 // 注册以正则匹配的服务
 func RegisterByRegex(name string, service interface{}){}
@@ -158,7 +158,7 @@ func SetInFilter(filter func(in *map[string]interface{}, headers *map[string]str
 func SetOutFilter(filter func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {}
 
 // 注册身份认证模块
-func RegisterWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {}
+func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {}
 
 // 启动HTTP/1.1服务
 func Start1() {}
@@ -193,7 +193,7 @@ func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
 func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, action interface{}) {}
 
 // 注册针对 Action 的认证模块
-func RegisterWebsocketActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {}
+func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {}
 
 ```
 

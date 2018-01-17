@@ -129,7 +129,7 @@ func startDiscover(addr string) bool {
 	if isService {
 		// 设置默认的AuthChecker
 		if webAuthChecker == nil {
-			RegisterWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
+			SetWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
 				//log.Println(" ***** ", (*headers)["AccessToken"], config.AccessTokens[(*headers)["AccessToken"]], authLevel)
 				return config.AccessTokens[(*headers)["AccessToken"]] >= authLevel
 			})

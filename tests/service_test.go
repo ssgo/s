@@ -118,7 +118,7 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2)
 	s.Register(2, "/echo2", Echo2)
 
-	s.RegisterWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
+	s.SetWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
 		token, ok := (*headers)["Token"]
 		if !ok {
 			return false

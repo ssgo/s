@@ -174,7 +174,7 @@ func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, acti
 	ar.websocketServiceType.actions[actionName] = a
 }
 
-func RegisterWebsocketActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {
+func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {
 	webSocketActionAuthChecker = authChecker
 }
 
