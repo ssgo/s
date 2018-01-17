@@ -59,13 +59,24 @@ func GetRedis(name string) *Redis {
 		base.LoadConfig("redis", &redisConfigs)
 	}
 
+	fullName := name
+	specialDB := -1
+	pos := strings.LastIndexByte(name, ':')
+	if pos != -1 {
+		var err error
+		specialDB, err = strconv.Atoi(name[pos+1:])
+		if err != nil{
+			specialDB = -1
+		}
+		name = name[0:pos]
+	}
 	conf := redisConfigs[name]
 	if conf.Host == "" {
-		err := fmt.Errorf("No redis seted for %s", name)
-		logError(err, 0)
-		return &Redis{Error:err}
+		conf.Host = "127.0.0.1:6379"
 	}
-	if conf.DB == 0 {
+	if specialDB >= 0{
+		conf.DB = specialDB
+	}else if conf.DB == 0 {
 		conf.DB = 1
 	}
 	if conf.ConnTimeout == 0 {
@@ -103,35 +114,38 @@ func GetRedis(name string) *Redis {
 	redis := new(Redis)
 	redis.pool = conn
 
-	redisInstances[name] = redis
+	redisInstances[fullName] = redis
 	return redis
 }
 
-func (this *Redis) Destroy() error {
-	if this.pool == nil {
+func (rd *Redis) Destroy() error {
+	if rd.pool == nil {
 		return fmt.Errorf("Operat on a bad redis pool")
 	}
-	err := this.pool.Close()
+	err := rd.pool.Close()
 	logError(err, 0)
 	return err
 }
 
-func (this *Redis) GetPool() *redis.Pool {
-	return this.pool
+func (rd *Redis) GetPool() *redis.Pool {
+	return rd.pool
 }
 
-func (this *Redis) GetConnection() redis.Conn {
-	if this.pool == nil {
+func (rd *Redis) GetConnection() redis.Conn {
+	if rd.pool == nil {
 		return nil
 	}
-	return this.pool.Get()
+	return rd.pool.Get()
 }
 
-func (this *Redis) Do(cmd string, values ... interface{}) *Result {
-	if this.pool == nil {
-		return &Result{Error:fmt.Errorf("Operat on a bad redis pool")}
+func (rd *Redis) Do(cmd string, values ... interface{}) *Result {
+	if rd.pool == nil {
+		return &Result{Error: fmt.Errorf("Operat on a bad redis pool")}
 	}
-	conn := this.pool.Get()
+	conn := rd.pool.Get()
+	if conn.Err() != nil {
+		return &Result{Error: conn.Err()}
+	}
 	defer conn.Close()
 	return _do(conn, cmd, values...)
 }
@@ -148,7 +162,7 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 	replyData, err := conn.Do(cmd, values...)
 	if err != nil {
 		logError(err, 1)
-		return &Result{Error:err}
+		return &Result{Error: err}
 	}
 
 	r := new(Result)

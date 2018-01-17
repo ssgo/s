@@ -1,6 +1,6 @@
 package redis
 
-func convertStringsToInterfaces(in []string) []interface{}{
+func StringsToInterfaces(in []string) []interface{}{
 	a := make([]interface{}, len(in))
 	for i, v := range in {
 		a[i] = v
@@ -9,7 +9,7 @@ func convertStringsToInterfaces(in []string) []interface{}{
 }
 
 func (this *Redis) DEL(keys... string) int {
-	return this.Do("DEL", convertStringsToInterfaces(keys)...).Int()
+	return this.Do("DEL", StringsToInterfaces(keys)...).Int()
 }
 func (this *Redis) EXISTS(key string) bool {
 	return this.Do("EXISTS", key).Bool()
@@ -41,8 +41,15 @@ func (this *Redis) GETSET(key string, value interface{}) *Result {
 	return this.Do("GETSET", key, value)
 }
 
+func (this *Redis) INCR(key string) int64 {
+	return this.Do("INCR", key).Int64()
+}
+func (this *Redis) DECR(key string) int64 {
+	return this.Do("DECR", key).Int64()
+}
+
 func (this *Redis) MGET(keys... string) []Result {
-	return this.Do("MGET", convertStringsToInterfaces(keys)...).Results()
+	return this.Do("MGET", StringsToInterfaces(keys)...).Results()
 }
 func (this *Redis) MSET(keyAndValues... interface{}) bool {
 	return this.Do("MSET", keyAndValues...).Bool()
@@ -58,7 +65,7 @@ func (this *Redis) HSETNX(key, field string, value interface{}) bool {
 	return this.Do("HSETNX", key, field, value).Bool()
 }
 func (this *Redis) HMGET(key string, fields... string) []Result {
-	return this.Do("HMGET", append(append([]interface{}{}, key), convertStringsToInterfaces(fields)...)...).Results()
+	return this.Do("HMGET", append(append([]interface{}{}, key), StringsToInterfaces(fields)...)...).Results()
 }
 func (this *Redis) HGETALL(key string) map[string]*Result {
 	return this.Do("HGETALL", key).ResultMap()
@@ -71,6 +78,9 @@ func (this *Redis) HKEYS(key string) []string {
 }
 func (this *Redis) HLEN(key string) int {
 	return this.Do("HLEN", key).Int()
+}
+func (this *Redis) HDEL(key string, fields... string) int {
+	return this.Do("HDEL", append(append([]interface{}{}, key), StringsToInterfaces(fields)...)...).Int()
 }
 func (this *Redis) HEXISTS(key, field string) bool {
 	return this.Do("HEXISTS", key, field).Bool()
