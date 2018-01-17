@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	s.Register("/", userServices.Index)
-	s.Register("/login", userServices.Login)
+	s.Register(0, "/", userServices.Index)
+	s.Register(0, "/login", userServices.Login)
 }
 
 func TestIndex(tt *testing.T) {
@@ -23,16 +23,16 @@ func TestIndex(tt *testing.T) {
 }
 
 
-func TestLoginOK(tt *testing.T) {
+func T1estLoginOK(tt *testing.T) {
 	t := s.T(tt)
 
 	s.SetTestHeader("ClientId", "aabbcc")
 	s.StartTestService()
 	defer s.StopTestService()
 
-	code, _, result := s.TestService("/login", s.Map{
+	r := s.TestService("/login", s.Map{
 		"account": "admin",
 		"password": "admin123",
-	})
-	t.Test( code == 200 && result.(bool) == true, "Login", result)
+	}).(map[string]interface{})
+	t.Test( r["code"].(float64) == 200 && r["ok"].(bool) == true, "Login", r)
 }

@@ -6,6 +6,6 @@ import (
 )
 
 func main(){
-	s.Register("/", userServices.Index)
+	s.Register(0, "/", userServices.Index)
 	s.Start()
 }

@@ -1,3 +1,24 @@
 {
-    "listen": ":8001"
+  "listen": ":8001",
+  "timeout": 5000,
+  "RwTimeout": 5000,
+  "KeepaliveTimeout": 5000,
+  "CallTimeout": 5000,
+  "logFile": "",
+  "certFile": "",
+  "keyFile": "",
+
+  "registry": "discover:15",
+  "registryPrefix": "DC_",
+  "app": "demo",
+  "weight": 1,
+  "AccessTokens": {
+    "hasfjlkdlasfsa": 1,
+    "fdasfsadfdsa": 2,
+    "9ifjjabdsadsa": 2
+  },
+  "calls": {
+    "user": {}
+    "news": {"AccessToken": "hasfjlkdlasfsa", "Timeout": 5000}
+  }
 }

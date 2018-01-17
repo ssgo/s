@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	s.Register("/login", userServices.Login)
+	s.Register(0, "/login", userServices.Login)
 }
 
 func TestLoginWithoutClientId(tt *testing.T) {
@@ -16,8 +16,9 @@ func TestLoginWithoutClientId(tt *testing.T) {
 	s.StartTestService()
 	defer s.StopTestService()
 
-	code, message, result := s.TestService("/login", nil)
-	t.Test( code == 403 && message == "Not a valid client" && result.(bool) == false, "Login", code, message, result)
+	r := s.TestService("/login", nil).(map[string]interface{})
+
+	t.Test( r["code"].(float64) == 403 && r["ok"].(bool) == false, "Login", r)
 }
 
 func TestLoginWithBadPassword(tt *testing.T) {
@@ -27,9 +28,9 @@ func TestLoginWithBadPassword(tt *testing.T) {
 	s.StartTestService()
 	defer s.StopTestService()
 
-	code, message, result := s.TestService("/login", s.Map{
+	r := s.TestService("/login", s.Map{
 		"account": "admin",
 		"password": "xxx",
-	})
-	t.Test( code == 403 && message == "No Access" && result.(bool) == false, "Login", code, message, result)
+	}).(map[string]interface{})
+	t.Test( r["code"].(float64) == 403 && r["ok"].(bool) == false, "Login", r)
 }

@@ -1,27 +1,41 @@
 package s
 
 import (
-	"net/http"
-	"io/ioutil"
-	"net/http/httptest"
-	"encoding/json"
 	"bytes"
-	"testing"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 )
 
 var testServer *httptest.Server
 var testHeaders = make(map[string]string)
-func StartTestService() *httptest.Server{
+
+func StartTestService() *httptest.Server {
 	testServer = httptest.NewServer(http.Handler(&routeHandler{}))
 	//if recordLogs {fmt.Println()}
 	//fmt.Println("Start test service\n")
 	return testServer
 }
 
-func SetTestHeader(k string, v string){
+func SetTestHeader(k string, v string) {
 	testHeaders[k] = v
+}
+
+func ResetAllSets() {
+	webServices = make(map[string]*webServiceType)
+	regexWebServices = make(map[string]*webServiceType)
+	inFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter) interface{}, 0)
+	outFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
+
+	websocketServices = make(map[string]*websocketServiceType)
+	regexWebsocketServices = make(map[string]*websocketServiceType)
+	webAuthChecker = nil
+	webSocketActionAuthChecker = nil
+	recordLogs = true
 }
 
 func testRequest(method string, path string, body []byte) (*http.Response, []byte, error) {
@@ -108,11 +122,11 @@ func (t *Testing) Test(tests bool, comment string, addons ...interface{}) {
 		if t.tt != nil {
 			t.tt.Error(comment, addons)
 			panic(comment)
-		}else if t.tb != nil {
+		} else if t.tb != nil {
 			t.tb.Error(comment, addons)
 			panic(comment)
 		}
-	}else{
+	} else {
 		fmt.Println("  \x1b[0;42m成功\x1b[0m", comment)
 	}
 }

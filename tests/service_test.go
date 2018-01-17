@@ -3,15 +3,16 @@ package tests
 import (
 	"testing"
 	".."
-	"fmt"
+	"net/http"
 )
 
 func TestEchos(tt *testing.T) {
 	t := s.T(tt)
 
-	s.Register("/echo1", Echo1)
-	s.Register("/echo2", Echo2)
-	s.Register("/echo3", Echo3)
+	s.ResetAllSets()
+	s.Register(0, "/echo1", Echo1)
+	s.Register(0, "/echo2", Echo2)
+	s.Register(0, "/echo3", Echo3)
 	s.SetTestHeader("Cid", "test-client")
 
 	s.StartTestService()
@@ -56,7 +57,8 @@ func TestEchos(tt *testing.T) {
 
 func TestFilters(tt *testing.T) {
 	t := s.T(tt)
-	s.Register("/echo2", Echo2)
+	s.ResetAllSets()
+	s.Register(0, "/echo2", Echo2)
 
 	s.StartTestService()
 	defer s.StopTestService()
@@ -66,16 +68,16 @@ func TestFilters(tt *testing.T) {
 	d, _ := data.(map[string]interface{})
 	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", data)
 
-	s.SetInFilter(func(in map[string]interface{}) interface{} {
-		in["filterTag"] = "Abc"
-		in["filterTag2"] = 1000
+	s.SetInFilter(func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter) interface{} {
+		(*in)["filterTag"] = "Abc"
+		(*in)["filterTag2"] = 1000
 		return nil
 	})
 	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
 	d, _ = data.(map[string]interface{})
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", data)
 
-	s.SetOutFilter(func(in map[string]interface{}, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
 		data.FilterTag2 = data.FilterTag2 + 100
 		return data, false
@@ -85,11 +87,11 @@ func TestFilters(tt *testing.T) {
 	d, _ = data.(map[string]interface{})
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", data)
 
-	s.SetOutFilter(func(in map[string]interface{}, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
-		fmt.Println(" ***************", data.FilterTag2 + 100)
+		//fmt.Println(" ***************", data.FilterTag2+100)
 		return s.Map{
-			"filterTag":  in["filterTag"],
+			"filterTag":  (*in)["filterTag"],
 			"filterTag2": data.FilterTag2 + 100,
 		}, true
 	})
@@ -98,11 +100,10 @@ func TestFilters(tt *testing.T) {
 	d, _ = data.(map[string]interface{})
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", data)
 
-
-	s.SetInFilter(func(in map[string]interface{}) (interface{}) {
+	s.SetInFilter(func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter) (interface{}) {
 		return echo2Args{
-			FilterTag:  in["filterTag"].(string),
-			FilterTag2: in["filterTag2"].(int) + 100,
+			FilterTag:  (*in)["filterTag"].(string),
+			FilterTag2: (*in)["filterTag2"].(int) + 100,
 		}
 	})
 	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
@@ -110,9 +111,60 @@ func TestFilters(tt *testing.T) {
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1300, "[Test InFilter 3] Response", data)
 }
 
+func TestAuth(tt *testing.T) {
+	t := s.T(tt)
+	s.ResetAllSets()
+	s.Register(0, "/echo0", Echo2)
+	s.Register(1, "/echo1", Echo2)
+	s.Register(2, "/echo2", Echo2)
+
+	s.RegisterWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
+		token, ok := (*headers)["Token"]
+		if !ok {
+			return false
+		}
+		switch authLevel {
+		case 1:
+			return token == "aaa" || token == "bbb"
+		case 2:
+			return token == "bbb"
+		}
+		return false
+	})
+
+	s.StartTestService()
+	defer s.StopTestService()
+	s.EnableLogs(false)
+
+	r, _, _ := s.TestGet("/echo0")
+	t.Test(r.StatusCode == 200, "Test0", r.StatusCode)
+
+	r, _, _ = s.TestGet("/echo1")
+	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+
+	s.SetTestHeader("Token", "aaa")
+	r, _, _ = s.TestGet("/echo1")
+	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+
+	r, _, _ = s.TestGet("/echo2")
+	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+
+	s.SetTestHeader("Token", "xxx")
+	r, _, _ = s.TestGet("/echo1")
+	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+
+	s.SetTestHeader("Token", "bbb")
+	r, _, _ = s.TestGet("/echo1")
+	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+
+	r, _, _ = s.TestGet("/echo2")
+	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+}
+
 func BenchmarkEchosForStruct(tb *testing.B) {
 	tb.StopTimer()
-	s.Register("/echo1", Echo1)
+	s.ResetAllSets()
+	s.Register(0, "/echo1", Echo1)
 	s.EnableLogs(false)
 
 	s.StartTestService()
@@ -137,7 +189,8 @@ func BenchmarkEchosForStruct(tb *testing.B) {
 
 func BenchmarkEchosForMap(tb *testing.B) {
 	tb.StopTimer()
-	s.Register("/echo2", Echo2)
+	s.ResetAllSets()
+	s.Register(0, "/echo2", Echo2)
 	s.EnableLogs(false)
 	s.SetTestHeader("Cid", "test-client")
 

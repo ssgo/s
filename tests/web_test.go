@@ -4,14 +4,15 @@ import (
 	"testing"
 	".."
 	"net/http"
+	"os"
 )
 
 func Welcome(in struct{}) string {
 	return "Hello World!"
 }
 
-func WelcomePicture(in struct{PicName string}, response http.ResponseWriter) []byte {
-	response.Header().Set("Content-Type", "image/png")
+func WelcomePicture(in struct{ PicName string }, response *http.ResponseWriter) []byte {
+	(*response).Header().Set("Content-Type", "image/png")
 	pic := make([]byte, 5)
 	bytePicName := []byte(in.PicName)
 	pic[0] = 1
@@ -22,25 +23,41 @@ func WelcomePicture(in struct{PicName string}, response http.ResponseWriter) []b
 	return pic
 }
 
-func TestWelcome(tt *testing.T) {
+func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 
 	s.ResetAllSets()
-	s.Register("/", Welcome)
-	s.EnableLogs(false)
+	s.Register(0, "/", Welcome)
+	os.Setenv("SERVICE_LISTEN", ":12881")
+	go s.Start1()
+	defer s.Stop()
 
-	s.StartTestService()
-	defer s.StopTestService()
+	c := s.GetClient1()
+	r := c.Do("http://localhost:12881", nil)
+	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
+	t.Test(r.Response.Proto == "HTTP/1.1", "Welcome HTTP/1.1", r.Error, r.Response.Proto)
+}
 
-	_, result, err := s.TestGet("/")
-	t.Test(err == nil && string(result) == "Hello World!", "Welcome", string(result), err)
+func TestWelcomeWithHttp2(tt *testing.T) {
+	t := s.T(tt)
+
+	s.ResetAllSets()
+	s.Register(0, "/", Welcome)
+	os.Setenv("SERVICE_LISTEN", ":12882")
+	go s.Start()
+	defer s.Stop()
+
+	c := s.GetClient()
+	r := c.Do("http://localhost:12882", nil)
+	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
+	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)
 }
 
 func TestWelcomePicture(tt *testing.T) {
 	t := s.T(tt)
 
 	s.ResetAllSets()
-	s.Register("/w/{picName}.png", WelcomePicture)
+	s.Register(0, "/w/{picName}.png", WelcomePicture)
 	s.EnableLogs(false)
 
 	s.StartTestService()

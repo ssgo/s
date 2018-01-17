@@ -11,8 +11,8 @@ func TestEchoWS(tt *testing.T) {
 	t := s.T(tt)
 
 	s.ResetAllSets()
-	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
+	echoAR.RegisterAction(0, "", OnEchoMessage)
 	s.EnableLogs(false)
 
 	serv := s.StartTestService()
@@ -21,36 +21,39 @@ func TestEchoWS(tt *testing.T) {
 	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
 
-	r := make(map[string]interface{})
+	r := make([]interface{}, 0)
 	err = c.ReadJSON(&r)
 	t.Test(err == nil, "Read welcome", err)
-	t.Test(r["action"] == "welcome" && r["token"] == "abc-123" && r["roomId"].(float64) == 99 && r["oldAge"].(float64) == 1, "Welcome", r, c, err)
+	action, ok := r[0].(string)
+	t.Test(ok, "Read welcome", err)
+	data, ok := r[1].(map[string]interface{})
+	t.Test(ok, "Read welcome", err)
+
+	t.Test(action == "welcome" && data["token"] == "abc-123" && data["roomId"].(float64) == 99 && data["oldAge"].(float64) == 1, "Welcome", r, c, err)
 
 	oldAge := 1
 	for newAge := 10; newAge < 12; newAge++ {
-		err = c.WriteJSON(s.Map{
-			"action": "echo",
-			"age":    newAge,
-		})
+		err = c.WriteJSON(s.Arr{"echo", s.Map{"age": newAge}})
 		t.Test(err == nil, "Send age", err)
 
 		err = c.ReadJSON(&r)
 		t.Test(err == nil, "Read age", err)
+		action, ok := r[0].(string)
+		t.Test(ok, "Read age", err)
+		data, ok := r[1].(map[string]interface{})
+		t.Test(ok, "Read age", err)
 
-		t.Test(r["action"] == "echo" && int(r["oldAge"].(float64)) == oldAge && int(r["newAge"].(float64)) == newAge, "Echo age back", r, c, err)
+		t.Test(action == "echo" && int(data["oldAge"].(float64)) == oldAge && int(data["newAge"].(float64)) == newAge, "Echo age back", r, oldAge, newAge, err)
 		oldAge = newAge
 	}
 	c.Close()
-
-	//time.Sleep(time.Millisecond * 10)
-	//tt.FailNow()
 }
 
 func BenchmarkWSEcho(b *testing.B) {
 	b.StopTimer()
 	s.ResetAllSets()
-	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
+	echoAR.RegisterAction(0, "", OnEchoMessage)
 	s.EnableLogs(false)
 	serv := s.StartTestService()
 	defer s.StopTestService()
@@ -82,7 +85,7 @@ func BenchmarkWSEcho(b *testing.B) {
 				continue
 			}
 
-			r := make(map[string]interface{})
+			r := make([]interface{}, 0)
 			err = c.ReadJSON(&r)
 			if err != nil {
 				b.Error("Read welcome error", err)
@@ -91,17 +94,16 @@ func BenchmarkWSEcho(b *testing.B) {
 
 			oldAge := 1
 			for newAge := 10; newAge < 210; newAge++ {
-				err = c.WriteJSON(s.Map{
-					"action": "echo",
-					"age":    newAge,
-				})
+				err = c.WriteJSON(s.Arr{"echo", s.Map{"age": newAge}})
 
 				if err != nil {
 					b.Error("Send echo error", err)
 					continue
 				}
 				err = c.ReadJSON(&r)
-				if err != nil && r["action"] == "echo" && int(r["oldAge"].(float64)) == oldAge && int(r["newAge"].(float64)) == newAge {
+				action := r[0].(string)
+				data := r[1].(map[string]interface{})
+				if err != nil && action == "echo" && int(data["oldAge"].(float64)) == oldAge && int(data["newAge"].(float64)) == newAge {
 					b.Error("Read echo error", err)
 					continue
 				}
@@ -121,8 +123,8 @@ func BenchmarkWSEcho(b *testing.B) {
 func BenchmarkWSEchoAction(b *testing.B) {
 	b.StopTimer()
 	s.ResetAllSets()
-	s.RegisterWebsocket("/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder)
-	s.RegisterWebsocketAction("/echoService/{token}/{roomId}", "", OnEchoMessage)
+	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
+	echoAR.RegisterAction(0, "", OnEchoMessage)
 	s.EnableLogs(false)
 	serv := s.StartTestService()
 	defer s.StopTestService()
@@ -134,7 +136,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 		return
 	}
 
-	r := make(map[string]interface{})
+	r := make([]interface{}, 0)
 	err = c.ReadJSON(&r)
 	if err != nil {
 		b.Error("Read welcome error", err)
@@ -143,27 +145,23 @@ func BenchmarkWSEchoAction(b *testing.B) {
 	b.StartTimer()
 
 	oldAge := 1
-	for newAge:=0; newAge<b.N; newAge++ {
-		err = c.WriteJSON(s.Map{
-			"action": "echo",
-			"age":    newAge,
-		})
+	for newAge := 0; newAge < b.N; newAge++ {
+		err = c.WriteJSON(s.Arr{"echo", s.Map{"age": newAge}})
 
 		if err != nil {
 			b.Error("Send echo error", err)
 			continue
 		}
 		err = c.ReadJSON(&r)
-		if err != nil && r["action"] != "echo" && int(r["oldAge"].(float64)) != oldAge && int(r["newAge"].(float64)) != newAge {
+		action := r[0].(string)
+		data := r[1].(map[string]interface{})
+		if err != nil && action != "echo" && int(data["oldAge"].(float64)) != oldAge && int(data["newAge"].(float64)) != newAge {
 			b.Log(r)
 			b.Error("Read echo error", err)
 			continue
 		}
 		//oldAge = newAge
 	}
-
-
-
 
 	err = c.Close()
 	if err != nil {

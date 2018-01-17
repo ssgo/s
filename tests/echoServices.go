@@ -3,7 +3,7 @@ package tests
 import (
 	"net/http"
 	"github.com/gorilla/websocket"
-	".."
+	"fmt"
 )
 
 type echo1Args struct {
@@ -28,9 +28,11 @@ type echo2Args struct {
 	FilterTag2 int
 }
 
-
-
-func Echo1(in echo1Args, headers struct{ Cid string }) (out struct{In echo1Args; Headers struct{ Cid string }}) {
+func Echo1(in echo1Args, headers struct{ Cid string }) (out struct {
+	In      echo1Args
+	Headers struct{ Cid string }
+}) {
+	//c.Call("lesson", "/getList", s.Map{"id": 100})
 	out.In = in
 	out.Headers = headers
 	return
@@ -67,51 +69,45 @@ func OnEchoOpen(in struct {
 	sess.UserInfo.Age = 1
 	sess.RoomId = in.RoomId
 
-	client.WriteJSON(s.Map{
-		"action": "welcome",
+	client.WriteJSON(EchoEncoder("welcome", map[string]interface{}{
 		"token":  in.Token,
 		"roomId": in.RoomId,
 		"oldAge": sess.UserInfo.Age,
-	})
+	}))
 	return sess
+}
+
+type echoAgeData struct{
+	OldAge int
+	NewAge int
 }
 func OnEchoMessage(in struct {
 	Action string
 	Age    int
-}, client *websocket.Conn, sess *echoWsSession) {
-	//sess.Lock.Lock()
-	client.WriteJSON(s.Map{
-		"action": "echo",
-		"oldAge": sess.UserInfo.Age,
-		"newAge": in.Age,
-	})
-	//sess.Lock.Unlock()
+}, client *websocket.Conn, sess *echoWsSession) (string, *echoAgeData) {
+	oldAge := sess.UserInfo.Age
 	sess.UserInfo.Age = in.Age
+	return "echo", &echoAgeData{
+		OldAge: oldAge,
+		NewAge: in.Age,
+	}
 }
 
 func OnEchoClose(client *websocket.Conn, sess *echoWsSession) {
 }
 
-func EchoDecoder(srcData *interface{}) (string, map[string]interface{}, error) {
-	dstData := (*srcData).(map[string]interface{})
-	return dstData["action"].(string), dstData, nil
+func EchoDecoder(srcData interface{}) (string, *map[string]interface{}, error) {
+	var a []interface{}
+	var m map[string]interface{}
+	var ok bool
+	if a, ok = srcData.([]interface{}); ok {
+		if m, ok = a[1].(map[string]interface{}); ok {
+			return a[0].(string), &m, nil
+		}
+	}
+	return "", nil, fmt.Errorf("in data err	%s", fmt.Sprint(srcData))
 }
 
-//func EchoWS(in struct {
-//	HttpRequestPath string
-//	client *websocket.Conn
-//}){
-//	log.Println(in.HttpRequestPath)
-//	for {
-//		_, message, err := in.client.ReadMessage()
-//		if err != nil {
-//			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-//				log.Printf("error: %v", err)
-//			}
-//			break
-//		}
-//		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-//		c.hub.broadcast <- message
-//	}
-//	return 211, "OK", []interface{}{in.Name, in.RedisPool, in.HttpRequestPath, in.HttpRequest.RequestURI}
-//}
+func EchoEncoder(action string, data interface{}) interface{} {
+	return []interface{}{action,data}
+}
