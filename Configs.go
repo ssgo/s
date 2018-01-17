@@ -42,14 +42,16 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 		if v.CanSet() {
 			newValue := reflect.New(t)
 			err := json.Unmarshal([]byte(ev), newValue.Interface())
-			if err == nil {
+			if err != nil && t.Kind() == reflect.String {
+				v.SetString(ev)
+			}else if err == nil {
 				v.Set(newValue.Elem())
 			} else {
-				log.Println("base.makeEnvConfig", prefix, ev, err)
+				log.Println("LoadConfig", prefix, ev, err)
 			}
 			return
 		} else {
-			log.Println("base.makeEnvConfig", prefix, ev, "Can't set config for interface{}")
+			log.Println("LoadConfig", prefix, ev, "Can't set config for interface{}")
 		}
 	}
 

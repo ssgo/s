@@ -67,7 +67,7 @@ func TestForStructWithBadEnv(t *testing.T) {
 	if err != nil {
 		t.Error("read test.json failed", err)
 	}
-	if testConf.Name != "test-config" {
+	if testConf.Name != "ttt" {
 		t.Error("name in test.json failed", testConf.Name)
 	}
 	if len(testConf.Sets) != 3 || testConf.Sets[1] != 2 {

@@ -3,6 +3,8 @@ package base
 import (
 	".."
 	"testing"
+	"time"
+	"math/rand"
 )
 
 func TestAes(t *testing.T) {
@@ -18,4 +20,18 @@ func TestAes(t *testing.T) {
 		t.Error("Decrypt failed", encrypted, decrypted)
 	}
 
+	i := uint64(time.Now().UnixNano())
+	s := base.EncodeInt(i)
+	r := base.DecodeInt(s)
+	if r != i{
+		t.Error("Encode/Decode Int failed", i, s, r)
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	i = rand.Uint64()
+	s = base.EncodeInt(i)
+	r = base.DecodeInt(s)
+	if r != i{
+		t.Error("Encode/Decode Int failed", i, s, r)
+	}
 }
