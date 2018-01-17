@@ -1,6 +1,5 @@
 {
   "listen": ":8001",
-  "timeout": 5000,
   "RwTimeout": 5000,
   "KeepaliveTimeout": 5000,
   "CallTimeout": 5000,

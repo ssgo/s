@@ -63,7 +63,6 @@ var webSocketActionAuthChecker func(uint, *string, *string, *map[string]interfac
 // 注册Websocket服务
 func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
 	onOpen interface{},
-	//onMessage func(*websocket.Conn, []byte),
 	onClose interface{},
 	decoder func(data interface{}) (action string, request *map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
