@@ -43,14 +43,6 @@ var config = struct {
 	}
 }{}
 
-//"discover": "localhost:9000",
-//"app": "homework",
-//"weight": 1,
-//"targetApps": [
-//"lesson",
-//"learning"
-//]
-
 func init() {
 	base.LoadConfig("service", &config)
 
@@ -83,6 +75,7 @@ func Start() {
 
 func AsyncStart() string {
 	startChan := make(chan string)
+	stopChan = make(chan bool)
 	go start(2, startChan)
 	return <-startChan
 }
@@ -93,22 +86,28 @@ func Stop() {
 	}
 }
 
-var stopChan = make(chan bool)
+var stopChan chan bool
 
 func WaitForAsync() {
-	<-stopChan
+	if stopChan != nil {
+		<-stopChan
+	}
 }
 
 var listener net.Listener
-
+var serverAddr string
 func start(httpVersion int, startChan chan string) error {
 	base.LoadConfig("service", &config)
 	if config.Discover == "" {
 		config.Discover = "discover:15"
 	}
 
-	if config.DiscoverPrefix == "" {
-		config.DiscoverPrefix = "DC_"
+	if config.CallTimeout <= 0 {
+		config.CallTimeout = 10000
+	}
+
+	if config.Weight <= 0 {
+		config.Weight = 1
 	}
 
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)
@@ -157,16 +156,16 @@ func start(httpVersion int, startChan chan string) error {
 			}
 		}
 	}
-	addr := fmt.Sprintf("%s:%d", ip.String(), port)
+	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
-	if startDiscover(addr) == false {
+	if startDiscover(serverAddr) == false {
 		log.Printf("SERVER	Failed to start discover")
 	}
 
-	log.Printf("SERVER	[%s]	Started", addr)
+	log.Printf("SERVER	%s	Started", serverAddr)
 
 	if startChan != nil {
-		startChan <- addr
+		startChan <- serverAddr
 	}
 	if httpVersion == 2 {
 		srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
@@ -202,14 +201,16 @@ func start(httpVersion int, startChan chan string) error {
 		}
 	}
 
-	log.Printf("SERVER	[%s]	Stopping", addr)
+	log.Printf("SERVER	%s	Stopping", serverAddr)
 	stopDiscover()
 	rh.Stop()
 
 	rh.Wait()
 	waitDiscover()
-	log.Printf("SERVER	[%s]	Stopped", addr)
-	stopChan <- true
+	log.Printf("SERVER	%s	Stopped", serverAddr)
+	if stopChan != nil {
+		stopChan <- true
+	}
 	return nil
 }
 

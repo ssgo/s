@@ -274,11 +274,11 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 					continue
 				}
 
-				byteMsg, _ := json.Marshal(messageData)
+				printableMsg, _ := json.Marshal(messageData)
 				if webSocketActionAuthChecker != nil {
 					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, sessionValue) == false {
 						if recordLogs {
-							log.Printf("WSREJECT	%s	%s	%s	%s	%d", request.RemoteAddr, request.RequestURI, actionName, string(byteMsg), action.authLevel)
+							log.Printf("WSREJECT	%s	%s	%s	%s	%d", request.RemoteAddr, request.RequestURI, actionName, string(printableMsg), action.authLevel)
 						}
 						(*response).WriteHeader(403)
 						continue
@@ -290,9 +290,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if recordLogs {
 					usedTime := time.Now().UnixNano() - startTime.UnixNano()
 					if err == nil {
-						log.Printf("WSACTION	%s	%s	%s	%.6f	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(byteMsg))
+						log.Printf("WSACTION	%s	%s	%s	%.6f	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(printableMsg))
 					} else {
-						log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(byteMsg), err.Error())
+						log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
 					}
 				}
 			}

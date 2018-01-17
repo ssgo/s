@@ -142,8 +142,10 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		outType = outType.Elem()
 	}
 	var outBytes []byte
+	isJson := false
 	if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
 		outBytes = makeBytesResult(result)
+		isJson = true
 	} else if outType.Kind() == reflect.String {
 		outBytes = []byte(result.(string))
 	} else {
@@ -155,20 +157,31 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	if recordLogs {
 		usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 		byteArgs, _ := json.Marshal(*args)
+		uniqueId := (*headers)["SUniqueId"]
+		delete(*headers, "SUniqueId")
+		if (*headers)["AccessToken"] != ""{
+			(*headers)["AccessToken"] = (*headers)["AccessToken"][0:5]+"*******"
+		}
 		byteHeaders, _ := json.Marshal(*headers)
 		if len(outBytes) > 1024 {
 			outBytes = outBytes[0:1024]
 		}
-		n := len(outBytes)
-		for i := 1; i < n-1; i++ {
-			c := outBytes[i]
-			if c == '\t' || c == '\n' || c == '\r' {
-				outBytes[i] = ' '
-			} else if c < 32 || c > 126 {
-				outBytes[i] = '?'
-			}
+		if !isJson {
+			makePrintable(outBytes)
 		}
-		log.Printf("ACCESS	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes), request.Proto)
+		log.Printf("ACCESS	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, uniqueId, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes), request.Proto)
+	}
+}
+
+func makePrintable(data []byte){
+	n := len(data)
+	for i := 0; i < n; i++ {
+		c := data[i]
+		if c == '\t' || c == '\n' || c == '\r' {
+			data[i] = ' '
+		} else if c < 32 || c > 126 {
+			data[i] = '?'
+		}
 	}
 }
 

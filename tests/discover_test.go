@@ -6,18 +6,20 @@ import (
 	"os"
 )
 
-func S1() string{
-	return "s1"
+func S1() (out struct{ Name string }) {
+	out.Name = "s1"
+	return
 }
 
-func C1(c *s.Caller) string{
-	return c.Call("ta", "/s1", nil).String()
+func C1(c *s.Caller) string {
+	r := struct{ Name string }{}
+	c.Call("ta", "/s1", nil).To(&r)
+	return r.Name
 }
 
 func TestBase(tt *testing.T) {
 	t := s.T(tt)
 
-	s.ResetAllSets()
 	s.Register(1, "/c1", C1)
 	s.Register(2, "/s1", S1)
 	os.Setenv("SERVICE_APP", "ta")
@@ -27,10 +29,8 @@ func TestBase(tt *testing.T) {
 	addr := s.AsyncStart()
 
 	c := s.GetClient()
-	for i := 0; i < 1; i++ {
-		r := c.Do("http://"+addr+"/c1", nil, "Access-Token", "aabbcc")
-		t.Test(r.Error == nil && r.String() == "s1", "DC", r.Error, r.String())
-	}
+	r := c.Do("http://"+addr+"/c1", nil, "Access-Token", "aabbcc")
+	t.Test(r.Error == nil && r.String() == "s1", "DC", r.Error, r.String())
 
 	s.Stop()
 	s.WaitForAsync()

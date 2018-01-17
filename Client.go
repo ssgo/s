@@ -72,8 +72,9 @@ func (cp *ClientPool) Do(url string, data interface{}, headers ... string) *Resu
 	for i := 1; i < len(headers); i += 2 {
 		req.Header.Add(headers[i-1], headers[i])
 	}
-
+//t1 := time.Now()
 	res, err := cp.pool.Do(req)
+//log.Print(" ((((((((((	", url, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
 	if err != nil {
 		return &Result{Error: err}
 	}
@@ -153,7 +154,7 @@ func (rs *Result) To(result interface{}) error {
 
 func convertBytesToObject(data []byte, result interface{}) error {
 	var err error = nil
-	if data != nil {
+	if data == nil {
 		return fmt.Errorf("No Result")
 	}
 
@@ -169,7 +170,7 @@ func convertBytesToObject(data []byte, result interface{}) error {
 		tr := new(map[string]interface{})
 		err = json.Unmarshal(data, tr)
 		if err == nil {
-			err = mapstructure.WeakDecode(tr, &result)
+			err = mapstructure.WeakDecode(tr, result)
 		}
 	}
 	return err

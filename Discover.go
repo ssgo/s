@@ -73,7 +73,9 @@ func (caller *Caller) Call(app, path string, data interface{}, headers ... strin
 		node.score = float64(node.usedTimes) / float64(node.weight)
 
 		// 请求节点
+		//t1 := time.Now()
 		r = appClientPools[app].Do(fmt.Sprintf("http://%s%s", node.addr, path), data, headers...)
+		//log.Print(" ==============	", app, path, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
 			// 错误处理
