@@ -1,11 +1,10 @@
 package main
 
-import (
-	".."
-	"./userServices"
-)
+import "github.com/ssgo/s"
 
-func main(){
-	s.Register(0, "/", userServices.Index)
-	s.Start()
+func main() {
+	s.Register(0, "/", func() string {
+		return "Hello\n"
+	})
+	s.Start1()
 }

@@ -29,19 +29,20 @@ var config = struct {
 	KeepaliveTimeout int
 	CallTimeout      int
 	LogFile          string
+	NoLogHeaders     string
 	CertFile         string
 	KeyFile          string
-
-	Discover       string
-	DiscoverPrefix string
-	AccessTokens   map[string]uint
-	App            string
-	Weight         uint
+	Discover         string
+	DiscoverPrefix   string
+	AccessTokens     map[string]uint
+	App              string
+	Weight           uint
 	Calls map[string]struct {
 		AccessToken string
 		Timeout     int
 	}
 }{}
+var noLogHeaders = map[string]bool{}
 
 func init() {
 	base.LoadConfig("service", &config)
@@ -50,16 +51,13 @@ func init() {
 	if config.LogFile != "" {
 		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err == nil {
-			//log = _log.New(f, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
 			log.SetOutput(f)
 		} else {
-			//log = _log.New(os.Stdout, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
 			log.SetOutput(os.Stdout)
 			log.Print("ERROR	", err)
 		}
 	} else {
 		log.SetOutput(os.Stdout)
-		//log = _log.New(os.Stdout, "", _log.Ldate|_log.Ltime|_log.Lmicroseconds)
 	}
 }
 
@@ -96,6 +94,7 @@ func WaitForAsync() {
 
 var listener net.Listener
 var serverAddr string
+
 func start(httpVersion int, startChan chan string) error {
 	base.LoadConfig("service", &config)
 	if config.Discover == "" {
@@ -108,6 +107,13 @@ func start(httpVersion int, startChan chan string) error {
 
 	if config.Weight <= 0 {
 		config.Weight = 1
+	}
+
+	if config.NoLogHeaders == "" {
+		config.NoLogHeaders = "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests"
+	}
+	for _, k := range strings.Split(config.NoLogHeaders, ",") {
+		noLogHeaders[strings.TrimSpace(k)] = true
 	}
 
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)
@@ -318,11 +324,13 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
 	headers := make(map[string]string)
 	for k, v := range request.Header {
-		headerKey := strings.Replace(k, "-", "", -1)
+		if noLogHeaders[k] {
+			continue
+		}
 		if len(v) > 1 {
-			headers[headerKey] = strings.Join(v, ", ")
+			headers[k] = strings.Join(v, ", ")
 		} else {
-			headers[headerKey] = v[0]
+			headers[k] = v[0]
 		}
 	}
 
@@ -333,11 +341,11 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 		} else if s != nil {
 			al = s.authLevel
 		}
-		if al > 0 && webAuthChecker(al, &request.RequestURI, &args, &headers) == false {
+		if al > 0 && webAuthChecker(al, &request.RequestURI, &args, request) == false {
 			usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			byteArgs, _ := json.Marshal(args)
 			byteHeaders, _ := json.Marshal(headers)
-			log.Printf("REJECT	%s	%s	%.6f	%s	%s	%d", request.RemoteAddr, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), al)
+			log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), al, request.Proto)
 			response.WriteHeader(403)
 			return
 		}

@@ -28,8 +28,8 @@ func SetTestHeader(k string, v string) {
 func ResetAllSets() {
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make(map[string]*webServiceType)
-	inFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter) interface{}, 0)
-	outFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
+	inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
+	outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make(map[string]*websocketServiceType)

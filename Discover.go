@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"net/http"
 )
 
 var dcRedis *redis.Redis
@@ -129,9 +130,9 @@ func startDiscover(addr string) bool {
 	if isService {
 		// 设置默认的AuthChecker
 		if webAuthChecker == nil {
-			SetWebAuthChecker(func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool {
+			SetWebAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
 				//log.Println(" ***** ", (*headers)["AccessToken"], config.AccessTokens[(*headers)["AccessToken"]], authLevel)
-				return config.AccessTokens[(*headers)["AccessToken"]] >= authLevel
+				return config.AccessTokens[request.Header.Get("Access-Token")] >= authLevel
 			})
 		}
 

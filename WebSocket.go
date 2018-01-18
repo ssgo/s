@@ -24,7 +24,6 @@ type websocketServiceType struct {
 	openInIndex       int
 	openRequestIndex  int
 	openClientIndex   int
-	openHeadersType   reflect.Type
 	openHeadersIndex  int
 	openFuncType      reflect.Type
 	openFuncValue     reflect.Value
@@ -58,7 +57,7 @@ type ActionRegister struct {
 var websocketServices = make(map[string]*websocketServiceType)
 var regexWebsocketServices = make(map[string]*websocketServiceType)
 
-var webSocketActionAuthChecker func(uint, *string, *string, *map[string]interface{}, interface{}) bool
+var webSocketActionAuthChecker func(uint, *string, *string, *map[string]interface{}, *http.Request, interface{}) bool
 
 // 注册Websocket服务
 func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
@@ -83,7 +82,6 @@ func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
 		s.openParmsNum = s.openFuncType.NumIn()
 		s.openInIndex = -1
 		s.openHeadersIndex = -1
-		//s.openPathArgsIndex = -1
 		s.openClientIndex = -1
 		s.openRequestIndex = -1
 		s.openFuncValue = reflect.ValueOf(onOpen)
@@ -93,12 +91,11 @@ func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
 				if s.openInType == nil {
 					s.openInIndex = i
 					s.openInType = t
-				} else if s.openHeadersType == nil {
-					s.openHeadersIndex = i
-					s.openHeadersType = t
 				}
 			} else if t.String() == "*http.Request" {
 				s.openRequestIndex = i
+			} else if t.String() == "*http.Header" {
+				s.openHeadersIndex = i
 			} else if t.String() == "*websocket.Conn" {
 				s.openClientIndex = i
 			}
@@ -174,7 +171,7 @@ func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, acti
 	ar.websocketServiceType.actions[actionName] = a
 }
 
-func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {
+func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, in *map[string]interface{}, request *http.Request, sess interface{}) bool) {
 	webSocketActionAuthChecker = authChecker
 }
 
@@ -182,7 +179,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	// 前置过滤器
 	var result interface{} = nil
 	for _, filter := range inFilters {
-		result = filter(args, headers, request, response)
+		result = filter(args, request, response)
 		if result != nil {
 			break
 		}
@@ -190,11 +187,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	byteArgs, _ := json.Marshal(*args)
 	byteHeaders, _ := json.Marshal(*headers)
 
-	code := 200
 	message := "OK"
 	client, err := ws.updater.Upgrade(*response, request, nil)
 	if err != nil {
-		code = 500
 		message = err.Error()
 		(*response).WriteHeader(500)
 	}
@@ -203,7 +198,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 		nowTime := time.Now()
 		usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
 		*startTime = nowTime
-		log.Printf("WSOPEN	%s	%s	%.6f	%d	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, code, message, string(byteArgs), string(byteHeaders))
+		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
 	}
 
 	if err == nil {
@@ -215,10 +210,8 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				mapstructure.WeakDecode(*args, in)
 				openParms[ws.openInIndex] = reflect.ValueOf(in).Elem()
 			}
-			if ws.openHeadersType != nil {
-				inHeaders := reflect.New(ws.openHeadersType).Interface()
-				mapstructure.WeakDecode(*headers, inHeaders)
-				openParms[ws.openHeadersIndex] = reflect.ValueOf(inHeaders).Elem()
+			if ws.openHeadersIndex >= 0 {
+				openParms[ws.openRequestIndex] = reflect.ValueOf(&request.Header)
 			}
 			if ws.openRequestIndex >= 0 {
 				openParms[ws.openRequestIndex] = reflect.ValueOf(request)
@@ -275,7 +268,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 
 				printableMsg, _ := json.Marshal(messageData)
 				if webSocketActionAuthChecker != nil {
-					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, sessionValue) == false {
+					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
 						if recordLogs {
 							log.Printf("WSREJECT	%s	%s	%s	%s	%d", request.RemoteAddr, request.RequestURI, actionName, string(printableMsg), action.authLevel)
 						}
@@ -310,7 +303,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 
 			if recordLogs {
 				usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-				log.Printf("WSCLOSE	%s	%s	%.6f	%d	%s	%s	%s", request.RemoteAddr, request.RequestURI, usedTime, code, message, string(byteArgs), string(byteHeaders))
+				log.Printf("WSCLOSE	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
 			}
 
 		}

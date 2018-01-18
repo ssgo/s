@@ -152,13 +152,13 @@ func Register(authLevel uint, name string, serviceFunc interface{}) {}
 func RegisterByRegex(name string, service interface{}){}
 
 // 设置前置过滤器
-func SetInFilter(filter func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter) (out interface{})) {}
+func SetInFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {}
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {}
+func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {}
 
 // 注册身份认证模块
-func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {}
+func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}) bool) {}
 
 // 启动HTTP/1.1服务
 func Start1() {}

@@ -21,7 +21,6 @@ type webServiceType struct {
 	parmsNum      int
 	inType        reflect.Type
 	inIndex       int
-	headersType   reflect.Type
 	headersIndex  int
 	requestIndex  int
 	responseIndex int
@@ -33,10 +32,10 @@ type webServiceType struct {
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make(map[string]*webServiceType)
 
-var inFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter) interface{}, 0)
-var outFilters = make([]func(*map[string]interface{}, *map[string]string, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
+var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
+var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 
-var webAuthChecker func(uint, *string, *map[string]interface{}, *map[string]string) bool
+var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
 
 // 注册服务
 func Register(authLevel uint, name string, serviceFunc interface{}) {
@@ -66,23 +65,23 @@ func Register(authLevel uint, name string, serviceFunc interface{}) {
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter) (out interface{})) {
+func SetInFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in *map[string]interface{}, headers *map[string]string, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
-func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}, headers *map[string]string) bool) {
+func SetWebAuthChecker(authChecker func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool) {
 	webAuthChecker = authChecker
 }
 
 func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
 	var result interface{} = nil
 	for _, filter := range inFilters {
-		result = filter(args, headers, request, response)
+		result = filter(args, request, response)
 		if result != nil {
 			break
 		}
@@ -97,10 +96,8 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			mapstructure.WeakDecode(*args, in)
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
-		if service.headersType != nil {
-			inHeaders := reflect.New(service.headersType).Interface()
-			mapstructure.WeakDecode(*headers, inHeaders)
-			parms[service.headersIndex] = reflect.ValueOf(inHeaders).Elem()
+		if service.headersIndex >= 0 {
+			parms[service.headersIndex] = reflect.ValueOf(&request.Header)
 		}
 		if service.requestIndex >= 0 {
 			parms[service.requestIndex] = reflect.ValueOf(request)
@@ -127,7 +124,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 
 	// 后置过滤器
 	for _, filter := range outFilters {
-		newResult, done := filter(args, headers, request, response, result)
+		newResult, done := filter(args, request, response, result)
 		if newResult != nil {
 			result = newResult
 		}
@@ -157,19 +154,18 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	if recordLogs {
 		usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 		byteArgs, _ := json.Marshal(*args)
-		uniqueId := (*headers)["SUniqueId"]
-		delete(*headers, "SUniqueId")
-		if (*headers)["AccessToken"] != ""{
-			(*headers)["AccessToken"] = (*headers)["AccessToken"][0:5]+"*******"
+		if (*headers)["Access-Token"] != ""{
+			(*headers)["Access-Token"] = (*headers)["Access-Token"][0:4]+"*******"
 		}
 		byteHeaders, _ := json.Marshal(*headers)
+		byteOutHeaders, _ := json.Marshal((*response).Header())
 		if len(outBytes) > 1024 {
 			outBytes = outBytes[0:1024]
 		}
 		if !isJson {
 			makePrintable(outBytes)
 		}
-		log.Printf("ACCESS	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, uniqueId, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes), request.Proto)
+		log.Printf("ACCESS	%s	%s	%s	%s	%.6f	%s	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto)
 	}
 }
 
@@ -206,15 +202,14 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.requestIndex = i
 		} else if t.String() == "*http.ResponseWriter" {
 			targetService.responseIndex = i
+		} else if t.String() == "*http.Header" {
+			targetService.headersIndex = i
 		} else if t.String() == "*s.Caller" {
 			targetService.callerIndex = i
 		}else if t.Kind() == reflect.Struct {
 			if targetService.inType == nil {
 				targetService.inIndex = i
 				targetService.inType = t
-			} else if targetService.headersType == nil {
-				targetService.headersIndex = i
-				targetService.headersType = t
 			}
 		}
 	}
