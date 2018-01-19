@@ -74,7 +74,7 @@ package main
 import "github.com/ssgo/s"
 
 func getInfo(in struct{ Name string }, c *s.Caller) (out struct{ FullName string }) {
-  c.Call("s1", "/"+in.Name+"/fullName", nil).To(&out)
+  c.Get("s1", "/"+in.Name+"/fullName", nil).To(&out)
   return
 }
 
@@ -109,6 +109,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "listen": ":80",
   "RwTimeout": 5000,
   "KeepaliveTimeout": 5000,
+  "NoLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
   "CallTimeout": 5000,
   "logFile": "",
   "certFile": "",
@@ -125,7 +126,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   },
   "calls": {
     "user": {}
-    "news": {"AccessToken": "hasfjlkdlasfsa", "Timeout": 5000}
+    "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2}
   }
 }
 ```
@@ -167,11 +168,23 @@ func Start1() {}
 func Start() {}
 
 // 异步方式启动HTTP/2.0服务（）
-func AsyncStart() string {}
-// 停止以异步方式启动的服务（同步方式启动的服务不需要调用Stop，会根据kill信号自己关闭）
-func Stop() {}
+func AsyncStart() *AsyncServer {}
+// 异步方式启动HTTP/1.1服务（）
+func AsyncStart1() *AsyncServer {}
+
 // 停止以异步方式启动的服务后等待各种子线程结束
-func WaitForAsync() {}
+func (as *AsyncServer) Stop() {}
+
+// 调用异步方式启动的服务（Get）
+func (as *AsyncServer) Get(path string, headers ... string) *Result {}
+// 调用异步方式启动的服务（Post）
+func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {}
+
+// 调用已注册的服务，根据权重负载均衡（Get）
+func (caller *Caller) Get(app, path string, headers ... string) *Result {}
+
+// 调用已注册的服务，根据权重负载均衡（Post）
+func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {
 
 ```
 

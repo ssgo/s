@@ -14,7 +14,7 @@ var isService = false
 var isClient = false
 var syncerRunning = false
 var syncerStopChan = make(chan bool)
-var dcAppVersions = make(map[string]int)
+var dcAppVersions = make(map[string]uint64)
 var myAddr = ""
 var nodes = map[string]map[string]*nodeInfo{}
 
@@ -27,15 +27,7 @@ type nodeInfo struct {
 	flag        bool
 }
 
-type nodeList []*nodeInfo
-
 var appVersionsKeys []interface{}
-
-func (n nodeList) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
-func (n nodeList) Len() int      { return len(n) }
-func (n nodeList) Less(i, j int) bool {
-	return n[i].score <= n[j].score
-}
 
 var appClientPools = map[string]*ClientPool{}
 
@@ -161,7 +153,7 @@ func startDiscover(addr string) bool {
 			for addr, weight := range weights {
 				nodes[app][addr] = &nodeInfo{addr: addr, weight: weight, score: 0, flag: true}
 			}
-			dcAppVersions[app] = dcRedis.GET(config.DiscoverPrefix + "VER_" + app).Int()
+			dcAppVersions[app] = dcRedis.GET(config.DiscoverPrefix + "VER_" + app).Uint64()
 			appVersionsKeys = append(appVersionsKeys, config.DiscoverPrefix+"VER_"+app)
 
 			var cp *ClientPool
@@ -189,7 +181,9 @@ func syncDiscover() {
 			}
 		}
 
-		for verKey, remoteAppVersion := range dcRedis.Do("MGET", appVersionsKeys...).IntMap() {
+		remoteAppVersions := map[string]uint64{}
+		dcRedis.Do("MGET", appVersionsKeys...).To(&remoteAppVersions)
+		for verKey, remoteAppVersion := range remoteAppVersions {
 			app := strings.Replace(verKey, config.DiscoverPrefix+"VER_", "", 1)
 			if remoteAppVersion > dcAppVersions[app] {
 				dcAppVersions[app] = remoteAppVersion
