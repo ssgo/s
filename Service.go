@@ -40,26 +40,10 @@ var config = struct {
 	Calls map[string]struct {
 		AccessToken string
 		Timeout     int
+		HttpVersion int
 	}
 }{}
 var noLogHeaders = map[string]bool{}
-
-func init() {
-	base.LoadConfig("service", &config)
-
-	log.SetFlags(log.Ldate | log.Lmicroseconds)
-	if config.LogFile != "" {
-		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err == nil {
-			log.SetOutput(f)
-		} else {
-			log.SetOutput(os.Stdout)
-			log.Print("ERROR	", err)
-		}
-	} else {
-		log.SetOutput(os.Stdout)
-	}
-}
 
 // 启动HTTP/1.1服务
 func Start1() {
@@ -71,38 +55,77 @@ func Start() {
 	start(2, nil)
 }
 
-func AsyncStart() string {
-	startChan := make(chan string)
-	stopChan = make(chan bool)
-	go start(2, startChan)
-	return <-startChan
+type AsyncServer struct {
+	startChan   chan bool
+	stopChan    chan bool
+	httpVersion int
+	listener    net.Listener
+	Addr        string
+	clientPool  *ClientPool
 }
 
-func Stop() {
-	if listener != nil {
-		listener.Close()
+func (as *AsyncServer) Stop() {
+	if as.listener != nil {
+		as.listener.Close()
+	}
+	if as.stopChan != nil {
+		<-as.stopChan
 	}
 }
-
-var stopChan chan bool
-
-func WaitForAsync() {
-	if stopChan != nil {
-		<-stopChan
+func (as *AsyncServer) Get(path string, headers ... string) *Result {
+	return as.Post(path, nil, headers...)
+}
+func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {
+	if as.clientPool == nil {
+		if as.httpVersion == 1 {
+			as.clientPool = GetClient1()
+		} else {
+			as.clientPool = GetClient()
+		}
 	}
+	return as.clientPool.Do(fmt.Sprintf("http://%s%s", as.Addr, path), data, headers...)
 }
 
-var listener net.Listener
-var serverAddr string
+func AsyncStart() *AsyncServer {
+	return asyncStart(2)
+}
+func AsyncStart1() *AsyncServer {
+	return asyncStart(1)
+}
+func asyncStart(httpVersion int) *AsyncServer {
+	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool), httpVersion: httpVersion}
+	go start(httpVersion, as)
+	<-as.startChan
+	return as
+}
 
-func start(httpVersion int, startChan chan string) error {
+func initConfig() {
 	base.LoadConfig("service", &config)
-	if config.Discover == "" {
-		config.Discover = "discover:15"
+
+	log.SetFlags(log.Ldate | log.Lmicroseconds)
+	if config.LogFile != "" {
+		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err == nil {
+			log.SetOutput(f)
+		} else {
+			log.SetOutput(os.Stdout)
+			log.Print("ERROR	", err)
+		}
+		recordLogs = config.LogFile != os.DevNull
+	} else {
+		log.SetOutput(os.Stdout)
+	}
+
+	if config.KeepaliveTimeout <= 0 {
+		config.KeepaliveTimeout = 10000
 	}
 
 	if config.CallTimeout <= 0 {
-		config.CallTimeout = 10000
+		config.CallTimeout = 5000
+	}
+
+	if config.Discover == "" {
+		config.Discover = "discover:15"
 	}
 
 	if config.Weight <= 0 {
@@ -115,6 +138,10 @@ func start(httpVersion int, startChan chan string) error {
 	for _, k := range strings.Split(config.NoLogHeaders, ",") {
 		noLogHeaders[strings.TrimSpace(k)] = true
 	}
+}
+
+func start(httpVersion int, as *AsyncServer) error {
+	initConfig()
 
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)
 
@@ -134,13 +161,18 @@ func start(httpVersion int, startChan chan string) error {
 		srv.IdleTimeout = time.Duration(config.KeepaliveTimeout) * time.Millisecond
 	}
 
-	var err error
-	listener, err = net.Listen("tcp", config.Listen)
+	listener, err := net.Listen("tcp", config.Listen)
+	if as != nil {
+		as.listener = listener
+	}
 	if err != nil {
 		log.Print("SERVER	", err)
+		fmt.Println("**** 1111SERVER	", err)
+		if as != nil {
+			as.startChan <- false
+		}
 		return err
 	}
-	defer listener.Close()
 
 	closeChan := make(chan os.Signal, 2)
 	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM)
@@ -162,7 +194,7 @@ func start(httpVersion int, startChan chan string) error {
 			}
 		}
 	}
-	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
+	serverAddr := fmt.Sprintf("%s:%d", ip.String(), port)
 
 	if startDiscover(serverAddr) == false {
 		log.Printf("SERVER	Failed to start discover")
@@ -170,8 +202,9 @@ func start(httpVersion int, startChan chan string) error {
 
 	log.Printf("SERVER	%s	Started", serverAddr)
 
-	if startChan != nil {
-		startChan <- serverAddr
+	if as != nil {
+		as.Addr = serverAddr
+		as.startChan <- true
 	}
 	if httpVersion == 2 {
 		srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
@@ -214,15 +247,15 @@ func start(httpVersion int, startChan chan string) error {
 	rh.Wait()
 	waitDiscover()
 	log.Printf("SERVER	%s	Stopped", serverAddr)
-	if stopChan != nil {
-		stopChan <- true
+	if as != nil {
+		as.stopChan <- true
 	}
 	return nil
 }
 
-func EnableLogs(enabled bool) {
-	recordLogs = enabled
-}
+//func EnableLogs(enabled bool) {
+//	recordLogs = enabled
+//}
 
 type routeHandler struct {
 	webRequestingNum int64

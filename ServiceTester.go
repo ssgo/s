@@ -1,29 +1,25 @@
 package s
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
-var testServer *httptest.Server
-var testHeaders = make(map[string]string)
-
-func StartTestService() *httptest.Server {
-	testServer = httptest.NewServer(http.Handler(&routeHandler{}))
-	//if recordLogs {fmt.Println()}
-	//fmt.Println("Start test service\n")
-	return testServer
-}
-
-func SetTestHeader(k string, v string) {
-	testHeaders[k] = v
-}
+//var testServer *httptest.Server
+//var testHeaders = make(map[string]string)
+//
+//func StartTestService() *httptest.Server {
+//	initConfig()
+//	testServer = httptest.NewServer(http.Handler(&routeHandler{}))
+//	//if recordLogs {fmt.Println()}
+//	//fmt.Println("Start test service\n")
+//	return testServer
+//}
+//
+//func SetTestHeader(k string, v string) {
+//	testHeaders[k] = v
+//}
 
 func ResetAllSets() {
 	webServices = make(map[string]*webServiceType)
@@ -38,68 +34,68 @@ func ResetAllSets() {
 	recordLogs = true
 }
 
-func testRequest(method string, path string, body []byte) (*http.Response, []byte, error) {
-	client := &http.Client{}
-	var bodyReader io.Reader = nil
-	if body != nil {
-		bodyReader = bytes.NewReader(body)
-	}
-	req, err := http.NewRequest(method, testServer.URL+path, bodyReader)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for k, v := range testHeaders {
-		req.Header.Add(k, v)
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer res.Body.Close()
-
-	result, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-	res.Body.Close()
-
-	return res, result, nil
-}
-
-func TestGet(path string) (*http.Response, []byte, error) {
-	return testRequest("GET", path, nil)
-}
-
-//func TestPost(path string, args map[string]string) ([]byte, error) {
-//	return testRequest("POST", path, nil)
+//func testRequest(method string, path string, body []byte) (*http.Response, []byte, error) {
+//	client := &http.Client{}
+//	var bodyReader io.Reader = nil
+//	if body != nil {
+//		bodyReader = bytes.NewReader(body)
+//	}
+//	req, err := http.NewRequest(method, testServer.URL+path, bodyReader)
+//	if err != nil {
+//		return nil, nil, err
+//	}
+//
+//	for k, v := range testHeaders {
+//		req.Header.Add(k, v)
+//	}
+//	res, err := client.Do(req)
+//	if err != nil {
+//		return nil, nil, err
+//	}
+//	defer res.Body.Close()
+//
+//	result, err := ioutil.ReadAll(res.Body)
+//	if err != nil {
+//		return nil, nil, err
+//	}
+//	res.Body.Close()
+//
+//	return res, result, nil
 //}
-
-func TestService(path string, args Map) interface{} {
-
-	argsObjectBytes, _ := json.Marshal(args)
-
-	_, result, err := testRequest("POST", path, argsObjectBytes)
-	if err != nil {
-		fmt.Println("testRequest", err)
-		return nil
-	}
-
-	var resultObject interface{}
-	err = json.Unmarshal(result, &resultObject)
-	if err != nil {
-		fmt.Println("Unmarshal", err)
-		return nil
-	}
-
-	return resultObject
-}
-
-func StopTestService() {
-	testServer.Close()
-	//if recordLogs {fmt.Println()}
-	//fmt.Println("\n\nStop test service")
-}
+//
+//func TestGet(path string) (*http.Response, []byte, error) {
+//	return testRequest("GET", path, nil)
+//}
+//
+////func TestPost(path string, args map[string]string) ([]byte, error) {
+////	return testRequest("POST", path, nil)
+////}
+//
+//func TestService(path string, args Map) interface{} {
+//
+//	argsObjectBytes, _ := json.Marshal(args)
+//
+//	_, result, err := testRequest("POST", path, argsObjectBytes)
+//	if err != nil {
+//		fmt.Println("testRequest", err)
+//		return nil
+//	}
+//
+//	var resultObject interface{}
+//	err = json.Unmarshal(result, &resultObject)
+//	if err != nil {
+//		fmt.Println("Unmarshal", err)
+//		return nil
+//	}
+//
+//	return resultObject
+//}
+//
+//func StopTestService() {
+//	testServer.Close()
+//	//if recordLogs {fmt.Println()}
+//	//fmt.Println("\n\nStop test service")
+//}
 
 type Testing struct {
 	tt *testing.T

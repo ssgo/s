@@ -4,6 +4,7 @@ import (
 	"testing"
 	".."
 	"net/http"
+	"os"
 )
 
 func TestEchos(tt *testing.T) {
@@ -13,46 +14,40 @@ func TestEchos(tt *testing.T) {
 	s.Register(0, "/echo1", Echo1)
 	s.Register(0, "/echo2", Echo2)
 	s.Register(0, "/echo3", Echo3)
-	s.SetTestHeader("Cid", "test-client")
 
-	s.StartTestService()
-	defer s.StopTestService()
-	s.EnableLogs(false)
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	as := s.AsyncStart()
+	defer as.Stop()
 
-	data := s.TestService("/echo1?aaa=11&bbb=_o_", s.Map{
+	datas := as.Post("/echo1?aaa=11&bbb=_o_", s.Map{
 		"ccc": "ccc",
 		"DDD": 101.123,
 		"eEe": true,
 		"fff": nil,
 		"ggg": "223",
-	})
+	}, "Cid", "test-client").Map()
 
-	datas, ok := data.(map[string]interface{})
-	t.Test(ok, "[Echo1] Data1", data)
 	d1, ok := datas["in"].(map[string]interface{})
-	t.Test(ok, "[Echo1] Data2", data)
+	t.Test(ok, "[Echo1] Data2", datas)
 	d2, ok := datas["headers"].(map[string]interface{})
-	t.Test(ok, "[Echo1] Data3", data)
-	t.Test(d1["aaa"].(float64) == 11 && d1["bbb"] == "_o_" && d1["ddd"] == 101.123 && d1["eee"] == true && d1["fff"] == nil, "[Echo1] In", data)
-	t.Test(d2["cid"] == "test-client", "[Echo1] Headers", data)
+	t.Test(ok, "[Echo1] Data3", datas)
+	t.Test(d1["aaa"].(float64) == 11 && d1["bbb"] == "_o_" && d1["ddd"] == 101.123 && d1["eee"] == true && d1["fff"] == nil, "[Echo1] In", datas)
+	t.Test(d2["cid"] == "test-client", "[Echo1] Headers", datas)
 
-	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{
+	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{
 		"ccc": "ccc",
 		"DDD": 101.123,
 		"eEe": true,
 		"fff": nil,
 		"ggg": 223,
-	})
+	}).Map()
 
-	d, ok := data.(map[string]interface{})
-	t.Test(ok, "[Echo2] Data1", data)
-	t.Test(d["aaa"].(float64) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", data)
+	t.Test(d["aaa"].(float64) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", d)
 
-	data = s.TestService("/echo3?a=1", s.Map{"name": "Star"})
-	a, ok := data.([]interface{})
-	t.Test(ok, "[Echo3] Data1", data)
-	t.Test(a[0] == "Star", "[Echo3] Data2", data)
-	t.Test(a[1] == "/echo3", "[Echo3] Data3", data)
+	a := as.Post("/echo3?a=1", s.Map{"name": "Star"}).Arr()
+	t.Test(ok, "[Echo3] Data1", a)
+	t.Test(a[0] == "Star", "[Echo3] Data2", a)
+	t.Test(a[1] == "/echo3", "[Echo3] Data3", a)
 }
 
 func TestFilters(tt *testing.T) {
@@ -60,22 +55,20 @@ func TestFilters(tt *testing.T) {
 	s.ResetAllSets()
 	s.Register(0, "/echo2", Echo2)
 
-	s.StartTestService()
-	defer s.StopTestService()
-	s.EnableLogs(false)
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	as := s.AsyncStart()
+	defer as.Stop()
 
-	data := s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
-	d, _ := data.(map[string]interface{})
-	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", data)
+	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
+	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", d)
 
 	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
 		(*in)["filterTag"] = "Abc"
 		(*in)["filterTag2"] = 1000
 		return nil
 	})
-	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
-	d, _ = data.(map[string]interface{})
-	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", data)
+	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
+	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", d)
 
 	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
@@ -83,9 +76,8 @@ func TestFilters(tt *testing.T) {
 		return data, false
 	})
 
-	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
-	d, _ = data.(map[string]interface{})
-	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", data)
+	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
+	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", d)
 
 	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
@@ -95,10 +87,9 @@ func TestFilters(tt *testing.T) {
 			"filterTag2": data.FilterTag2 + 100,
 		}, true
 	})
-	s.EnableLogs(true)
-	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
-	d, _ = data.(map[string]interface{})
-	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", data)
+
+	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
+	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
 	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (interface{}) {
 		return echo2Args{
@@ -106,9 +97,8 @@ func TestFilters(tt *testing.T) {
 			FilterTag2: (*in)["filterTag2"].(int) + 100,
 		}
 	})
-	data = s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"})
-	d, _ = data.(map[string]interface{})
-	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1300, "[Test InFilter 3] Response", data)
+	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
+	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1300, "[Test InFilter 3] Response", d)
 }
 
 func TestAuth(tt *testing.T) {
@@ -129,51 +119,48 @@ func TestAuth(tt *testing.T) {
 		return false
 	})
 
-	s.StartTestService()
-	defer s.StopTestService()
-	s.EnableLogs(false)
+	as := s.AsyncStart()
+	defer as.Stop()
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	r, _, _ := s.TestGet("/echo0")
-	t.Test(r.StatusCode == 200, "Test0", r.StatusCode)
+	r := as.Get("/echo0")
+	t.Test(r.Response.StatusCode == 200, "Test0", r.Response.StatusCode)
 
-	r, _, _ = s.TestGet("/echo1")
-	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+	r = as.Get("/echo1")
+	t.Test(r.Response.StatusCode == 403, "Test1", r.Response.StatusCode)
 
-	s.SetTestHeader("Token", "aaa")
-	r, _, _ = s.TestGet("/echo1")
-	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+	r = as.Get("/echo1", "Token", "aaa")
+	t.Test(r.Response.StatusCode == 200, "Test1", r.Response.StatusCode)
 
-	r, _, _ = s.TestGet("/echo2")
-	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+	r = as.Get("/echo2")
+	t.Test(r.Response.StatusCode == 403, "Test1", r.Response.StatusCode)
 
-	s.SetTestHeader("Token", "xxx")
-	r, _, _ = s.TestGet("/echo1")
-	t.Test(r.StatusCode == 403, "Test1", r.StatusCode)
+	r = as.Get("/echo1", "Token", "xxx")
+	t.Test(r.Response.StatusCode == 403, "Test1", r.Response.StatusCode)
 
-	s.SetTestHeader("Token", "bbb")
-	r, _, _ = s.TestGet("/echo1")
-	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+	r = as.Get("/echo1", "Token", "bbb")
+	t.Test(r.Response.StatusCode == 200, "Test1", r.Response.StatusCode)
 
-	r, _, _ = s.TestGet("/echo2")
-	t.Test(r.StatusCode == 200, "Test1", r.StatusCode)
+	r = as.Get("/echo2", "Token", "bbb")
+	t.Test(r.Response.StatusCode == 200, "Test1", r.Response.StatusCode)
 }
 
 func BenchmarkEchosForStruct(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo1", Echo1)
-	s.EnableLogs(false)
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	s.StartTestService()
-	defer s.StopTestService()
+	as := s.AsyncStart()
+	defer as.Stop()
 
-	s.TestService("/echo1?aaa=11&bbb=_o_", s.Map{})
+	as.Post("/echo1?aaa=11&bbb=_o_", s.Map{})
 
 	tb.StartTimer()
 
 	tb.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			s.TestService("/echo1?aaa=11&bbb=_o_", s.Map{
+			as.Post("/echo1?aaa=11&bbb=_o_", s.Map{
 				"ccc": "ccc",
 				"DDD": 101.123,
 				"eEe": true,
@@ -188,19 +175,18 @@ func BenchmarkEchosForMap(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo2", Echo2)
-	s.EnableLogs(false)
-	s.SetTestHeader("Cid", "test-client")
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	s.StartTestService()
-	defer s.StopTestService()
+	as := s.AsyncStart()
+	defer as.Stop()
 
-	s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{})
+	as.Get("/echo2?aaa=11&bbb=_o_", "Cid", "test-client")
 
 	tb.StartTimer()
 
 	for i := 0; i < tb.N; i++ {
 
-		s.TestService("/echo2?aaa=11&bbb=_o_", s.Map{
+		as.Post("/echo2?aaa=11&bbb=_o_", s.Map{
 			"ccc": "ccc",
 			"DDD": 101.123,
 			"eEe": true,

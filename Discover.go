@@ -43,7 +43,15 @@ type Caller struct {
 	headers []string
 }
 
-func (caller *Caller) Call(app, path string, data interface{}, headers ... string) *Result {
+// TODO CallWithNode
+//func (caller *Caller) CallWithNode(addr string, app, path string, data interface{}, headers ... string) *Result{
+//
+//}
+
+func (caller *Caller) Get(app, path string, headers ... string) *Result {
+	return caller.Post(app, path, nil, headers...)
+}
+func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {
 	if nodes[app] == nil {
 		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}
 	}
@@ -82,7 +90,7 @@ func (caller *Caller) Call(app, path string, data interface{}, headers ... strin
 			// 错误处理
 			node.failedTimes++
 			if node.failedTimes >= 3 {
-				fmt.Printf("DC	REMOVE	%s	%d	%d	%d\n", node.addr, node.weight, node.usedTimes, node.failedTimes)
+				fmt.Printf("DC	REMOVE	%s	%d	%d	%d	%d	%s\n", node.addr, node.weight, node.usedTimes, node.failedTimes, r.Response.StatusCode, r.Error)
 				if dcRedis.HDEL(config.DiscoverPrefix+app, node.addr) > 0 {
 					dcRedis.INCR(config.DiscoverPrefix+"VER_"+app)
 				}
@@ -156,7 +164,12 @@ func startDiscover(addr string) bool {
 			dcAppVersions[app] = dcRedis.GET(config.DiscoverPrefix + "VER_" + app).Int()
 			appVersionsKeys = append(appVersionsKeys, config.DiscoverPrefix+"VER_"+app)
 
-			cp := GetClient()
+			var cp *ClientPool
+			if conf.HttpVersion == 1{
+				cp = GetClient1()
+			}else{
+				cp = GetClient()
+			}
 			if conf.Timeout > 0 {
 				cp.pool.Timeout = time.Duration(conf.Timeout) * time.Millisecond
 			}
@@ -176,7 +189,6 @@ func syncDiscover() {
 			}
 		}
 
-		// TODO 拿 Calls 指定的 app
 		for verKey, remoteAppVersion := range dcRedis.Do("MGET", appVersionsKeys...).IntMap() {
 			app := strings.Replace(verKey, config.DiscoverPrefix+"VER_", "", 1)
 			if remoteAppVersion > dcAppVersions[app] {

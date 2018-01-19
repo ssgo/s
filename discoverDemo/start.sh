@@ -1,3 +1,5 @@
+#!/bin/sh
+
 echo "Test Use:\n\tcurl 'http://localhost:8080/Andy'\nCrtl+C to exit\n"
 
 export SERVICE_APP=s1

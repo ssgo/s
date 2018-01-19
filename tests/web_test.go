@@ -28,14 +28,13 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
-	os.Setenv("SERVICE_LISTEN", ":12881")
-	go s.Start1()
-	defer s.Stop()
+	as := s.AsyncStart1()
 
-	c := s.GetClient1()
-	r := c.Do("http://localhost:12881", nil)
+	r := as.Get("/")
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
 	t.Test(r.Response.Proto == "HTTP/1.1", "Welcome HTTP/1.1", r.Error, r.Response.Proto)
+
+	as.Stop()
 }
 
 func TestWelcomeWithHttp2(tt *testing.T) {
@@ -43,14 +42,14 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
-	os.Setenv("SERVICE_LISTEN", ":12882")
-	go s.Start()
-	defer s.Stop()
+	as := s.AsyncStart()
 
 	c := s.GetClient()
-	r := c.Do("http://localhost:12882", nil)
+	r := c.Do("http://"+as.Addr, nil)
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
 	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)
+
+	as.Stop()
 }
 
 func TestWelcomePicture(tt *testing.T) {
@@ -58,12 +57,14 @@ func TestWelcomePicture(tt *testing.T) {
 
 	s.ResetAllSets()
 	s.Register(0, "/w/{picName}.png", WelcomePicture)
-	s.EnableLogs(false)
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	s.StartTestService()
-	defer s.StopTestService()
+	as := s.AsyncStart()
+	defer as.Stop()
 
-	res, result, err := s.TestGet("/w/abc.png")
-	t.Test(err == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, err)
-	t.Test(res.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, err)
+	r := as.Get("/w/abc.png")
+	result := r.Bytes()
+	t.Test(r.Error == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, r.Error)
+	t.Test(r.Response.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, r.Error)
 }
+

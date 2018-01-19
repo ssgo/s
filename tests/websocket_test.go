@@ -4,7 +4,7 @@ import (
 	".."
 	"testing"
 	"github.com/gorilla/websocket"
-	"strings"
+	"os"
 )
 
 func TestEchoWS(tt *testing.T) {
@@ -13,12 +13,12 @@ func TestEchoWS(tt *testing.T) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	s.EnableLogs(false)
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	serv := s.StartTestService()
-	defer s.StopTestService()
+	as := s.AsyncStart1()
+	defer as.Stop()
 
-	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
+	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
 
 	r := make([]interface{}, 0)
@@ -54,9 +54,9 @@ func BenchmarkWSEcho(b *testing.B) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	s.EnableLogs(false)
-	serv := s.StartTestService()
-	defer s.StopTestService()
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	as := s.AsyncStart1()
+	defer as.Stop()
 	b.StartTimer()
 
 	//threadIndex := 0
@@ -72,7 +72,7 @@ func BenchmarkWSEcho(b *testing.B) {
 			//	continue
 			//}
 
-			c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
+			c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)
 
 			//err2 := logToFile(logFileName, fmt.Sprintln(" - ", idx, c!=nil, err))
 			//if err2 != nil {
@@ -125,11 +125,11 @@ func BenchmarkWSEchoAction(b *testing.B) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	s.EnableLogs(false)
-	serv := s.StartTestService()
-	defer s.StopTestService()
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	as := s.AsyncStart1()
+	defer as.Stop()
 
-	c, _, err := websocket.DefaultDialer.Dial(strings.Replace(serv.URL, "http", "ws", 1)+"/echoService/abc-123/99", nil)
+	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)
 
 	if c == nil || err != nil {
 		b.Error("Conn error", err)

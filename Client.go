@@ -37,7 +37,7 @@ func GetClient() *ClientPool {
 	return &ClientPool{pool: clientConfig, globalHeaders:map[string]string{"User-Agent": "S-Client/2.0"}}
 }
 func GetClient1() *ClientPool {
-	return &ClientPool{pool: &http.Client{}, globalHeaders:map[string]string{"User-Agent": "S-Client/1.0"}}
+	return &ClientPool{pool: &http.Client{}, globalHeaders:map[string]string{"User-Agent": "S-Client/1.1"}}
 }
 
 func (cp *ClientPool) SetGlobalHeader(k, v string) {
