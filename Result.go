@@ -159,8 +159,10 @@ func (rs *Result) byteSlices() [][]byte {
 }
 func (rs *Result) ToValue(t reflect.Type) reflect.Value {
 	switch t.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return reflect.ValueOf(rs.Int64())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return reflect.ValueOf(rs.Uint64())
 	case reflect.Float32, reflect.Float64:
 		return reflect.ValueOf(rs.Float64())
 	case reflect.Bool:
