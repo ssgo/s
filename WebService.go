@@ -36,6 +36,36 @@ var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.Respon
 var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 
 var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
+var sessionKey string
+var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+
+// 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
+func SetSessionKey(inSessionKey string) {
+	if sessionKey == "" {
+		sessionKey = inSessionKey
+	}
+}
+
+// 获取 SessionKey
+func GetSessionKey() string {
+	return sessionKey
+}
+
+// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
+func SetSession(request *http.Request, obj interface{}) {
+	if sessionObjects[request] == nil {
+		sessionObjects[request] = map[reflect.Type]interface{}{}
+	}
+	sessionObjects[request][reflect.TypeOf(obj)] = obj
+}
+
+// 获取本生命周期中指定类型的 Session 对象
+func GetSession(request *http.Request, dataType reflect.Type) interface{} {
+	if sessionObjects[request] == nil {
+		return nil
+	}
+	return sessionObjects[request][dataType]
+}
 
 // 注册服务
 func Register(authLevel uint, name string, serviceFunc interface{}) {
@@ -74,19 +104,11 @@ func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request,
 	outFilters = append(outFilters, filter)
 }
 
-func SetWebAuthChecker(authChecker func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool) {
+func SetAuthChecker(authChecker func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool) {
 	webAuthChecker = authChecker
 }
 
-func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
-	var result interface{} = nil
-	for _, filter := range inFilters {
-		result = filter(args, request, response)
-		if result != nil {
-			break
-		}
-	}
-
+func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, result interface{}, startTime *time.Time) {
 	// 反射调用
 	if result == nil {
 		// 生成参数
@@ -103,7 +125,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.requestIndex] = reflect.ValueOf(request)
 		}
 		if service.responseIndex >= 0 {
-			parms[service.responseIndex] = reflect.ValueOf(response)
+			parms[service.responseIndex] = reflect.ValueOf(*response)
 		}
 		if service.callerIndex >= 0 {
 			caller := &Caller{headers: []string{"S-Unique-Id", request.Header.Get("S-Unique-Id")}}
@@ -111,7 +133,13 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		}
 		for i, parm := range parms {
 			if parm.Kind() == reflect.Invalid {
-				parms[i] = reflect.New(service.funcType.In(i)).Elem()
+				st := service.funcType.In(i)
+				sessObj := GetSession(request, st)
+				if sessObj != nil {
+					parms[i] = reflect.ValueOf(sessObj)
+				} else {
+					parms[i] = reflect.New(st).Elem()
+				}
 			}
 		}
 		outs := service.funcValue.Call(parms)
@@ -154,8 +182,8 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	if recordLogs {
 		usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 		byteArgs, _ := json.Marshal(*args)
-		if (*headers)["Access-Token"] != ""{
-			(*headers)["Access-Token"] = (*headers)["Access-Token"][0:4]+"*******"
+		if (*headers)["Access-Token"] != "" {
+			(*headers)["Access-Token"] = (*headers)["Access-Token"][0:4] + "*******"
 		}
 		byteHeaders, _ := json.Marshal(*headers)
 		byteOutHeaders, _ := json.Marshal((*response).Header())
@@ -169,7 +197,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	}
 }
 
-func makePrintable(data []byte){
+func makePrintable(data []byte) {
 	n := len(data)
 	for i := 0; i < n; i++ {
 		c := data[i]
@@ -200,13 +228,13 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 		t := funcType.In(i)
 		if t.String() == "*http.Request" {
 			targetService.requestIndex = i
-		} else if t.String() == "*http.ResponseWriter" {
+		} else if t.String() == "http.ResponseWriter" {
 			targetService.responseIndex = i
 		} else if t.String() == "*http.Header" {
 			targetService.headersIndex = i
 		} else if t.String() == "*s.Caller" {
 			targetService.callerIndex = i
-		}else if t.Kind() == reflect.Struct {
+		} else if t.Kind() == reflect.Struct {
 			if targetService.inType == nil {
 				targetService.inIndex = i
 				targetService.inType = t

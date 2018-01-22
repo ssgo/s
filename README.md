@@ -159,7 +159,7 @@ func SetInFilter(filter func(in *map[string]interface{}, request *http.Request, 
 func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {}
 
 // 注册身份认证模块
-func SetWebAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}) bool) {}
+func SetAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}) bool) {}
 
 // 启动HTTP/1.1服务
 func Start1() {}
@@ -175,19 +175,48 @@ func AsyncStart1() *AsyncServer {}
 // 停止以异步方式启动的服务后等待各种子线程结束
 func (as *AsyncServer) Stop() {}
 
-// 调用异步方式启动的服务（Get）
+// 调用异步方式启动的服务
 func (as *AsyncServer) Get(path string, headers ... string) *Result {}
-// 调用异步方式启动的服务（Post）
 func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {}
+func (as *AsyncServer) Put(path string, data interface{}, headers ... string) *Result {}
+func (as *AsyncServer) Head(path string, data interface{}, headers ... string) *Result {}
+func (as *AsyncServer) Delete(path string, data interface{}, headers ... string) *Result {}
+func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Result {}
 
-// 调用已注册的服务，根据权重负载均衡（Get）
+// 调用已注册的服务，根据权重负载均衡
 func (caller *Caller) Get(app, path string, headers ... string) *Result {}
+func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Put(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Head(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Delete(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Do(app, path string, data interface{}, headers ... string) *Result {}
 
-// 调用已注册的服务，根据权重负载均衡（Post）
-func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {
+// 指定节点调用已注册的服务，并返回本次使用的节点
+func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {}
 
 ```
 
+
+
+## Session
+
+基于 Http Header 传递 SessionId（不推荐使用Cookie）
+使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
+
+```go
+// 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
+func SetSessionKey(inSessionKey string) {}
+
+// 获取 SessionKey
+func GetSessionKey() string {}
+
+// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
+func SetSession(request *http.Request, obj interface{}) {}
+
+// 获取本生命周期中指定类型的 Session 对象
+func GetSession(request *http.Request, dataType reflect.Type) interface{} {}
+
+```
 
 
 ## Websocket

@@ -176,14 +176,6 @@ func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *
 }
 
 func doWebsocketService(ws *websocketServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
-	// 前置过滤器
-	var result interface{} = nil
-	for _, filter := range inFilters {
-		result = filter(args, request, response)
-		if result != nil {
-			break
-		}
-	}
 	byteArgs, _ := json.Marshal(*args)
 	byteHeaders, _ := json.Marshal(*headers)
 

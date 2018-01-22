@@ -35,21 +35,32 @@ type Caller struct {
 	headers []string
 }
 
-// TODO CallWithNode
-//func (caller *Caller) CallWithNode(addr string, app, path string, data interface{}, headers ... string) *Result{
-//
-//}
-
 func (caller *Caller) Get(app, path string, headers ... string) *Result {
-	return caller.Post(app, path, nil, headers...)
+	return caller.Do("GET", app, path, nil, headers...)
 }
 func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {
+	return caller.Do("POST", app, path, data, headers...)
+}
+func (caller *Caller) Put(app, path string, data interface{}, headers ... string) *Result {
+	return caller.Do("PUT", app, path, data, headers...)
+}
+func (caller *Caller) Delete(app, path string, data interface{}, headers ... string) *Result {
+	return caller.Do("DELETE", app, path, data, headers...)
+}
+func (caller *Caller) Head(app, path string, data interface{}, headers ... string) *Result {
+	return caller.Do("HEAD", app, path, data, headers...)
+}
+func (caller *Caller) Do(method, app, path string, data interface{}, headers ... string) *Result {
+	r, _ := caller.DoWithNode(method, app, "", path, data, headers...)
+	return r
+}
+func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {
 	if nodes[app] == nil {
-		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}
+		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}, ""
 	}
 	//gotNodes := make(nodeList, 0)
 	if len(nodes[app]) == 0 {
-		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}
+		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}, ""
 	}
 
 	appConf := config.Calls[app]
@@ -64,7 +75,15 @@ func (caller *Caller) Post(app, path string, data interface{}, headers ... strin
 	var r *Result
 	excludes := make(map[string]bool)
 	for {
-		node := getNextNode(app, &excludes)
+		var node *nodeInfo
+		if withNode != ""{
+			node = nodes[app][withNode]
+			excludes[withNode] = true
+			withNode = ""
+		}
+		if node == nil{
+			node = getNextNode(app, &excludes)
+		}
 		if node == nil {
 			break
 		}
@@ -75,7 +94,7 @@ func (caller *Caller) Post(app, path string, data interface{}, headers ... strin
 
 		// 请求节点
 		//t1 := time.Now()
-		r = appClientPools[app].Do(fmt.Sprintf("http://%s%s", node.addr, path), data, headers...)
+		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.addr, path), data, headers...)
 		//log.Print(" ==============	", app, path, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
@@ -89,12 +108,12 @@ func (caller *Caller) Post(app, path string, data interface{}, headers ... strin
 			}
 		} else {
 			// 成功
-			return r
+			return r, node.addr
 		}
 	}
 
 	// 全部失败，返回最后一个失败的结果
-	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}
+	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}, ""
 }
 
 func getNextNode(app string, excludes *map[string]bool) *nodeInfo {
@@ -130,7 +149,7 @@ func startDiscover(addr string) bool {
 	if isService {
 		// 设置默认的AuthChecker
 		if webAuthChecker == nil {
-			SetWebAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
+			SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
 				//log.Println(" ***** ", (*headers)["AccessToken"], config.AccessTokens[(*headers)["AccessToken"]], authLevel)
 				return config.AccessTokens[request.Header.Get("Access-Token")] >= authLevel
 			})

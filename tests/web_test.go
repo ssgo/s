@@ -11,8 +11,8 @@ func Welcome(in struct{}) string {
 	return "Hello World!"
 }
 
-func WelcomePicture(in struct{ PicName string }, response *http.ResponseWriter) []byte {
-	(*response).Header().Set("Content-Type", "image/png")
+func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) []byte {
+	response.Header().Set("Content-Type", "image/png")
 	pic := make([]byte, 5)
 	bytePicName := []byte(in.PicName)
 	pic[0] = 1
@@ -45,7 +45,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 	as := s.AsyncStart()
 
 	c := s.GetClient()
-	r := c.Do("http://"+as.Addr, nil)
+	r := c.Get("http://"+as.Addr)
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
 	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)
 

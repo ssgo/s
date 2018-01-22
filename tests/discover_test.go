@@ -4,7 +4,9 @@ import (
 	"testing"
 	".."
 	"os"
+	"github.com/ssgo/redis"
 	"fmt"
+	"math/rand"
 )
 
 func S1() (out struct{ Name string }) {
@@ -21,6 +23,7 @@ func C1(c *s.Caller) string {
 func TestBase(tt *testing.T) {
 	t := s.T(tt)
 
+	redis.GetRedis("discover:15").DEL("ta")
 	s.Register(1, "/c1", C1)
 	s.Register(2, "/s1", S1)
 	os.Setenv("SERVICE_APP", "ta")
@@ -57,9 +60,11 @@ func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
 	tb.StartTimer()
 	tb.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
+			d := struct{ Name string }{}
 			r := as.Get("/s1")
-			if r.Error != nil || r.String() != "s1" {
-				tb.Error("Discover Benchmark", r.Error, r.String())
+			r.To(&d)
+			if r.Error != nil || d.Name != "s1" {
+				tb.Error("Discover Benchmark", r.Error, r.String(), r.Response)
 			}
 		}
 	})
@@ -69,16 +74,18 @@ func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
 func BenchmarkForDiscover1(tb *testing.B) {
 	benchmarkForDiscover(tb, 1)
 }
-
 func BenchmarkForDiscover2(tb *testing.B) {
 	benchmarkForDiscover(tb, 2)
 }
 
 func benchmarkForDiscover(tb *testing.B, httpVersion int) {
+	var as2 *s.AsyncServer
 	os.Setenv("SERVICE_LOGFILE", os.DevNull)
-	tb.StopTimer()
 
-	postfix := fmt.Sprint(httpVersion)
+	httpVersionString := fmt.Sprint(httpVersion)
+	postfix := fmt.Sprintf("%d_%d", httpVersion,rand.Intn(1000))
+	//redis.GetRedis("discover:15").DEL("ta"+postfix)
+
 	s.Register(1, "/c1", func(c *s.Caller) string {
 		r := struct{ Name string }{}
 		c.Get("ta"+postfix, "/s1").To(&r)
@@ -88,23 +95,22 @@ func benchmarkForDiscover(tb *testing.B, httpVersion int) {
 	os.Setenv("SERVICE_APP", "ta"+postfix)
 	os.Setenv("SERVICE_WEIGHT", "100")
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
-	os.Setenv("SERVICE_CALLS", `{"ta`+postfix+`": {"accessToken": "aabbcc222", "timeout": 200, "httpVersion": `+postfix+`}}`)
-	var as *s.AsyncServer
+	os.Setenv("SERVICE_CALLS", `{"ta`+postfix+`": {"accessToken": "aabbcc222", "timeout": 200, "httpVersion": `+httpVersionString+`}}`)
 	if httpVersion == 1 {
-		as = s.AsyncStart1()
+		as2 = s.AsyncStart1()
 	} else {
-		as = s.AsyncStart()
+		as2 = s.AsyncStart()
 	}
 
-	tb.StartTimer()
 	tb.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			r := as.Get("/c1", "Access-Token", "aabbcc")
+			r := as2.Get("/c1", "Access-Token", "aabbcc")
 			if r.Error != nil || r.String() != "s1" {
-				tb.Error("Discover Benchmark", r.Error, r.String())
+				tb.Error("Discover Benchmark", r.Error, r.String(), r.Response.Status, r.Response.ContentLength)
 			}
 		}
 	})
-	tb.StopTimer()
-	as.Stop()
+	as2.Stop()
 }
+
+

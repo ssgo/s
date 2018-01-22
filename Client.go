@@ -48,16 +48,31 @@ func (cp *ClientPool) SetGlobalHeader(k, v string) {
 	}
 }
 
-func (cp *ClientPool) Do(url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Get(url string, headers ... string) *Result {
+	return cp.Do("GET", url, nil, headers...)
+}
+func (cp *ClientPool) Post(url string, data interface{}, headers ... string) *Result {
+	return cp.Do("POST", url, data, headers...)
+}
+func (cp *ClientPool) Put(url string, data interface{}, headers ... string) *Result {
+	return cp.Do("PUT", url, data, headers...)
+}
+func (cp *ClientPool) Delete(url string, data interface{}, headers ... string) *Result {
+	return cp.Do("DELETE", url, data, headers...)
+}
+func (cp *ClientPool) Head(url string, data interface{}, headers ... string) *Result {
+	return cp.Do("HEAD", url, data, headers...)
+}
+func (cp *ClientPool) Do(method, url string, data interface{}, headers ... string) *Result {
 	var req *http.Request
 	var err error
 	if data == nil {
-		req, err = http.NewRequest("GET", url, nil)
+		req, err = http.NewRequest(method, url, nil)
 	} else {
 		var bytesData []byte
 		bytesData, err = json.Marshal(data)
 		if err == nil {
-			req, err = http.NewRequest("POST", url, bytes.NewReader(bytesData))
+			req, err = http.NewRequest(method, url, bytes.NewReader(bytesData))
 			req.Header.Add("Content-Type", "application/json")
 		}
 	}

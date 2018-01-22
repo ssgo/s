@@ -72,10 +72,23 @@ func (as *AsyncServer) Stop() {
 		<-as.stopChan
 	}
 }
+
 func (as *AsyncServer) Get(path string, headers ... string) *Result {
-	return as.Post(path, nil, headers...)
+	return as.Do("GET", path, nil, headers...)
 }
 func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {
+	return as.Do("POST", path, data, headers...)
+}
+func (as *AsyncServer) Put(path string, data interface{}, headers ... string) *Result {
+	return as.Do("PUT", path, data, headers...)
+}
+func (as *AsyncServer) Delete(path string, data interface{}, headers ... string) *Result {
+	return as.Do("DELETE", path, data, headers...)
+}
+func (as *AsyncServer) Head(path string, data interface{}, headers ... string) *Result {
+	return as.Do("HEAD", path, data, headers...)
+}
+func (as *AsyncServer) Do(method, path string, data interface{}, headers ... string) *Result {
 	if as.clientPool == nil {
 		if as.httpVersion == 1 {
 			as.clientPool = GetClient1()
@@ -83,7 +96,15 @@ func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *
 			as.clientPool = GetClient()
 		}
 	}
-	return as.clientPool.Do(fmt.Sprintf("http://%s%s", as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("http://%s%s", as.Addr, path), data, headers...)
+	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
+		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
+	}
+	return r
+}
+
+func (as *AsyncServer) SetGlobalHeader(k, v string) {
+	as.clientPool.SetGlobalHeader(k, v)
 }
 
 func AsyncStart() *AsyncServer {
@@ -367,27 +388,50 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 		}
 	}
 
-	if webAuthChecker != nil {
-		var al uint = 0
-		if ws != nil {
-			al = ws.authLevel
-		} else if s != nil {
-			al = s.authLevel
+	if sessionKey != "" {
+		if request.Header.Get(sessionKey) == "" {
+			newSessionid := base.UniqueId()
+			request.Header.Set(sessionKey, newSessionid)
+			response.Header().Set(sessionKey, newSessionid)
 		}
-		if al > 0 && webAuthChecker(al, &request.RequestURI, &args, request) == false {
-			usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-			byteArgs, _ := json.Marshal(args)
-			byteHeaders, _ := json.Marshal(headers)
-			log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), al, request.Proto)
-			response.WriteHeader(403)
-			return
+	}
+
+	// 前置过滤器
+	var result interface{} = nil
+	for _, filter := range inFilters {
+		result = filter(&args, request, &response)
+		if result != nil {
+			break
+		}
+	}
+
+	if result == nil {
+		if webAuthChecker != nil {
+			var al uint = 0
+			if ws != nil {
+				al = ws.authLevel
+			} else if s != nil {
+				al = s.authLevel
+			}
+			if al > 0 && webAuthChecker(al, &request.RequestURI, &args, request) == false {
+				usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
+				byteArgs, _ := json.Marshal(args)
+				byteHeaders, _ := json.Marshal(headers)
+				log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), al, request.Proto)
+				response.WriteHeader(403)
+				return
+			}
 		}
 	}
 
 	// 处理 Websocket
-	if ws != nil {
+	if ws != nil && result == nil {
 		doWebsocketService(ws, request, &response, &args, &headers, &startTime)
-	} else if s != nil {
-		doWebService(s, request, &response, &args, &headers, &startTime)
+	} else if s != nil || result != nil {
+		doWebService(s, request, &response, &args, &headers, result, &startTime)
+	}
+
+	if sessionObjects[request] != nil {
+		delete(sessionObjects, request)
 	}
 }
