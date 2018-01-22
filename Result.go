@@ -178,10 +178,12 @@ func (rs *Result) ToValue(t reflect.Type) reflect.Value {
 func (rs *Result) To(result interface{}) error {
 	var err error = nil
 	if rs.bytesData != nil {
-		base.FixUpperCase(rs.bytesData)
-		err = json.Unmarshal(rs.bytesData, result)
-		if err != nil {
-			logError(err, 0)
+		if len(rs.bytesData) > 0 {
+			base.FixUpperCase(rs.bytesData)
+			err = json.Unmarshal(rs.bytesData, result)
+			if err != nil {
+				logError(err, 0)
+			}
 		}
 	} else {
 		t := reflect.TypeOf(result)
