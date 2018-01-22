@@ -79,12 +79,19 @@ func GetDB(name string) *DB {
 
 	conf := dbConfigs[name]
 	if conf.Host == "" {
-		err := fmt.Errorf("No db seted for %s", name)
-		logError(err, 0)
-		return &DB{conn: nil, Error: err}
+		conf.Host = "127.0.0.1:3306"
 	}
 	if conf.Type == "" {
 		conf.Type = "mysql"
+	}
+	if conf.User == "" {
+		conf.User = "test"
+	}
+	if conf.DB == "" {
+		conf.DB = "test"
+	}
+	if conf.Password == "" {
+		conf.Password = "34RVCy0rQBSQmLX64xjoyg=="
 	}
 
 	connectType := "tcp"
