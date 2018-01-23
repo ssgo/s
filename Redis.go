@@ -14,14 +14,15 @@ import (
 )
 
 type redisConfig struct {
-	Host        string
-	Password    string
-	DB          int
-	MaxActive   int
-	MaxIdles    int
-	IdleTimeout int
-	ConnTimeout int
-	RwTimeout   int
+	Host         string
+	Password     string
+	DB           int
+	MaxActive    int
+	MaxIdles     int
+	IdleTimeout  int
+	ConnTimeout  int
+	ReadTimeout  int
+	WriteTimeout int
 }
 
 type Redis struct {
@@ -65,26 +66,27 @@ func GetRedis(name string) *Redis {
 	if pos != -1 {
 		var err error
 		specialDB, err = strconv.Atoi(name[pos+1:])
-		if err != nil{
+		if err != nil {
 			specialDB = -1
 		}
 		name = name[0:pos]
 	}
+
 	conf := redisConfigs[name]
 	if conf.Host == "" {
 		conf.Host = "127.0.0.1:6379"
 	}
-	if specialDB >= 0{
+	if specialDB >= 0 {
 		conf.DB = specialDB
-	}else if conf.DB == 0 {
+	} else if conf.DB == 0 {
 		conf.DB = 1
 	}
 	if conf.ConnTimeout == 0 {
-		conf.ConnTimeout = 10
+		conf.ConnTimeout = 10000
 	}
-	if conf.RwTimeout == 0 {
-		conf.RwTimeout = 5
-	}
+	//if conf.RwTimeout == 0 {
+	//	conf.RwTimeout = 5000
+	//}
 
 	decryptedPassword := ""
 	if conf.Password != "" {
@@ -93,12 +95,12 @@ func GetRedis(name string) *Redis {
 	conn := &redis.Pool{
 		MaxIdle:     conf.MaxIdles,
 		MaxActive:   conf.MaxActive,
-		IdleTimeout: time.Second * time.Duration(conf.IdleTimeout),
+		IdleTimeout: time.Millisecond * time.Duration(conf.IdleTimeout),
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", conf.Host,
-				redis.DialConnectTimeout(time.Second*time.Duration(conf.ConnTimeout)),
-				redis.DialReadTimeout(time.Second*time.Duration(conf.RwTimeout)),
-				redis.DialWriteTimeout(time.Second*time.Duration(conf.RwTimeout)),
+				redis.DialConnectTimeout(time.Millisecond*time.Duration(conf.ConnTimeout)),
+				redis.DialReadTimeout(time.Millisecond*time.Duration(conf.ReadTimeout)),
+				redis.DialWriteTimeout(time.Millisecond*time.Duration(conf.WriteTimeout)),
 				redis.DialDatabase(conf.DB),
 				redis.DialPassword(decryptedPassword),
 			)
