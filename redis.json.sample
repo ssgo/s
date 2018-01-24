@@ -6,7 +6,8 @@
     "maxActive": 100,
     "maxIdles": 30,
     "idleTimeout": 0,
-    "connTimeout": 3,
-    "rwTimeout": 2
+    "connTimeout": 3000,
+    "readTimeout": 0,
+    "writeTimeout": 0
   }
 }

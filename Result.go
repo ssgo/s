@@ -1,10 +1,10 @@
 package redis
 
 import (
-	"strconv"
 	"encoding/json"
 	"github.com/ssgo/base"
 	"reflect"
+	"strconv"
 )
 
 type Result struct {
@@ -132,7 +132,7 @@ func (rs *Result) ResultMap() map[string]*Result {
 func (rs *Result) StringMap() map[string]string {
 	rm := rs.ResultMap()
 	m := make(map[string]string)
-	for k, r := range rm{
+	for k, r := range rm {
 		m[k] = r.String()
 	}
 	return m
@@ -140,7 +140,7 @@ func (rs *Result) StringMap() map[string]string {
 func (rs *Result) IntMap() map[string]int {
 	rm := rs.ResultMap()
 	m := make(map[string]int)
-	for k, r := range rm{
+	for k, r := range rm {
 		m[k] = r.Int()
 	}
 	return m

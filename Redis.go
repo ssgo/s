@@ -1,16 +1,16 @@
 package redis
 
 import (
-	"github.com/ssgo/base"
-	"github.com/garyburd/redigo/redis"
-	"fmt"
-	"reflect"
-	"time"
-	"log"
-	"runtime"
 	"encoding/json"
+	"fmt"
+	"github.com/garyburd/redigo/redis"
+	"github.com/ssgo/base"
+	"log"
+	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type redisConfig struct {
@@ -140,7 +140,7 @@ func (rd *Redis) GetConnection() redis.Conn {
 	return rd.pool.Get()
 }
 
-func (rd *Redis) Do(cmd string, values ... interface{}) *Result {
+func (rd *Redis) Do(cmd string, values ...interface{}) *Result {
 	if rd.pool == nil {
 		return &Result{Error: fmt.Errorf("Operat on a bad redis pool")}
 	}
@@ -152,7 +152,7 @@ func (rd *Redis) Do(cmd string, values ... interface{}) *Result {
 	return _do(conn, cmd, values...)
 }
 
-func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
+func _do(conn redis.Conn, cmd string, values ...interface{}) *Result {
 	if strings.Contains(cmd, "MSET") {
 		n := len(values)
 		for i := n - 1; i > 0; i -= 2 {
@@ -198,7 +198,7 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 			for i, v := range realValue {
 				if i%2 == 0 {
 					r.keys[i1] = string(v.([]byte))
-					i1 ++
+					i1++
 				} else {
 					switch subRealValue := v.(type) {
 					case []byte:
@@ -210,7 +210,7 @@ func _do(conn redis.Conn, cmd string, values ... interface{}) *Result {
 						r.bytesDatas[i2] = make([]byte, 0)
 						r.Error = err
 					}
-					i2 ++
+					i2++
 				}
 			}
 		} else {

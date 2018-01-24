@@ -1,6 +1,6 @@
 package redis
 
-func StringsToInterfaces(in []string) []interface{}{
+func StringsToInterfaces(in []string) []interface{} {
 	a := make([]interface{}, len(in))
 	for i, v := range in {
 		a[i] = v
@@ -8,16 +8,16 @@ func StringsToInterfaces(in []string) []interface{}{
 	return a
 }
 
-func (this *Redis) DEL(keys... string) int {
+func (this *Redis) DEL(keys ...string) int {
 	return this.Do("DEL", StringsToInterfaces(keys)...).Int()
 }
 func (this *Redis) EXISTS(key string) bool {
 	return this.Do("EXISTS", key).Bool()
 }
 func (this *Redis) EXPIRE(key string, seconds int) bool {
-	if seconds > 315360000{
+	if seconds > 315360000 {
 		return this.Do("EXPIREAT", key).Bool()
-	}else{
+	} else {
 		return this.Do("EXISTS", key).Bool()
 	}
 }
@@ -48,10 +48,10 @@ func (this *Redis) DECR(key string) int64 {
 	return this.Do("DECR", key).Int64()
 }
 
-func (this *Redis) MGET(keys... string) []Result {
+func (this *Redis) MGET(keys ...string) []Result {
 	return this.Do("MGET", StringsToInterfaces(keys)...).Results()
 }
-func (this *Redis) MSET(keyAndValues... interface{}) bool {
+func (this *Redis) MSET(keyAndValues ...interface{}) bool {
 	return this.Do("MSET", keyAndValues...).Bool()
 }
 
@@ -64,13 +64,13 @@ func (this *Redis) HSET(key, field string, value interface{}) bool {
 func (this *Redis) HSETNX(key, field string, value interface{}) bool {
 	return this.Do("HSETNX", key, field, value).Bool()
 }
-func (this *Redis) HMGET(key string, fields... string) []Result {
+func (this *Redis) HMGET(key string, fields ...string) []Result {
 	return this.Do("HMGET", append(append([]interface{}{}, key), StringsToInterfaces(fields)...)...).Results()
 }
 func (this *Redis) HGETALL(key string) map[string]*Result {
 	return this.Do("HGETALL", key).ResultMap()
 }
-func (this *Redis) HMSET(key string, fieldAndValues... interface{}) bool {
+func (this *Redis) HMSET(key string, fieldAndValues ...interface{}) bool {
 	return this.Do("HMSET", append(append([]interface{}{}, key), fieldAndValues...)...).Bool()
 }
 func (this *Redis) HKEYS(key string) []string {
@@ -79,7 +79,7 @@ func (this *Redis) HKEYS(key string) []string {
 func (this *Redis) HLEN(key string) int {
 	return this.Do("HLEN", key).Int()
 }
-func (this *Redis) HDEL(key string, fields... string) int {
+func (this *Redis) HDEL(key string, fields ...string) int {
 	return this.Do("HDEL", append(append([]interface{}{}, key), StringsToInterfaces(fields)...)...).Int()
 }
 func (this *Redis) HEXISTS(key, field string) bool {
