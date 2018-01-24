@@ -183,6 +183,28 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ... string) *
 func (as *AsyncServer) Delete(path string, data interface{}, headers ... string) *Result {}
 func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Result {}
 
+```
+
+
+
+## 服务发现 Discover
+
+基于 Http Header 传递 SessionId（不推荐使用Cookie）
+使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
+
+```shell
+
+export SERVICE_REGISTRY =       // 配置注册服务使用的 Redis 连接配置（redis.json 或 环境变量）
+export SERVICE_REGISTRYPREFIX = // 指定一个存储注册信息前缀
+export SERVICE_APP =            // 指定应用名称，存在此选项将运行在服务模式
+export SERVICE_WEIGHT =         // 服务的权重
+export SERVICE_ACCESSTOKENS =   // 设置允许访问该服务的令牌
+export SERVICE_CALLS =          // 设置将会访问的服务，存在此选项将运行在客户模式
+
+```
+
+```go
+
 // 调用已注册的服务，根据权重负载均衡
 func (caller *Caller) Get(app, path string, headers ... string) *Result {}
 func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {}
@@ -193,6 +215,16 @@ func (caller *Caller) Do(app, path string, data interface{}, headers ... string)
 
 // 指定节点调用已注册的服务，并返回本次使用的节点
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {}
+
+// 设置一个负载均衡算法
+func SetLbAlgorithm(algorithm DiscoverLbAlgorithm) {}
+
+type DiscoverLbAlgorithm interface {
+	// 每个请求完成后提供信息
+	Append(app, addr string, weight int, err error, response *http.Response, responseTimeing int64)
+	// 请求时根据节点的得分取最小值发起请求
+	GetScore(app, addr string, weight int) float64
+}
 
 ```
 

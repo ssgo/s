@@ -30,9 +30,21 @@ type nodeInfo struct {
 	flag        bool
 }
 
-var appSubscribeKeys []interface{}
+type DiscoverLbAlgorithm interface {
+	// 每个请求完成后提供信息
+	Append(app, addr string, weight int, err error, response *http.Response, responseTimeing int64)
+	// 请求时根据节点的得分取最小值发起请求
+	GetScore(app, addr string, weight int) float64
+}
 
+var lbAlgorithm DiscoverLbAlgorithm
+var appSubscribeKeys []interface{}
 var appClientPools = map[string]*ClientPool{}
+
+// 设置一个负载均衡算法
+func SetLbAlgorithm(algorithm DiscoverLbAlgorithm) {
+	lbAlgorithm = algorithm
+}
 
 type Caller struct {
 	headers []string
@@ -96,9 +108,17 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		node.score = float64(node.usedTimes) / float64(node.weight)
 
 		// 请求节点
+		var startTime time.Time
+		if lbAlgorithm != nil {
+			startTime = time.Now()
+		}
 		//t1 := time.Now()
 		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.addr, path), data, headers...)
 		//log.Print(" ==============	", app, path, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
+		if lbAlgorithm != nil {
+			responseTimeing := startTime.UnixNano() - time.Now().UnixNano()
+			lbAlgorithm.Append(app, node.addr, node.weight, r.Error, r.Response, responseTimeing)
+		}
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
 			// 错误处理
@@ -122,10 +142,16 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 
 func getNextNode(app string, excludes *map[string]bool) *nodeInfo {
 	var minScore float64 = -1
+	var score float64
 	var minNode *nodeInfo = nil
 	for _, node := range nodes[app] {
-		if node.failedTimes < 3 && (*excludes)[node.addr] == false && (minScore == -1 || node.score < minScore) {
-			minScore = node.score
+		if lbAlgorithm != nil {
+			score = lbAlgorithm.GetScore(app, node.addr, node.weight)
+		} else {
+			score = node.score
+		}
+		if node.failedTimes < 3 && (*excludes)[node.addr] == false && (minScore == -1 || score < minScore) {
+			minScore = score
 			minNode = node
 		}
 	}
