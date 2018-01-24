@@ -58,10 +58,11 @@ func (caller *Caller) Do(method, app, path string, data interface{}, headers ...
 }
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ...string) (*Result, string) {
 	if appNodes[app] == nil {
+		log.Printf("DISCOVER	No App	%s	%s", app, path)
 		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}, ""
 	}
-	//gotNodes := make(nodeList, 0)
 	if len(appNodes[app]) == 0 {
+		log.Printf("DISCOVER	No Node	%s	%s	%d", app, path, len(appNodes[app]))
 		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(appNodes[app]))}, ""
 	}
 
@@ -98,6 +99,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			}
 		}
 		if node == nil {
+			log.Printf("DISCOVER	No Node	%s	%s	%d", app, path, len(appNodes[app]))
 			break
 		}
 
@@ -108,13 +110,13 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
+			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
 			if node.FailedTimes >= 3 {
-				fmt.Printf("DISCOVER	Removed	%s	%d	%d	%d	%d	%s\n", node.Addr, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
+				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
 				if dcRedis.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
 					dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
-					//dcRedis.INCR(config.RegistryPrefix + "CH_" + app)
 				}
 			}
 		} else {
@@ -154,7 +156,6 @@ func startDiscover(addr string) bool {
 		// 注册节点
 		if dcRedis.HSET(config.RegistryPrefix+config.App, addr, config.Weight) {
 			log.Printf("DISCOVER	Registered	%s	%s	%d", config.App, addr, config.Weight)
-			//dcRedis.INCR(config.RegistryPrefix +"VER_"+config.App)
 			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", addr, config.Weight))
 		} else {
 			isok = false
@@ -178,26 +179,33 @@ func startDiscover(addr string) bool {
 			}
 			appClientPools[app] = cp
 		}
-		go syncDiscover()
+		initedChan := make(chan bool)
+		go syncDiscover(initedChan)
+		<- initedChan
 	}
 	return isok
 }
 
 var syncConn *redigo.PubSubConn
 
-func syncDiscover() {
+func syncDiscover(initedChan chan bool) {
+	inited := false
 	for {
-		if !syncerRunning {
-			break
-		}
-
 		syncConn = &redigo.PubSubConn{Conn: dcRedis.GetConnection()}
 		err := syncConn.Subscribe(appSubscribeKeys...)
 		if err != nil {
 			log.Print("REDIS SUBSCRIBE	", err)
 			syncConn.Close()
 			syncConn = nil
+
+			if !inited{
+				inited = true
+				initedChan <- true
+			}
 			time.Sleep(time.Second * 1)
+			if !syncerRunning {
+				break
+			}
 			continue
 		}
 
@@ -220,6 +228,10 @@ func syncDiscover() {
 				pushNode(app, addr, weight)
 			}
 		}
+		if !inited{
+			inited = true
+			initedChan <- true
+		}
 		if !syncerRunning {
 			break
 		}
@@ -229,7 +241,6 @@ func syncDiscover() {
 			isErr := false
 			switch v := syncConn.Receive().(type) {
 			case redigo.Message:
-				fmt.Printf("%s: message: %s\n", v.Channel, v.Data)
 				a := strings.Split(string(v.Data), " ")
 				addr := a[0]
 				weight := 0
@@ -242,7 +253,7 @@ func syncDiscover() {
 			case redigo.Subscription:
 			case error:
 				if !strings.Contains(v.Error(), "connection closed") {
-					fmt.Printf("REDIS RECEIVE ERROR	%s\n", v)
+					log.Printf("REDIS RECEIVE ERROR	%s", v)
 				}
 				isErr = true
 				break
@@ -255,6 +266,9 @@ func syncDiscover() {
 			break
 		}
 		time.Sleep(time.Second * 1)
+		if !syncerRunning {
+			break
+		}
 	}
 
 	if syncConn != nil {
@@ -285,7 +299,6 @@ func pushNode(app, addr string, weight int) {
 		node := appNodes[app][addr]
 		node.Weight = weight
 		node.UsedTimes = uint64(float64(node.UsedTimes) / float64(node.Weight) * float64(weight))
-		//node.UsedTimes = uint64(node.Score) * uint64(weight)
 	}
 }
 
@@ -303,7 +316,6 @@ func stopDiscover() {
 		if dcRedis.HDEL(config.RegistryPrefix+config.App, myAddr) > 0 {
 			log.Printf("DISCOVER	Unregistered	%s	%s	%d", config.App, myAddr, 0)
 			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s	%d", myAddr, 0))
-			//dcRedis.INCR(config.RegistryPrefix +"VER_"+config.App)
 		}
 	}
 }
