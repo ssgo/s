@@ -28,14 +28,9 @@ type NodeInfo struct {
 	Data        interface{}
 }
 
-var lbAlgorithm LoadBalancer = &DefaultLoadBalancer{}
+var settedLoadBalancer LoadBalancer = &DefaultLoadBalancer{}
 var appSubscribeKeys []interface{}
 var appClientPools = map[string]*ClientPool{}
-
-// 设置一个负载均衡算法
-func SetLbAlgorithm(algorithm LoadBalancer) {
-	lbAlgorithm = algorithm
-}
 
 type Caller struct {
 	headers []string
@@ -98,7 +93,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 				nodes = append(nodes, node)
 			}
 			if len(nodes) > 0 {
-				node = lbAlgorithm.Next(nodes, caller.request)
+				node = settedLoadBalancer.Next(nodes, caller.request)
 				excludes[node.Addr] = true
 			}
 		}
@@ -110,7 +105,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		startTime := time.Now()
 		node.UsedTimes++
 		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
-		lbAlgorithm.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
+		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
 			// 错误处理

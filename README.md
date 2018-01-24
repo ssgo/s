@@ -217,7 +217,7 @@ func (caller *Caller) Do(app, path string, data interface{}, headers ... string)
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {}
 
 // 设置一个负载均衡算法
-func SetLbAlgorithm(algorithm LoadBalancer) {}
+func SetLoadBalancer(lb LoadBalancer) {}
 
 type LoadBalancer interface {
 

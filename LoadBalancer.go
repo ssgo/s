@@ -2,6 +2,11 @@ package s
 
 import "net/http"
 
+// 设置一个负载均衡算法
+func SetLoadBalancer(lb LoadBalancer) {
+	settedLoadBalancer = lb
+}
+
 type LoadBalancer interface {
 
 	// 每个请求完成后提供信息
