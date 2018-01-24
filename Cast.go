@@ -1,8 +1,8 @@
 package base
 
 import (
-	"strconv"
 	"fmt"
+	"strconv"
 )
 
 func Int(value interface{}) int {
@@ -174,7 +174,7 @@ func Strings(value interface{}) []string {
 	return make([]string, 0)
 }
 
-func FixUpperCase(data []byte){
+func FixUpperCase(data []byte) {
 	n := len(data)
 	types := make([]bool, 0)
 	tpos := -1
@@ -184,19 +184,19 @@ func FixUpperCase(data []byte){
 			types = append(types, false)
 		}
 		if data[i] == '{' {
-			tpos ++
+			tpos++
 			types[tpos] = true
 			//log.Println(" >>>1 ", types, tpos)
 		} else if data[i] == '}' {
-			tpos --
+			tpos--
 			//log.Println(" >>>2 ", types, tpos)
 		}
 		if data[i] == '[' {
-			tpos ++
+			tpos++
 			types[tpos] = false
 			//log.Println(" >>>3 ", types, tpos)
 		} else if data[i] == ']' {
-			tpos --
+			tpos--
 			//log.Println(" >>>4 ", types, tpos)
 		}
 		if data[i] == '"' && (data[i-1] == '{' || (data[i-1] == ',' && tpos >= 0 && types[tpos])) && (data[i+1] >= 'A' && data[i+1] <= 'Z') {

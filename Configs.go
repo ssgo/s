@@ -2,12 +2,12 @@ package base
 
 import (
 	"encoding/json"
-	"os"
-	"reflect"
 	"fmt"
-	"strings"
 	"log"
+	"os"
 	"os/user"
+	"reflect"
+	"strings"
 )
 
 func LoadConfig(name string, conf interface{}) error {
@@ -16,7 +16,7 @@ func LoadConfig(name string, conf interface{}) error {
 	var err error
 	file, err = os.Open(name + ".json")
 	if err != nil {
-		file, err = os.Open("../"+name + ".json")
+		file, err = os.Open("../" + name + ".json")
 		if err != nil {
 			execPath := os.Args[0][0:strings.LastIndex(os.Args[0], string(os.PathSeparator))]
 			file, err = os.Open(execPath + "/" + name + ".json")
@@ -47,7 +47,7 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 			err := json.Unmarshal([]byte(ev), newValue.Interface())
 			if err != nil && t.Kind() == reflect.String {
 				v.SetString(ev)
-			}else if err == nil {
+			} else if err == nil {
 				v.Set(newValue.Elem())
 			} else {
 				log.Println("LoadConfig", prefix, ev, err)

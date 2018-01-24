@@ -1,14 +1,14 @@
 package base
 
 import (
-	"encoding/base64"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"bytes"
+	"encoding/base64"
 	"fmt"
-	"time"
 	"math/rand"
 	"strings"
+	"time"
 )
 
 func EncryptAes(origData string, key []byte, iv []byte) string {
@@ -73,16 +73,18 @@ func makeKeyIv(key []byte, iv []byte) ([]byte, []byte) {
 }
 
 const digits = "9ukH1grX75TQS6LzpFAjIivsdZoO0m_c8NBwnyYDhtMWEC2V3KaGxfJRPqe4lbU"
-var rander = rand.New(rand.NewSource(int64(time.Now().Nanosecond()*217)))
+
+var rander = rand.New(rand.NewSource(int64(time.Now().Nanosecond() * 217)))
+
 func UniqueId() string {
 	var a [64]byte
 	i := len(a)
-	rander2 := rand.New(rand.NewSource(int64(time.Now().Nanosecond()*217)))
+	rander2 := rand.New(rand.NewSource(int64(time.Now().Nanosecond() * 217)))
 	appendInt(&a, &i, rander2.Uint64())
 	appendByte(&a, &i, '-')
 
-	ratio := int64(rander.Intn(62)+1)
-	appendInt(&a, &i, uint64(time.Now().UnixNano() / 1000 * ratio))
+	ratio := int64(rander.Intn(62) + 1)
+	appendInt(&a, &i, uint64(time.Now().UnixNano()/1000*ratio))
 	appendByte(&a, &i, digits[ratio])
 	appendByte(&a, &i, '-')
 
