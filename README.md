@@ -198,7 +198,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 
 
 
-## Session
+## Session 和 注入
 
 基于 Http Header 传递 SessionId（不推荐使用Cookie）
 使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
@@ -211,10 +211,16 @@ func SetSessionKey(inSessionKey string) {}
 func GetSessionKey() string {}
 
 // 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-func SetSession(request *http.Request, obj interface{}) {}
+func SetSessionInject(request *http.Request, obj interface{}) {}
 
 // 获取本生命周期中指定类型的 Session 对象
-func GetSession(request *http.Request, dataType reflect.Type) interface{} {}
+func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {}
+
+// 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
+func SetInject(obj interface{}) {}
+
+// 获取一个注入对象
+func GetInject(dataType reflect.Type) interface{} {}
 
 ```
 

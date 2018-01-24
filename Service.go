@@ -32,12 +32,12 @@ var config = struct {
 	NoLogHeaders     string
 	CertFile         string
 	KeyFile          string
-	Discover         string
-	DiscoverPrefix   string
+	Registry         string
+	RegistryPrefix   string
 	AccessTokens     map[string]uint
 	App              string
 	Weight           uint
-	Calls map[string]struct {
+	Calls            map[string]struct {
 		AccessToken string
 		Timeout     int
 		HttpVersion int
@@ -73,22 +73,22 @@ func (as *AsyncServer) Stop() {
 	}
 }
 
-func (as *AsyncServer) Get(path string, headers ... string) *Result {
+func (as *AsyncServer) Get(path string, headers ...string) *Result {
 	return as.Do("GET", path, nil, headers...)
 }
-func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {
+func (as *AsyncServer) Post(path string, data interface{}, headers ...string) *Result {
 	return as.Do("POST", path, data, headers...)
 }
-func (as *AsyncServer) Put(path string, data interface{}, headers ... string) *Result {
+func (as *AsyncServer) Put(path string, data interface{}, headers ...string) *Result {
 	return as.Do("PUT", path, data, headers...)
 }
-func (as *AsyncServer) Delete(path string, data interface{}, headers ... string) *Result {
+func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) *Result {
 	return as.Do("DELETE", path, data, headers...)
 }
-func (as *AsyncServer) Head(path string, data interface{}, headers ... string) *Result {
+func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *Result {
 	return as.Do("HEAD", path, data, headers...)
 }
-func (as *AsyncServer) Do(method, path string, data interface{}, headers ... string) *Result {
+func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *Result {
 	if as.clientPool == nil {
 		if as.httpVersion == 1 {
 			as.clientPool = GetClient1()
@@ -145,8 +145,8 @@ func initConfig() {
 		config.CallTimeout = 5000
 	}
 
-	if config.Discover == "" {
-		config.Discover = "discover:15"
+	if config.Registry == "" {
+		config.Registry = "discover:15"
 	}
 
 	if config.Weight <= 0 {
@@ -211,7 +211,7 @@ func start(httpVersion int, as *AsyncServer) error {
 		for _, a := range addrs {
 			an := a.(*net.IPNet)
 			if an.IP.IsGlobalUnicast() {
-				ip = an.IP
+				ip = an.IP.To4()
 			}
 		}
 	}

@@ -38,6 +38,7 @@ var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.Respo
 var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
 var sessionKey string
 var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+var injectObjects = map[reflect.Type]interface{}{}
 
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
 func SetSessionKey(inSessionKey string) {
@@ -51,8 +52,13 @@ func GetSessionKey() string {
 	return sessionKey
 }
 
+// 获取 SessionId
+func GetSessionId(request *http.Request) string {
+	return request.Header.Get(sessionKey)
+}
+
 // 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-func SetSession(request *http.Request, obj interface{}) {
+func SetSessionInject(request *http.Request, obj interface{}) {
 	if sessionObjects[request] == nil {
 		sessionObjects[request] = map[reflect.Type]interface{}{}
 	}
@@ -60,11 +66,21 @@ func SetSession(request *http.Request, obj interface{}) {
 }
 
 // 获取本生命周期中指定类型的 Session 对象
-func GetSession(request *http.Request, dataType reflect.Type) interface{} {
+func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {
 	if sessionObjects[request] == nil {
 		return nil
 	}
 	return sessionObjects[request][dataType]
+}
+
+// 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
+func SetInject(obj interface{}) {
+	injectObjects[reflect.TypeOf(obj)] = obj
+}
+
+// 获取一个注入对象
+func GetInject(dataType reflect.Type) interface{} {
+	return injectObjects[dataType]
 }
 
 // 注册服务
@@ -134,10 +150,21 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		for i, parm := range parms {
 			if parm.Kind() == reflect.Invalid {
 				st := service.funcType.In(i)
-				sessObj := GetSession(request, st)
-				if sessObj != nil {
-					parms[i] = reflect.ValueOf(sessObj)
-				} else {
+				isset := false
+				if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+					sessObj := GetSessionInject(request, st)
+					if sessObj != nil {
+						parms[i] = reflect.ValueOf(sessObj)
+						isset = true
+					} else {
+						injectObj := GetInject(st)
+						if injectObj != nil {
+							parms[i] = reflect.ValueOf(injectObj)
+							isset = true
+						}
+					}
+				}
+				if isset == false {
 					parms[i] = reflect.New(st).Elem()
 				}
 			}

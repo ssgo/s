@@ -34,10 +34,10 @@ func GetClient() *ClientPool {
 	if config.CallTimeout > 0 {
 		clientConfig.Timeout = time.Duration(config.CallTimeout) * time.Millisecond
 	}
-	return &ClientPool{pool: clientConfig, globalHeaders:map[string]string{"User-Agent": "S-Client/2.0"}}
+	return &ClientPool{pool: clientConfig, globalHeaders: map[string]string{"User-Agent": "S-Client/2.0"}}
 }
 func GetClient1() *ClientPool {
-	return &ClientPool{pool: &http.Client{}, globalHeaders:map[string]string{"User-Agent": "S-Client/1.1"}}
+	return &ClientPool{pool: &http.Client{}, globalHeaders: map[string]string{"User-Agent": "S-Client/1.1"}}
 }
 
 func (cp *ClientPool) SetGlobalHeader(k, v string) {
@@ -48,22 +48,22 @@ func (cp *ClientPool) SetGlobalHeader(k, v string) {
 	}
 }
 
-func (cp *ClientPool) Get(url string, headers ... string) *Result {
+func (cp *ClientPool) Get(url string, headers ...string) *Result {
 	return cp.Do("GET", url, nil, headers...)
 }
-func (cp *ClientPool) Post(url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Post(url string, data interface{}, headers ...string) *Result {
 	return cp.Do("POST", url, data, headers...)
 }
-func (cp *ClientPool) Put(url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Put(url string, data interface{}, headers ...string) *Result {
 	return cp.Do("PUT", url, data, headers...)
 }
-func (cp *ClientPool) Delete(url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Delete(url string, data interface{}, headers ...string) *Result {
 	return cp.Do("DELETE", url, data, headers...)
 }
-func (cp *ClientPool) Head(url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Head(url string, data interface{}, headers ...string) *Result {
 	return cp.Do("HEAD", url, data, headers...)
 }
-func (cp *ClientPool) Do(method, url string, data interface{}, headers ... string) *Result {
+func (cp *ClientPool) Do(method, url string, data interface{}, headers ...string) *Result {
 	var req *http.Request
 	var err error
 	if data == nil {
@@ -87,9 +87,9 @@ func (cp *ClientPool) Do(method, url string, data interface{}, headers ... strin
 	for i := 1; i < len(headers); i += 2 {
 		req.Header.Add(headers[i-1], headers[i])
 	}
-//t1 := time.Now()
+	//t1 := time.Now()
 	res, err := cp.pool.Do(req)
-//log.Print(" ((((((((((	", url, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
+	//log.Print(" ((((((((((	", url, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
 	if err != nil {
 		return &Result{Error: err}
 	}
@@ -160,7 +160,7 @@ func (rs *Result) ToAction(result interface{}) string {
 	}
 
 	convertBytesToObject(rs.data[resultStart:resultEnd-resultStart], result)
-	return string(rs.data[actionStart: actionEnd-actionStart])
+	return string(rs.data[actionStart : actionEnd-actionStart])
 }
 
 func (rs *Result) To(result interface{}) error {

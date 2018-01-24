@@ -270,7 +270,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				}
 
 				startTime := time.Now()
-				err = doWebsocketAction(ws, action, client, messageData, sessionValue)
+				err = doWebsocketAction(ws, action, client, request, messageData, sessionValue)
 				if recordLogs {
 					usedTime := time.Now().UnixNano() - startTime.UnixNano()
 					if err == nil {
@@ -302,7 +302,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	}
 }
 
-func doWebsocketAction(ws *websocketServiceType, action *websocketActionType, client *websocket.Conn, data *map[string]interface{}, sess reflect.Value) error {
+func doWebsocketAction(ws *websocketServiceType, action *websocketActionType, client *websocket.Conn, request *http.Request, data *map[string]interface{}, sess reflect.Value) error {
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
@@ -318,6 +318,29 @@ func doWebsocketAction(ws *websocketServiceType, action *websocketActionType, cl
 	if action.clientIndex >= 0 {
 		messageParms[action.clientIndex] = reflect.ValueOf(client)
 	}
+	for i, parm := range messageParms {
+		if parm.Kind() == reflect.Invalid {
+			st := action.funcType.In(i)
+			isset := false
+			if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+				sessObj := GetSessionInject(request, st)
+				if sessObj != nil {
+					messageParms[i] = reflect.ValueOf(sessObj)
+					isset = true
+				} else {
+					injectObj := GetInject(st)
+					if injectObj != nil {
+						messageParms[i] = reflect.ValueOf(injectObj)
+						isset = true
+					}
+				}
+			}
+			if isset == false {
+				messageParms[i] = reflect.New(st).Elem()
+			}
+		}
+	}
+
 	outs := action.funcValue.Call(messageParms)
 	if ws.decoder != nil && len(outs) == 2 {
 		b, err := json.Marshal(ws.encoder(outs[0].String(), outs[1].Interface()))
