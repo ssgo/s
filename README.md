@@ -217,13 +217,15 @@ func (caller *Caller) Do(app, path string, data interface{}, headers ... string)
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {}
 
 // 设置一个负载均衡算法
-func SetLbAlgorithm(algorithm DiscoverLbAlgorithm) {}
+func SetLbAlgorithm(algorithm LoadBalancer) {}
 
-type DiscoverLbAlgorithm interface {
+type LoadBalancer interface {
+
 	// 每个请求完成后提供信息
-	Append(app, addr string, weight int, err error, response *http.Response, responseTimeing int64)
+	Response(node *NodeInfo, err error, response *http.Response, responseTimeing int64)
+
 	// 请求时根据节点的得分取最小值发起请求
-	GetScore(app, addr string, weight int) float64
+	Next(nodes []*NodeInfo, request *http.Request) *NodeInfo
 }
 
 ```

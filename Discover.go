@@ -17,37 +17,29 @@ var isClient = false
 var syncerRunning = false
 var syncerStopChan = make(chan bool)
 
-//var dcAppVersions = make(map[string]uint64)
 var myAddr = ""
-var nodes = map[string]map[string]*nodeInfo{}
+var appNodes = map[string]map[string]*NodeInfo{}
 
-type nodeInfo struct {
-	addr        string
-	weight      int
-	score       float64
-	usedTimes   uint64
-	failedTimes uint8
-	flag        bool
+type NodeInfo struct {
+	Addr        string
+	Weight      int
+	UsedTimes   uint64
+	FailedTimes uint8
+	Data        interface{}
 }
 
-type DiscoverLbAlgorithm interface {
-	// 每个请求完成后提供信息
-	Append(app, addr string, weight int, err error, response *http.Response, responseTimeing int64)
-	// 请求时根据节点的得分取最小值发起请求
-	GetScore(app, addr string, weight int) float64
-}
-
-var lbAlgorithm DiscoverLbAlgorithm
+var lbAlgorithm LoadBalancer = &DefaultLoadBalancer{}
 var appSubscribeKeys []interface{}
 var appClientPools = map[string]*ClientPool{}
 
 // 设置一个负载均衡算法
-func SetLbAlgorithm(algorithm DiscoverLbAlgorithm) {
+func SetLbAlgorithm(algorithm LoadBalancer) {
 	lbAlgorithm = algorithm
 }
 
 type Caller struct {
 	headers []string
+	request *http.Request
 }
 
 func (caller *Caller) Get(app, path string, headers ...string) *Result {
@@ -70,12 +62,12 @@ func (caller *Caller) Do(method, app, path string, data interface{}, headers ...
 	return r
 }
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ...string) (*Result, string) {
-	if nodes[app] == nil {
+	if appNodes[app] == nil {
 		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}, ""
 	}
 	//gotNodes := make(nodeList, 0)
-	if len(nodes[app]) == 0 {
-		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}, ""
+	if len(appNodes[app]) == 0 {
+		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(appNodes[app]))}, ""
 	}
 
 	appConf := config.Calls[app]
@@ -90,75 +82,54 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	var r *Result
 	excludes := make(map[string]bool)
 	for {
-		var node *nodeInfo
+		var node *NodeInfo
 		if withNode != "" {
-			node = nodes[app][withNode]
+			node = appNodes[app][withNode]
 			excludes[withNode] = true
 			withNode = ""
 		}
+
 		if node == nil {
-			node = getNextNode(app, &excludes)
+			nodes := []*NodeInfo{}
+			for _, node := range appNodes[app] {
+				if excludes[node.Addr] || node.FailedTimes >= 3 {
+					continue
+				}
+				nodes = append(nodes, node)
+			}
+			if len(nodes) > 0 {
+				node = lbAlgorithm.Next(nodes, caller.request)
+				excludes[node.Addr] = true
+			}
 		}
 		if node == nil {
 			break
 		}
 
-		// 计算得分
-		node.usedTimes++
-		node.score = float64(node.usedTimes) / float64(node.weight)
-
 		// 请求节点
-		var startTime time.Time
-		if lbAlgorithm != nil {
-			startTime = time.Now()
-		}
-		//t1 := time.Now()
-		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.addr, path), data, headers...)
-		//log.Print(" ==============	", app, path, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
-		if lbAlgorithm != nil {
-			responseTimeing := startTime.UnixNano() - time.Now().UnixNano()
-			lbAlgorithm.Append(app, node.addr, node.weight, r.Error, r.Response, responseTimeing)
-		}
+		startTime := time.Now()
+		node.UsedTimes++
+		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
+		lbAlgorithm.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
 			// 错误处理
-			node.failedTimes++
-			if node.failedTimes >= 3 {
-				fmt.Printf("DISCOVER	Removed	%s	%d	%d	%d	%d	%s\n", node.addr, node.weight, node.usedTimes, node.failedTimes, r.Response.StatusCode, r.Error)
-				if dcRedis.HDEL(config.RegistryPrefix+app, node.addr) > 0 {
-					dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.addr, 0))
+			node.FailedTimes++
+			if node.FailedTimes >= 3 {
+				fmt.Printf("DISCOVER	Removed	%s	%d	%d	%d	%d	%s\n", node.Addr, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
+				if dcRedis.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+					dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
 					//dcRedis.INCR(config.RegistryPrefix + "CH_" + app)
 				}
 			}
 		} else {
 			// 成功
-			return r, node.addr
+			return r, node.Addr
 		}
 	}
 
 	// 全部失败，返回最后一个失败的结果
-	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(nodes[app]))}, ""
-}
-
-func getNextNode(app string, excludes *map[string]bool) *nodeInfo {
-	var minScore float64 = -1
-	var score float64
-	var minNode *nodeInfo = nil
-	for _, node := range nodes[app] {
-		if lbAlgorithm != nil {
-			score = lbAlgorithm.GetScore(app, node.addr, node.weight)
-		} else {
-			score = node.score
-		}
-		if node.failedTimes < 3 && (*excludes)[node.addr] == false && (minScore == -1 || score < minScore) {
-			minScore = score
-			minNode = node
-		}
-	}
-	if minNode != nil {
-		(*excludes)[minNode.addr] = true
-	}
-	return minNode
+	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(appNodes[app]))}, ""
 }
 
 func startDiscover(addr string) bool {
@@ -237,11 +208,21 @@ func syncDiscover() {
 
 		// 第一次或断线后重新获取（订阅开始后再获取全量确保信息完整）
 		for app, _ := range config.Calls {
-			weights := dcRedis.Do("HGETALL", config.RegistryPrefix+app).IntMap()
-			nodes[app] = map[string]*nodeInfo{}
-			for addr, weight := range weights {
-				log.Printf("DISCOVER	Received	%s	%s	%d", app, addr, weight)
-				nodes[app][addr] = &nodeInfo{addr: addr, weight: weight, score: 0, flag: true}
+			if appNodes[app] == nil {
+				appNodes[app] = map[string]*NodeInfo{}
+			}
+
+			appResults := dcRedis.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
+			for _, node := range appNodes[app] {
+				if appResults[node.Addr] == nil {
+					log.Printf("DISCOVER	Remove When Reset	%s	%s	%d", app, node.Addr, 0)
+					pushNode(app, node.Addr, 0)
+				}
+			}
+			for addr, weightResult := range appResults {
+				weight := weightResult.Int()
+				log.Printf("DISCOVER	Reset	%s	%s	%d", app, addr, weight)
+				pushNode(app, addr, weight)
 			}
 		}
 		if !syncerRunning {
@@ -262,11 +243,7 @@ func syncDiscover() {
 				}
 				app := strings.Replace(v.Channel, config.RegistryPrefix+"CH_", "", 1)
 				log.Printf("DISCOVER	Received	%s	%s	%d", app, addr, weight)
-				if weight == 0 {
-					delete(nodes[app], addr)
-				} else {
-					nodes[app][addr] = &nodeInfo{addr: addr, weight: weight, score: 0, flag: true}
-				}
+				pushNode(app, addr, weight)
 			case redigo.Subscription:
 			case error:
 				if !strings.Contains(v.Error(), "connection closed") {
@@ -294,70 +271,28 @@ func syncDiscover() {
 	syncerStopChan <- true
 }
 
-//func syncDiscoverOld() {
-//	for {
-//		for i := 0; i < 3; i++ {
-//			time.Sleep(time.Millisecond * 500)
-//			if !syncerRunning {
-//				break
-//			}
-//		}
-//
-//		remoteAppVersions := map[string]uint64{}
-//		dcRedis.Do("MGET", appSubscribeKeys...).To(&remoteAppVersions)
-//		for verKey, remoteAppVersion := range remoteAppVersions {
-//			app := strings.Replace(verKey, config.RegistryPrefix+"VER_", "", 1)
-//			if remoteAppVersion > dcAppVersions[app] {
-//				dcAppVersions[app] = remoteAppVersion
-//
-//				// 获取该应用的节点
-//				weights := dcRedis.Do("HGETALL", config.RegistryPrefix+app).IntMap()
-//
-//				// 第一个节点，初始化
-//				if nodes[app] == nil {
-//					nodes[app] = map[string]*nodeInfo{}
-//				}
-//
-//				// 标记旧节点，得到平均分
-//				var avgScore float64 = 0
-//				for _, node := range nodes[app] {
-//					node.flag = false
-//					if avgScore == 0 && node.score > 0 {
-//						avgScore = node.score
-//					}
-//				}
-//
-//				// 合并数据
-//				for addr, weight := range weights {
-//					if nodes[app][addr] == nil {
-//						// 新节点使用平均分进行初始化
-//						nodes[app][addr] = &nodeInfo{addr: addr, weight: weight, score: avgScore, usedTimes: uint64(avgScore) * uint64(weight), flag: true}
-//					} else {
-//						node := nodes[app][addr]
-//						if weight != node.weight {
-//							node.weight = weight
-//							// 旧节点重新计算得分
-//							node.usedTimes = uint64(avgScore) * uint64(weight)
-//						}
-//						node.flag = true
-//					}
-//				}
-//
-//				// 删除已经不存在了的节点
-//				for addr, node := range nodes[app] {
-//					if node.flag == false {
-//						delete(nodes[app], addr)
-//					}
-//				}
-//			}
-//		}
-//
-//		if !syncerRunning {
-//			break
-//		}
-//	}
-//	syncerStopChan <- true
-//}
+func pushNode(app, addr string, weight int) {
+	if weight == 0 {
+		// 删除节点
+		if appNodes[app][addr] != nil {
+			delete(appNodes[app], addr)
+		}
+	} else if appNodes[app][addr] == nil {
+		// 新节点
+		var avgScore float64 = 0
+		for _, node := range appNodes[app] {
+			avgScore = float64(node.UsedTimes) / float64(weight)
+		}
+		usedTimes := uint64(avgScore) * uint64(weight)
+		appNodes[app][addr] = &NodeInfo{Addr: addr, Weight: weight, UsedTimes: usedTimes}
+	} else if appNodes[app][addr].Weight != weight {
+		// 修改权重
+		node := appNodes[app][addr]
+		node.Weight = weight
+		node.UsedTimes = uint64(float64(node.UsedTimes) / float64(node.Weight) * float64(weight))
+		//node.UsedTimes = uint64(node.Score) * uint64(weight)
+	}
+}
 
 func stopDiscover() {
 	if isClient {

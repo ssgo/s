@@ -144,7 +144,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.responseIndex] = reflect.ValueOf(*response)
 		}
 		if service.callerIndex >= 0 {
-			caller := &Caller{headers: []string{"S-Unique-Id", request.Header.Get("S-Unique-Id")}}
+			caller := &Caller{headers: []string{"S-Unique-Id", request.Header.Get("S-Unique-Id")}, request: request}
 			parms[service.callerIndex] = reflect.ValueOf(caller)
 		}
 		for i, parm := range parms {
