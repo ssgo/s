@@ -181,7 +181,7 @@ func startDiscover(addr string) bool {
 		}
 		initedChan := make(chan bool)
 		go syncDiscover(initedChan)
-		<- initedChan
+		<-initedChan
 	}
 	return isok
 }
@@ -198,7 +198,7 @@ func syncDiscover(initedChan chan bool) {
 			syncConn.Close()
 			syncConn = nil
 
-			if !inited{
+			if !inited {
 				inited = true
 				initedChan <- true
 			}
@@ -228,7 +228,7 @@ func syncDiscover(initedChan chan bool) {
 				pushNode(app, addr, weight)
 			}
 		}
-		if !inited{
+		if !inited {
 			inited = true
 			initedChan <- true
 		}
