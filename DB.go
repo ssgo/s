@@ -1,14 +1,14 @@
 package db
 
 import (
-	"github.com/ssgo/base"
 	"database/sql"
 	"fmt"
-	"reflect"
-	"time"
-	"strings"
+	"github.com/ssgo/base"
 	"log"
+	"reflect"
 	"runtime"
+	"strings"
+	"time"
 )
 
 type dbInfo struct {
