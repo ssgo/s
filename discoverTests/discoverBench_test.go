@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"github.com/ssgo/s"
+	"testing"
 )
 
 func BenchmarkForDiscover(tb *testing.B) {

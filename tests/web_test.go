@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"testing"
 	".."
 	"net/http"
 	"os"
+	"testing"
 )
 
 func Welcome(in struct{}) string {
@@ -45,7 +45,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 	as := s.AsyncStart()
 
 	c := s.GetClient()
-	r := c.Get("http://"+as.Addr)
+	r := c.Get("http://" + as.Addr)
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
 	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)
 
@@ -67,4 +67,3 @@ func TestWelcomePicture(tt *testing.T) {
 	t.Test(r.Error == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, r.Error)
 	t.Test(r.Response.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, r.Error)
 }
-

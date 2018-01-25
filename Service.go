@@ -19,6 +19,7 @@ import (
 )
 
 type Arr []interface{}
+
 type Map map[string]interface{}
 
 var recordLogs = true

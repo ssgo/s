@@ -1,10 +1,10 @@
 package main
 
 import (
-	"testing"
 	".."
-	"os"
 	"github.com/ssgo/redis"
+	"os"
+	"testing"
 )
 
 func TestBase(tt *testing.T) {

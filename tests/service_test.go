@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"testing"
 	".."
 	"net/http"
 	"os"
+	"testing"
 )
 
 func TestEchos(tt *testing.T) {
@@ -91,7 +91,7 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
-	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (interface{}) {
+	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
 		return echo2Args{
 			FilterTag:  (*in)["filterTag"].(string),
 			FilterTag2: (*in)["filterTag2"].(int) + 100,

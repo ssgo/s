@@ -1,9 +1,9 @@
 package main
 
 import (
-	"testing"
 	".."
 	"os"
+	"testing"
 )
 
 func BenchmarkForHttpClient1(tb *testing.B) {
@@ -42,4 +42,3 @@ func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
 	})
 	tb.StopTimer()
 }
-

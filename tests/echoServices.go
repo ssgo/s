@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"net/http"
-	"github.com/gorilla/websocket"
 	"fmt"
+	"github.com/gorilla/websocket"
+	"net/http"
 )
 
 type echo1Args struct {
@@ -77,10 +77,11 @@ func OnEchoOpen(in struct {
 	return sess
 }
 
-type echoAgeData struct{
+type echoAgeData struct {
 	OldAge int
 	NewAge int
 }
+
 func OnEchoMessage(in struct {
 	Action string
 	Age    int
@@ -109,5 +110,5 @@ func EchoDecoder(srcData interface{}) (string, *map[string]interface{}, error) {
 }
 
 func EchoEncoder(action string, data interface{}) interface{} {
-	return []interface{}{action,data}
+	return []interface{}{action, data}
 }
