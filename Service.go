@@ -18,9 +18,9 @@ import (
 	"time"
 )
 
-type Arr []interface{}
+type Arr = []interface{}
 
-type Map map[string]interface{}
+type Map = map[string]interface{}
 
 var recordLogs = true
 

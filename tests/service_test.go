@@ -14,6 +14,7 @@ func TestEchos(tt *testing.T) {
 	s.Register(0, "/echo1", Echo1)
 	s.Register(0, "/echo2", Echo2)
 	s.Register(0, "/echo3", Echo3)
+	s.Register(0, "/echo4", Echo4)
 
 	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	as := s.AsyncStart()
@@ -48,6 +49,9 @@ func TestEchos(tt *testing.T) {
 	t.Test(ok, "[Echo3] Data1", a)
 	t.Test(a[0] == "Star", "[Echo3] Data2", a)
 	t.Test(a[1] == "/echo3", "[Echo3] Data3", a)
+
+	d4 := as.Get("/echo4?aaa=11").Map()
+	t.Test(d4["aaa"] == "11", "[Echo4]", d4)
 }
 
 func TestFilters(tt *testing.T) {

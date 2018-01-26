@@ -17,7 +17,6 @@ type webServiceType struct {
 	authLevel     uint
 	pathMatcher   *regexp.Regexp
 	pathArgs      []string
-	isService     bool
 	parmsNum      int
 	inType        reflect.Type
 	inIndex       int
@@ -130,9 +129,13 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		// 生成参数
 		var parms = make([]reflect.Value, service.parmsNum)
 		if service.inType != nil {
-			in := reflect.New(service.inType).Interface()
-			mapstructure.WeakDecode(*args, in)
-			parms[service.inIndex] = reflect.ValueOf(in).Elem()
+			if service.inType.Kind() == reflect.Map && service.inType.Elem().Kind() == reflect.Interface {
+				parms[service.inIndex] = reflect.ValueOf(args).Elem()
+			} else {
+				in := reflect.New(service.inType).Interface()
+				mapstructure.WeakDecode(*args, in)
+				parms[service.inIndex] = reflect.ValueOf(in).Elem()
+			}
 		}
 		if service.headersIndex >= 0 {
 			parms[service.headersIndex] = reflect.ValueOf(&request.Header)
@@ -169,14 +172,19 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 				}
 			}
 		}
+		if request.RequestURI == "/echo4" {
+		}
 		outs := service.funcValue.Call(parms)
+		if request.RequestURI == "/echo4" {
+			fmt.Println("=========== ***1", service.inType.Kind(), parms)
+			fmt.Println("=========== ***2", request.RequestURI, outs)
+		}
 		if len(outs) > 0 {
 			result = outs[0].Interface()
 		} else {
 			result = ""
 		}
 	}
-
 	// 后置过滤器
 	for _, filter := range outFilters {
 		newResult, done := filter(args, request, response, result)
@@ -261,25 +269,11 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.headersIndex = i
 		} else if t.String() == "*s.Caller" {
 			targetService.callerIndex = i
-		} else if t.Kind() == reflect.Struct {
+		} else if t.Kind() == reflect.Struct || (t.Kind() == reflect.Map && t.Elem().Kind() == reflect.Interface) {
 			if targetService.inType == nil {
 				targetService.inIndex = i
 				targetService.inType = t
 			}
-		}
-	}
-
-	if funcType.NumIn() > 0 {
-		// 返回值类型不对
-		outType := funcType.Out(0)
-		if outType.Kind() == reflect.Ptr {
-			outType = outType.Elem()
-		}
-		if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
-			targetService.isService = false
-			outType = funcType.Out(0)
-		} else {
-			targetService.isService = true
 		}
 	}
 

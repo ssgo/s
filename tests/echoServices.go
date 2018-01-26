@@ -1,6 +1,7 @@
 package tests
 
 import (
+	".."
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -46,6 +47,10 @@ func Echo3(res http.ResponseWriter, in struct {
 	Name string
 }, req *http.Request) []string {
 	return []string{in.Name, req.RequestURI}
+}
+
+func Echo4(in s.Map) s.Map {
+	return in
 }
 
 type echoWsSession struct {
