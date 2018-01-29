@@ -28,6 +28,18 @@ type webServiceType struct {
 	funcValue     reflect.Value
 }
 
+type rewriteInfo struct {
+	matcher *regexp.Regexp
+	toPath  string
+}
+
+type proxyInfo struct {
+	authLevel uint
+	matcher   *regexp.Regexp
+	toApp     string
+	toPath    string
+}
+
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make(map[string]*webServiceType)
 
@@ -36,6 +48,7 @@ var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.Respo
 
 var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
 var sessionKey string
+var sessionCreator func() string
 var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
 
@@ -44,6 +57,11 @@ func SetSessionKey(inSessionKey string) {
 	if sessionKey == "" {
 		sessionKey = inSessionKey
 	}
+}
+
+// 设置 Session ID 生成器
+func SetSessionCreator(creator func() string) {
+	sessionCreator = creator
 }
 
 // 获取 SessionKey
@@ -83,29 +101,32 @@ func GetInject(dataType reflect.Type) interface{} {
 }
 
 // 注册服务
-func Register(authLevel uint, name string, serviceFunc interface{}) {
+func Register(authLevel uint, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		log.Printf("ERROR	%s	%s	", name, err)
+		log.Printf("ERROR	%s	%s	", path, err)
 		return
 	}
 
 	s.authLevel = authLevel
 	finder, err := regexp.Compile("\\{(.+?)\\}")
 	if err == nil {
-		keyName := regexp.QuoteMeta(name)
-		finds := finder.FindAllStringSubmatch(name, 20)
+		keyName := regexp.QuoteMeta(path)
+		finds := finder.FindAllStringSubmatch(path, 20)
 		for _, found := range finds {
 			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.+?)", 1)
 			s.pathArgs = append(s.pathArgs, found[1])
 		}
 		if len(s.pathArgs) > 0 {
-			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
-			regexWebServices[name] = s
+			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
+			if err != nil {
+				log.Print("Register	Compile	", err)
+			}
+			regexWebServices[path] = s
 		}
 	}
 	if s.pathMatcher == nil {
-		webServices[name] = s
+		webServices[path] = s
 	}
 }
 
@@ -123,7 +144,7 @@ func SetAuthChecker(authChecker func(authLevel uint, url *string, in *map[string
 	webAuthChecker = authChecker
 }
 
-func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, result interface{}, startTime *time.Time) {
+func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, result interface{}, startTime *time.Time) interface{} {
 	// 反射调用
 	if result == nil {
 		// 生成参数
@@ -175,61 +196,13 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		if request.RequestURI == "/echo4" {
 		}
 		outs := service.funcValue.Call(parms)
-		if request.RequestURI == "/echo4" {
-			fmt.Println("=========== ***1", service.inType.Kind(), parms)
-			fmt.Println("=========== ***2", request.RequestURI, outs)
-		}
 		if len(outs) > 0 {
 			result = outs[0].Interface()
 		} else {
 			result = ""
 		}
 	}
-	// 后置过滤器
-	for _, filter := range outFilters {
-		newResult, done := filter(args, request, response, result)
-		if newResult != nil {
-			result = newResult
-		}
-		if done {
-			break
-		}
-	}
-
-	// 返回结果
-	outType := reflect.TypeOf(result)
-	if outType.Kind() == reflect.Ptr {
-		outType = outType.Elem()
-	}
-	var outBytes []byte
-	isJson := false
-	if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
-		outBytes = makeBytesResult(result)
-		isJson = true
-	} else if outType.Kind() == reflect.String {
-		outBytes = []byte(result.(string))
-	} else {
-		outBytes = result.([]byte)
-	}
-	(*response).Write(outBytes)
-
-	// 记录访问日志
-	if recordLogs {
-		usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-		byteArgs, _ := json.Marshal(*args)
-		if (*headers)["Access-Token"] != "" {
-			(*headers)["Access-Token"] = (*headers)["Access-Token"][0:4] + "*******"
-		}
-		byteHeaders, _ := json.Marshal(*headers)
-		byteOutHeaders, _ := json.Marshal((*response).Header())
-		if len(outBytes) > 1024 {
-			outBytes = outBytes[0:1024]
-		}
-		if !isJson {
-			makePrintable(outBytes)
-		}
-		log.Printf("ACCESS	%s	%s	%s	%s	%.6f	%s	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto)
-	}
+	return result
 }
 
 func makePrintable(data []byte) {

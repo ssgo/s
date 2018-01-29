@@ -60,7 +60,7 @@ var regexWebsocketServices = make(map[string]*websocketServiceType)
 var webSocketActionAuthChecker func(uint, *string, *string, *map[string]interface{}, *http.Request, interface{}) bool
 
 // 注册Websocket服务
-func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
+func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request *map[string]interface{}, err error),
@@ -125,22 +125,25 @@ func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
 
 	finder, err := regexp.Compile("\\{(.+?)\\}")
 	if err == nil {
-		keyName := regexp.QuoteMeta(name)
-		finds := finder.FindAllStringSubmatch(name, 20)
+		keyName := regexp.QuoteMeta(path)
+		finds := finder.FindAllStringSubmatch(path, 20)
 		for _, found := range finds {
 			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.+?)", 1)
 			s.pathArgs = append(s.pathArgs, found[1])
 		}
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
-			regexWebsocketServices[name] = s
+			if err != nil {
+				log.Print("RegisterWebsocket	Compile	", err)
+			}
+			regexWebsocketServices[path] = s
 		}
 	}
 	if s.pathMatcher == nil {
-		websocketServices[name] = s
+		websocketServices[path] = s
 	}
 
-	return &ActionRegister{websocketName: name, websocketServiceType: s}
+	return &ActionRegister{websocketName: path, websocketServiceType: s}
 }
 
 func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, action interface{}) {

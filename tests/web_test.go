@@ -4,6 +4,7 @@ import (
 	".."
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +22,20 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 	pic[3] = bytePicName[0]
 	pic[4] = bytePicName[1]
 	return pic
+}
+
+func TestStatic(tt *testing.T) {
+	t := s.T(tt)
+	s.ResetAllSets()
+	s.Static("/", "/Volumes/Star/com.isstar/ssgo/s/tests/www")
+	as := s.AsyncStart1()
+	r := as.Get("/")
+	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
+	r = as.Get("/aaa/111.json")
+	t.Test(r.Error == nil && r.String() == "111", "Static 111.json", r.Error, r.String())
+	r = as.Get("/ooo.html")
+	t.Test(r.Error == nil && r.Response.StatusCode == 404, "Static 404", r.Error, r.String())
+	as.Stop()
 }
 
 func TestWelcomeWithHttp1(tt *testing.T) {

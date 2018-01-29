@@ -3,6 +3,7 @@ package s
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 )
 
@@ -22,6 +23,16 @@ import (
 //}
 
 func ResetAllSets() {
+	rewrites = make(map[string]*rewriteInfo)
+	regexRewrites = make(map[string]*rewriteInfo)
+	proxies = make(map[string]*proxyInfo, 0)
+	regexProxies = make(map[string]*proxyInfo, 0)
+	statics = make(map[string]*string)
+	sessionKey = ""
+	sessionCreator = nil
+	sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+	injectObjects = map[reflect.Type]interface{}{}
+
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make(map[string]*webServiceType)
 	inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)

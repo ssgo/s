@@ -48,7 +48,7 @@ func TestEchos(tt *testing.T) {
 	a := as.Post("/echo3?a=1", s.Map{"name": "Star"}).Arr()
 	t.Test(ok, "[Echo3] Data1", a)
 	t.Test(a[0] == "Star", "[Echo3] Data2", a)
-	t.Test(a[1] == "/echo3", "[Echo3] Data3", a)
+	t.Test(a[1] == "/echo3?a=1", "[Echo3] Data3", a)
 
 	d4 := as.Get("/echo4?aaa=11").Map()
 	t.Test(d4["aaa"] == "11", "[Echo4]", d4)
