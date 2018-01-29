@@ -196,35 +196,39 @@ func _do(conn redis.Conn, cmd string, values ...interface{}) *Result {
 			i1 := 0
 			i2 := 0
 			for i, v := range realValue {
-				if i%2 == 0 {
-					r.keys[i1] = string(v.([]byte))
-					i1++
-				} else {
-					switch subRealValue := v.(type) {
-					case []byte:
-						r.bytesDatas[i2] = subRealValue
-					case string:
-						r.bytesDatas[i2] = []byte(subRealValue)
-					default:
-						logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
-						r.bytesDatas[i2] = make([]byte, 0)
-						r.Error = err
+				if v != nil {
+					if i%2 == 0 {
+						r.keys[i1] = string(v.([]byte))
+						i1++
+					} else {
+						switch subRealValue := v.(type) {
+						case []byte:
+							r.bytesDatas[i2] = subRealValue
+						case string:
+							r.bytesDatas[i2] = []byte(subRealValue)
+						default:
+							logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
+							r.bytesDatas[i2] = make([]byte, 0)
+							r.Error = err
+						}
+						i2++
 					}
-					i2++
 				}
 			}
 		} else {
 			r.bytesDatas = make([][]byte, len(realValue))
 			for i, v := range realValue {
-				switch subRealValue := v.(type) {
-				case []byte:
-					r.bytesDatas[i] = subRealValue
-				case string:
-					r.bytesDatas[i] = []byte(subRealValue)
-				default:
-					logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
-					r.bytesDatas[i] = make([]byte, 0)
-					r.Error = err
+				if v != nil {
+					switch subRealValue := v.(type) {
+					case []byte:
+						r.bytesDatas[i] = subRealValue
+					case string:
+						r.bytesDatas[i] = []byte(subRealValue)
+					default:
+						logError(fmt.Errorf("Unknow reply type", cmd, i, v), 1)
+						r.bytesDatas[i] = make([]byte, 0)
+						r.Error = err
+					}
 				}
 			}
 		}
@@ -257,11 +261,25 @@ func _checkValue(values []interface{}, index int) {
 
 func logError(err error, skips int) {
 	if enabledLogs && err != nil {
-		_, file, lineno, _ := runtime.Caller(skips + 1)
-		_, file2, lineno2, _ := runtime.Caller(skips + 2)
-		_, file3, lineno3, _ := runtime.Caller(skips + 3)
-		_, file4, lineno4, _ := runtime.Caller(skips + 4)
-		_, file5, lineno5, _ := runtime.Caller(skips + 5)
-		log.Printf("Redis	%s	%s:%d	%s:%d	%s:%d	%s:%d	%s:%d", err.Error(), file, lineno, file2, lineno2, file3, lineno3, file4, lineno4, file5, lineno5)
+		traces := make([]interface{}, 2)
+		traces[0] = "Redis	"
+		traces[1] = err.Error()
+		i := 1
+		for {
+			_, file, line, ok := runtime.Caller(skips + i)
+			i++
+			if !ok {
+				break
+			}
+			if strings.Contains(file, "/garyburd/redigo/") || strings.Contains(file, "/go/src/") {
+				continue
+			}
+			pos := strings.Index(file, "/ssgo/redis/")
+			if pos != -1 {
+				file = file[pos+12:]
+			}
+			traces = append(traces, fmt.Sprintf("	%s:%d", file, line))
+		}
+		log.Print(traces...)
 	}
 }
