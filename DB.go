@@ -636,11 +636,25 @@ func makeValue(t reflect.Type) interface{} {
 
 func logError(err error, skips int) {
 	if enabledLogs && err != nil {
-		_, file, lineno, _ := runtime.Caller(skips + 1)
-		_, file2, lineno2, _ := runtime.Caller(skips + 2)
-		_, file3, lineno3, _ := runtime.Caller(skips + 3)
-		_, file4, lineno4, _ := runtime.Caller(skips + 4)
-		_, file5, lineno5, _ := runtime.Caller(skips + 5)
-		log.Printf("DB	%s	%s:%d	%s:%d	%s:%d	%s:%d	%s:%d", err.Error(), file, lineno, file2, lineno2, file3, lineno3, file4, lineno4, file5, lineno5)
+		traces := make([]interface{}, 2)
+		traces[0] = "Redis	"
+		traces[1] = err.Error()
+		i := 1
+		for {
+			_, file, line, ok := runtime.Caller(skips + i)
+			i++
+			if !ok {
+				break
+			}
+			if strings.Contains(file, "/go/src/") {
+				continue
+			}
+			pos := strings.Index(file, "/ssgo/db/")
+			if pos != -1 {
+				file = file[pos+9:]
+			}
+			traces = append(traces, fmt.Sprintf("	%s:%d", file, line))
+		}
+		log.Print(traces...)
 	}
 }
