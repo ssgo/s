@@ -74,7 +74,7 @@ func makeKeyIv(key []byte, iv []byte) ([]byte, []byte) {
 
 const digits = "9ukH1grX75TQS6LzpFAjIivsdZoO0m_c8NBwnyYDhtMWEC2V3KaGxfJRPqe4lbU"
 
-var rander = rand.New(rand.NewSource(int64(time.Now().Nanosecond() * 217)))
+var Rander = rand.New(rand.NewSource(int64(time.Now().Nanosecond() * 217)))
 
 func UniqueId() string {
 	var a [64]byte
@@ -83,12 +83,12 @@ func UniqueId() string {
 	appendInt(&a, &i, rander2.Uint64())
 	appendByte(&a, &i, '-')
 
-	ratio := int64(rander.Intn(62) + 1)
+	ratio := int64(Rander.Intn(62) + 1)
 	appendInt(&a, &i, uint64(time.Now().UnixNano()/1000*ratio))
 	appendByte(&a, &i, digits[ratio])
 	appendByte(&a, &i, '-')
 
-	appendInt(&a, &i, rander.Uint64())
+	appendInt(&a, &i, Rander.Uint64())
 	return string(a[i:])
 }
 
