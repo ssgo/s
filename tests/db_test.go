@@ -3,8 +3,8 @@ package tests
 import _ "github.com/go-sql-driver/mysql"
 import (
 	".."
-	"testing"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -12,6 +12,7 @@ type userInfo struct {
 	Id    int
 	Name  string
 	Phone string
+	Email string
 	Time  string
 }
 
@@ -55,7 +56,7 @@ func TestBaseSelect(t *testing.T) {
 	}
 
 	results4 := make([]userInfo, 0)
-	r = db.Query( sql)
+	r = db.Query(sql)
 	if r.Error != nil {
 		t.Error("Query error", sql, results4, r)
 	}
@@ -71,7 +72,7 @@ func TestBaseSelect(t *testing.T) {
 	}
 
 	//results6 := make([]string, 0)
-	r = db.Query( sql)
+	r = db.Query(sql)
 	if r.Error != nil {
 		t.Error("Query error", sql, r)
 	}
@@ -91,7 +92,7 @@ func TestBaseSelect(t *testing.T) {
 	}
 
 	results8 := userInfo{}
-	r = db.Query( sql)
+	r = db.Query(sql)
 	if r.Error != nil {
 		t.Error("Query error", sql, results8, r)
 	}
@@ -110,7 +111,7 @@ func TestBaseSelect(t *testing.T) {
 		t.Error("Result error", sql, results9, r)
 	}
 
-	t.Log("OpenConnections", db.GetOriginDB().Stats().OpenConnections)
+	//t.Log("OpenConnections", db.GetOriginDB().Stats().OpenConnections)
 }
 
 func TestInsertReplaceUpdateDelete(t *testing.T) {
@@ -118,7 +119,7 @@ func TestInsertReplaceUpdateDelete(t *testing.T) {
 	er := db.Insert("tempUsersForDBTest", map[string]interface{}{
 		"phone": 18033336666,
 		"name":  "Star",
-		"time": ":DATE_SUB(NOW(), INTERVAL 1 DAY)",
+		"time":  ":DATE_SUB(NOW(), INTERVAL 1 DAY)",
 	})
 	if er.Error != nil {
 		t.Error("Insert 1 error", er)
@@ -224,7 +225,7 @@ func TestTransaction(t *testing.T) {
 	tx.Insert("tempUsersForDBTest", map[string]interface{}{
 		"phone": 18033336666,
 		"name":  "Star",
-		"time": ":DATE_SUB(NOW(), INTERVAL 1 DAY)",
+		"time":  ":DATE_SUB(NOW(), INTERVAL 1 DAY)",
 	})
 
 	userList = make([]userInfo, 0)
@@ -244,7 +245,7 @@ func TestTransaction(t *testing.T) {
 	tx.Rollback()
 
 	userList = make([]userInfo, 0)
-	r = db.Query( "select * from tempUsersForDBTest")
+	r = db.Query("select * from tempUsersForDBTest")
 	r.To(&userList)
 	if r.Error != nil || len(userList) != 0 {
 		t.Error("Select When Rollback", userList, r)
@@ -265,7 +266,7 @@ func TestTransaction(t *testing.T) {
 	tx.Commit()
 
 	userList = make([]userInfo, 0)
-	r = db.Query( "select * from tempUsersForDBTest")
+	r = db.Query("select * from tempUsersForDBTest")
 	r.To(&userList)
 	if r.Error != nil || len(userList) != 1 {
 		t.Error("Select When Commit", userList, r)
@@ -286,6 +287,7 @@ func initDB(t *testing.T) *db.DB {
 				id INT NOT NULL AUTO_INCREMENT,
 				name VARCHAR(45) NOT NULL,
 				phone VARCHAR(45),
+				email VARCHAR(45),
 				time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 				PRIMARY KEY (id));`)
 	if er.Error != nil {

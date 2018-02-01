@@ -1,5 +1,6 @@
 package db
 
+// TODO 字段值为NULL时的处理
 import (
 	"database/sql"
 	"fmt"
@@ -472,6 +473,7 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 	resultsValue := reflect.ValueOf(results)
 	if rowType.Kind() != reflect.Ptr {
 		err := fmt.Errorf("results must be a pointer")
+		logError(err, 0)
 		return err
 	}
 	rowType = rowType.Elem()
@@ -479,6 +481,7 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 
 	colTypes, err := rows.ColumnTypes()
 	if err != nil {
+		logError(err, 0)
 		return err
 	}
 
@@ -501,7 +504,7 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 					scanValues[colIndex] = makeValue(field.Type)
 				}
 			} else {
-				scanValues[colIndex] = new(string)
+				scanValues[colIndex] = makeValue(nil)
 			}
 		}
 	} else if rowType.Kind() == reflect.Map {
@@ -530,7 +533,7 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 			scanValues[0] = makeValue(rowType)
 		}
 		for colIndex := 1; colIndex < colNum; colIndex++ {
-			scanValues[colIndex] = new(string)
+			scanValues[colIndex] = makeValue(nil)
 		}
 	}
 
@@ -539,6 +542,7 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 
 		err = rows.Scan(scanValues...)
 		if err != nil {
+			logError(err, 0)
 			return err
 		}
 		if rowType.Kind() == reflect.Struct {
@@ -547,24 +551,36 @@ func makeResults(results interface{}, rows *sql.Rows) error {
 				publicColName := makePublicVarName(col.Name())
 				_, found := rowType.FieldByName(publicColName)
 				if found {
-					data.FieldByName(publicColName).Set(reflect.ValueOf(scanValues[colIndex]).Elem())
+					valuePtr := reflect.ValueOf(scanValues[colIndex]).Elem()
+					if !valuePtr.IsNil() {
+						data.FieldByName(publicColName).Set(valuePtr.Elem())
+					}
 				}
 			}
 		} else if rowType.Kind() == reflect.Map {
 			// 结果放入Map
 			data = reflect.MakeMap(rowType)
 			for colIndex, col := range colTypes {
-				data.SetMapIndex(reflect.ValueOf(col.Name()), reflect.ValueOf(scanValues[colIndex]).Elem())
+				valuePtr := reflect.ValueOf(scanValues[colIndex]).Elem()
+				if !valuePtr.IsNil() {
+					data.SetMapIndex(reflect.ValueOf(col.Name()), valuePtr.Elem())
+				}
 			}
 		} else if rowType.Kind() == reflect.Slice {
 			// 结果放入Slice
 			data = reflect.MakeSlice(rowType, colNum, colNum)
 			for colIndex := range colTypes {
-				data.Index(colIndex).Set(reflect.ValueOf(scanValues[colIndex]).Elem())
+				valuePtr := reflect.ValueOf(scanValues[colIndex]).Elem()
+				if !valuePtr.IsNil() {
+					data.Index(colIndex).Set(valuePtr.Elem())
+				}
 			}
 		} else {
 			// 只返回一列结果
-			data = reflect.ValueOf(scanValues[0]).Elem()
+			valuePtr := reflect.ValueOf(scanValues[0]).Elem()
+			if !valuePtr.IsNil() {
+				data = valuePtr.Elem()
+			}
 		}
 
 		if resultsValue.Kind() == reflect.Slice {
@@ -593,42 +609,45 @@ func makePublicVarName(name string) string {
 }
 
 func makeValue(t reflect.Type) interface{} {
+	if t == nil {
+		return new(*string)
+	}
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 
 	switch t.Kind() {
 	case reflect.Int:
-		return new(int)
+		return new(*int)
 	case reflect.Int8:
-		return new(int8)
+		return new(*int8)
 	case reflect.Int16:
-		return new(int16)
+		return new(*int16)
 	case reflect.Int32:
-		return new(int32)
+		return new(*int32)
 	case reflect.Int64:
-		return new(int64)
+		return new(*int64)
 	case reflect.Uint:
-		return new(uint)
+		return new(*uint)
 	case reflect.Uint8:
-		return new(uint8)
+		return new(*uint8)
 	case reflect.Uint16:
-		return new(uint16)
+		return new(*uint16)
 	case reflect.Uint32:
-		return new(uint32)
+		return new(*uint32)
 	case reflect.Uint64:
-		return new(uint64)
+		return new(*uint64)
 	case reflect.Float32:
-		return new(float32)
+		return new(*float32)
 	case reflect.Float64:
-		return new(float64)
+		return new(*float64)
 	case reflect.Bool:
-		return new(bool)
+		return new(*bool)
 	case reflect.String:
-		return new(string)
+		return new(*string)
 	}
 
-	return new(string)
+	return new(*string)
 	//if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8{
 	//	return new(string)
 	//}
@@ -637,7 +656,7 @@ func makeValue(t reflect.Type) interface{} {
 func logError(err error, skips int) {
 	if enabledLogs && err != nil {
 		traces := make([]interface{}, 2)
-		traces[0] = "Redis	"
+		traces[0] = "DB	"
 		traces[1] = err.Error()
 		i := 1
 		for {
