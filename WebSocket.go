@@ -30,6 +30,7 @@ type websocketServiceType struct {
 	sessionType       reflect.Type
 	closeParmsNum     int
 	closeClientIndex  int
+	closeRequestIndex int
 	closeSessionIndex int
 	closeFuncType     reflect.Type
 	closeFuncValue    reflect.Value
@@ -110,6 +111,7 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 	if s.closeFuncType != nil {
 		s.closeParmsNum = s.closeFuncType.NumIn()
 		s.closeClientIndex = -1
+		s.closeRequestIndex = -1
 		s.closeSessionIndex = -1
 		s.closeFuncValue = reflect.ValueOf(onClose)
 		for i := 0; i < s.closeParmsNum; i++ {
@@ -119,6 +121,8 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 				s.sessionType = t
 			} else if t.String() == "*websocket.Conn" {
 				s.closeClientIndex = i
+			} else if t.String() == "*http.Request" {
+				s.closeRequestIndex = i
 			}
 		}
 	}
@@ -292,6 +296,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				}
 				if ws.closeClientIndex >= 0 {
 					closeParms[ws.closeClientIndex] = reflect.ValueOf(client)
+				}
+				if ws.closeRequestIndex >= 0 {
+					closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
 				}
 				ws.closeFuncValue.Call(closeParms)
 			}

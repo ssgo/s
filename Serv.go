@@ -110,7 +110,9 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 	// 全都未匹配，输出404
 	if proxyToApp == nil && s == nil && ws == nil {
-		writeLog("FAIL", nil, false, request, &response, &args, &headers, &startTime, 0, 404)
+		if requestPath != "/favicon.ico" {
+			writeLog("FAIL", nil, false, request, &response, &args, &headers, &startTime, 0, 404)
+		}
 		response.WriteHeader(404)
 		return
 	}

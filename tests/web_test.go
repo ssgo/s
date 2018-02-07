@@ -27,7 +27,8 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 func TestStatic(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
-	s.Static("/", "/Volumes/Star/com.isstar/ssgo/s/tests/www")
+	s.Static("/", "www")
+
 	as := s.AsyncStart1()
 	r := as.Get("/")
 	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
