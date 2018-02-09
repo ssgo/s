@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+var envConfigs = map[string]string{}
+
+func init() {
+	LoadConfig("env", &envConfigs)
+}
+
 func LoadConfig(name string, conf interface{}) error {
 
 	var file *os.File
@@ -39,8 +45,11 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 		v = v.Elem()
 	}
 	t := v.Type()
-
 	ev, has := os.LookupEnv(prefix)
+	if !has && envConfigs[prefix] != "" {
+		ev = envConfigs[prefix]
+		has = true
+	}
 	if has {
 		if v.CanSet() {
 			newValue := reflect.New(t)
@@ -52,7 +61,6 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 			} else {
 				log.Println("LoadConfig", prefix, ev, err)
 			}
-			return
 		} else {
 			log.Println("LoadConfig", prefix, ev, "Can't set config for interface{}")
 		}

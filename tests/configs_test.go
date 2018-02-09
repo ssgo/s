@@ -2,8 +2,8 @@ package base
 
 import (
 	".."
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestForMap(t *testing.T) {
@@ -14,12 +14,6 @@ func TestForMap(t *testing.T) {
 	}
 	if testConf["name"] != "test-config" {
 		t.Error("name in test.json failed", testConf["name"])
-	}
-
-	sets, ok := testConf["sets"].([]interface{})
-	set2 := sets[1].(float64)
-	if !ok || len(sets) != 3 || set2 != 2 {
-		t.Error("sets in test.json failed", ok, sets)
 	}
 }
 
@@ -52,12 +46,6 @@ func TestForMapWithEnv(t *testing.T) {
 	if (*testConf)["name"] != "test-config" {
 		t.Error("name in test.json failed", (*testConf)["name"])
 	}
-
-	sets, ok := (*testConf)["sets"].([]interface{})
-	set2 := sets[1].(float64)
-	if !ok || len(sets) != 3 || set2 != 2 {
-		t.Error("sets in test.json failed", ok, sets)
-	}
 }
 
 func TestForStructWithBadEnv(t *testing.T) {
@@ -89,6 +77,7 @@ func TestForStructWithEnv(t *testing.T) {
 	if len(testConf.Sets) != 3 || testConf.Sets[1] != 222 {
 		t.Error("sets in test.json failed", testConf.Sets)
 	}
+	os.Unsetenv("TEST_SETS_1")
 }
 
 func TestForStructWithEnvForSlice(t *testing.T) {
