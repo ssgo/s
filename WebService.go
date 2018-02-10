@@ -15,6 +15,7 @@ import (
 
 type webServiceType struct {
 	authLevel     uint
+	method        string
 	pathMatcher   *regexp.Regexp
 	pathArgs      []string
 	parmsNum      int
@@ -102,6 +103,11 @@ func GetInject(dataType reflect.Type) interface{} {
 
 // 注册服务
 func Register(authLevel uint, path string, serviceFunc interface{}) {
+	Restful(authLevel, "", path, serviceFunc)
+}
+
+// 注册服务
+func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		log.Printf("ERROR	%s	%s	", path, err)
@@ -109,6 +115,7 @@ func Register(authLevel uint, path string, serviceFunc interface{}) {
 	}
 
 	s.authLevel = authLevel
+	s.method = method
 	finder, err := regexp.Compile("\\{(.+?)\\}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
@@ -122,11 +129,11 @@ func Register(authLevel uint, path string, serviceFunc interface{}) {
 			if err != nil {
 				log.Print("Register	Compile	", err)
 			}
-			regexWebServices[path] = s
+			regexWebServices[method+path] = s
 		}
 	}
 	if s.pathMatcher == nil {
-		webServices[path] = s
+		webServices[method+path] = s
 	}
 }
 
@@ -257,8 +264,14 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 
 func makeBytesResult(data interface{}) []byte {
 	bytesResult, err := json.Marshal(data)
-	if err != nil {
-		bytesResult = []byte("{}")
+	if err != nil || (len(bytesResult) == 4 && string(bytesResult) == "null") {
+		t := reflect.TypeOf(data)
+		if t.Kind() == reflect.Slice {
+			bytesResult = []byte("[]")
+		}
+		if t.Kind() == reflect.Map {
+			bytesResult = []byte("{}")
+		}
 	}
 	base.FixUpperCase(bytesResult)
 	return bytesResult

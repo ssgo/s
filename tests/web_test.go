@@ -39,6 +39,31 @@ func TestStatic(tt *testing.T) {
 	as.Stop()
 }
 
+func TestWelcomeWithRestful(tt *testing.T) {
+	t := s.T(tt)
+
+	s.ResetAllSets()
+	s.Restful(0, "GET", "/", Welcome)
+	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture)
+	as := s.AsyncStart1()
+
+	r := as.Get("/")
+	t.Test(r.Error == nil && r.String() == "Hello World!", "Get", r.Error, r.String())
+
+	r = as.Post("/", nil)
+	t.Test(r.Response.StatusCode == 404, "Post", r.Error, r.String())
+
+	r = as.Get("/w/abc.png")
+	t.Test(r.Response.StatusCode == 404, "Post", r.Error, r.String())
+
+	r = as.Do("PULL", "/w/abc.png", nil)
+	result := r.Bytes()
+	t.Test(r.Error == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, r.Error)
+	t.Test(r.Response.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, r.Error)
+
+	as.Stop()
+}
+
 func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 

@@ -71,15 +71,21 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	var s *webServiceType
 	var ws *websocketServiceType
 	if proxyToApp == nil {
-		s = webServices[requestPath]
+		s = webServices[request.Method+requestPath]
 		if s == nil {
-			ws = websocketServices[requestPath]
+			s = webServices[requestPath]
+			if s == nil {
+				ws = websocketServices[requestPath]
+			}
 		}
 	}
 
 	// 未匹配到缓存，尝试匹配新的 Service
 	if proxyToApp == nil && s == nil && ws == nil {
 		for _, tmpS := range regexWebServices {
+			if tmpS.method != "" && tmpS.method != request.Method {
+				continue
+			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
 				foundArgs := finds[0]

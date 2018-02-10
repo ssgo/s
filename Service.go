@@ -190,7 +190,6 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	if err != nil {
 		log.Print("SERVER	", err)
-		fmt.Println("**** 1111SERVER	", err)
 		if as != nil {
 			as.startChan <- false
 		}
