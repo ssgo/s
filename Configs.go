@@ -13,7 +13,9 @@ import (
 var envConfigs = map[string]string{}
 
 func init() {
-	LoadConfig("env", &envConfigs)
+	envConf := map[string]interface{}{}
+	LoadConfig("env", &envConf)
+	initEnvConfigFromFile("", reflect.ValueOf(envConf))
 }
 
 func LoadConfig(name string, conf interface{}) error {
@@ -77,6 +79,34 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 	} else if t.Kind() == reflect.Slice {
 		for i := 0; i < v.Len(); i++ {
 			makeEnvConfig(fmt.Sprint(prefix, "_", i), v.Index(i))
+		}
+	}
+}
+
+func initEnvConfigFromFile(prefix string, v reflect.Value) {
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	t := v.Type()
+	if t.Kind() == reflect.Interface {
+		t = reflect.TypeOf(v.Interface())
+		v = reflect.ValueOf(v.Interface())
+	}
+	if t.Kind() == reflect.Map {
+		if prefix != "" {
+			prefix += "_"
+		}
+		for _, mk := range v.MapKeys() {
+			initEnvConfigFromFile(prefix+strings.ToUpper(mk.String()), v.MapIndex(mk))
+		}
+	} else if t.Kind() == reflect.String {
+		envConfigs[prefix] = v.String()
+	} else {
+		b, err := json.Marshal(v.Interface())
+		if err == nil {
+			envConfigs[prefix] = string(b)
+		} else {
+			envConfigs[prefix] = fmt.Sprint(v.Interface())
 		}
 	}
 }
