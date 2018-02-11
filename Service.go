@@ -164,6 +164,19 @@ func initConfig() {
 }
 
 func start(httpVersion int, as *AsyncServer) error {
+
+	if len(os.Args) > 1 {
+		for i := 1; i < len(os.Args); i++ {
+			if strings.ContainsRune(os.Args[i], ':') {
+				os.Setenv("SERVICE_LISTEN", os.Args[i])
+			} else if strings.ContainsRune(os.Args[i], '=') {
+				a := strings.SplitN(os.Args[i], "=", 2)
+				os.Setenv(a[0], a[1])
+			} else {
+				os.Setenv("SERVICE_LOGFILE", os.Args[i])
+			}
+		}
+	}
 	initConfig()
 
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)

@@ -1,6 +1,8 @@
 package main
 
-import "github.com/ssgo/s"
+import (
+	"github.com/ssgo/s"
+)
 
 func main() {
 	s.Register(0, "/", func() string {
