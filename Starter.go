@@ -9,6 +9,8 @@ import (
 )
 
 func init() {
+	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], '/')])
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "start", "1":
