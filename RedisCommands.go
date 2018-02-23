@@ -85,3 +85,9 @@ func (this *Redis) HDEL(key string, fields ...string) int {
 func (this *Redis) HEXISTS(key, field string) bool {
 	return this.Do("HEXISTS", key, field).Bool()
 }
+func (this *Redis) HINCR(key, field string) int64 {
+	return this.Do("HINCRBY", key, field, 1).Int64()
+}
+func (this *Redis) HDECR(key, field string) int64 {
+	return this.Do("HDECRBY", key, field, 1).Int64()
+}
