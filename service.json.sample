@@ -1,8 +1,8 @@
 {
   "listen": ":8001",
-  "RwTimeout": 5000,
-  "KeepaliveTimeout": 5000,
-  "CallTimeout": 5000,
+  "rwTimeout": 5000,
+  "keepaliveTimeout": 5000,
+  "callTimeout": 5000,
   "logFile": "",
   "certFile": "",
   "keyFile": "",
@@ -11,7 +11,7 @@
   "registryPrefix": "DC_",
   "app": "demo",
   "weight": 1,
-  "AccessTokens": {
+  "accessTokens": {
     "hasfjlkdlasfsa": 1,
     "fdasfsadfdsa": 2,
     "9ifjjabdsadsa": 2

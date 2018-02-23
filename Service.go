@@ -2,6 +2,7 @@ package s
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"github.com/ssgo/base"
 	"golang.org/x/net/http2"
@@ -232,7 +233,9 @@ func start(httpVersion int, as *AsyncServer) error {
 	serverAddr := fmt.Sprintf("%s:%d", ip.String(), port)
 
 	if startDiscover(serverAddr) == false {
-		log.Printf("SERVER	Failed to start discover")
+		log.Printf("SERVER	failed to start discover")
+		listener.Close()
+		return errors.New("failed to start discover")
 	}
 
 	log.Printf("SERVER	%s	Started", serverAddr)
@@ -275,11 +278,14 @@ func start(httpVersion int, as *AsyncServer) error {
 		}
 	}
 
-	log.Printf("SERVER	%s	Stopping", serverAddr)
+	log.Printf("SERVER	%s	Stopping Discover", serverAddr)
 	stopDiscover()
+	log.Printf("SERVER	%s	Stopping Router", serverAddr)
 	rh.Stop()
 
+	log.Printf("SERVER	%s	Waitting Router", serverAddr)
 	rh.Wait()
+	log.Printf("SERVER	%s	Waitting Discover", serverAddr)
 	waitDiscover()
 	log.Printf("SERVER	%s	Stopped", serverAddr)
 	if as != nil {

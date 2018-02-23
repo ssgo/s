@@ -86,7 +86,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		}
 
 		if node == nil {
-			nodes := []*NodeInfo{}
+			nodes := make([]*NodeInfo, 0)
 			for _, node := range appNodes[app] {
 				if excludes[node.Addr] || node.FailedTimes >= 3 {
 					continue
@@ -142,8 +142,6 @@ func startDiscover(addr string) bool {
 		return true
 	}
 
-	isok := true
-
 	if isService {
 		// 设置默认的AuthChecker
 		if webAuthChecker == nil {
@@ -158,8 +156,8 @@ func startDiscover(addr string) bool {
 			log.Printf("DISCOVER	Registered	%s	%s	%d", config.App, addr, config.Weight)
 			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", addr, config.Weight))
 		} else {
-			isok = false
 			log.Printf("DISCOVER	Register failed	%s	%s	%d", config.App, addr, config.Weight)
+			return false
 		}
 	}
 
@@ -183,7 +181,7 @@ func startDiscover(addr string) bool {
 		go syncDiscover(initedChan)
 		<-initedChan
 	}
-	return isok
+	return true
 }
 
 var syncConn *redigo.PubSubConn
@@ -210,7 +208,7 @@ func syncDiscover(initedChan chan bool) {
 		}
 
 		// 第一次或断线后重新获取（订阅开始后再获取全量确保信息完整）
-		for app, _ := range config.Calls {
+		for app := range config.Calls {
 			if appNodes[app] == nil {
 				appNodes[app] = map[string]*NodeInfo{}
 			}
