@@ -317,7 +317,7 @@ func stopDiscover() {
 	if isService {
 		if dcRedis.HDEL(config.RegistryPrefix+config.App, myAddr) > 0 {
 			log.Printf("DISCOVER	Unregistered	%s	%s	%d", config.App, myAddr, 0)
-			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s	%d", myAddr, 0))
+			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", myAddr, 0))
 		}
 	}
 }
