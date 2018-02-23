@@ -110,11 +110,15 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
-			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
+			statusCode := 0
+			if r.Response != nil {
+				statusCode = r.Response.StatusCode
+			}
+			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
 			if node.FailedTimes >= 3 {
-				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, r.Response.StatusCode, r.Error)
+				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, statusCode, r.Error)
 				if dcRedis.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
 					dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
 				}
