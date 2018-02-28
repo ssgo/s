@@ -16,6 +16,7 @@ var isService = false
 var isClient = false
 var syncerRunning = false
 var syncerStopChan = make(chan bool)
+var pingStopChan = make(chan bool)
 
 var myAddr = ""
 var appNodes = map[string]map[string]*NodeInfo{}
@@ -184,11 +185,41 @@ func startDiscover(addr string) bool {
 		initedChan := make(chan bool)
 		go syncDiscover(initedChan)
 		<-initedChan
+		go pingRedis()
 	}
 	return true
 }
 
 var syncConn *redigo.PubSubConn
+
+// 保持 redis 链接，否则会因为超时而发生错误
+func pingRedis() {
+	n := 15
+	if dcRedis.ReadTimeout > 2000 {
+		n = dcRedis.ReadTimeout / 1000 / 2
+	} else if dcRedis.ReadTimeout > 0 {
+		n = 1
+	}
+	for {
+		for i := 0; i < n; i++ {
+			time.Sleep(time.Second * 1)
+			if !syncerRunning {
+				break
+			}
+		}
+		if !syncerRunning {
+			break
+		}
+		if syncConn != nil {
+			syncConn.Ping("1")
+			//log.Print("	-0-0-0-0-0-0-	Ping")
+		}
+		if !syncerRunning {
+			break
+		}
+	}
+	pingStopChan <- true
+}
 
 func syncDiscover(initedChan chan bool) {
 	inited := false
@@ -253,6 +284,8 @@ func syncDiscover(initedChan chan bool) {
 				log.Printf("DISCOVER	Received	%s	%s	%d", app, addr, weight)
 				pushNode(app, addr, weight)
 			case redigo.Subscription:
+			case redigo.Pong:
+				//log.Print("	-0-0-0-0-0-0-	Pong")
 			case error:
 				if !strings.Contains(v.Error(), "connection closed") {
 					log.Printf("REDIS RECEIVE ERROR	%s", v)
@@ -325,5 +358,6 @@ func stopDiscover() {
 func waitDiscover() {
 	if isClient {
 		<-syncerStopChan
+		<-pingStopChan
 	}
 }

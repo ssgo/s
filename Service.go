@@ -38,7 +38,7 @@ var config = struct {
 	AccessTokens     map[string]uint
 	App              string
 	Weight           uint
-	Calls            map[string]struct {
+	Calls            map[string]*struct {
 		AccessToken string
 		Timeout     int
 		HttpVersion int

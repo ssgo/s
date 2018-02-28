@@ -4,7 +4,6 @@ import (
 	".."
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -24,20 +23,20 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 	return pic
 }
 
-func TestStatic(tt *testing.T) {
-	t := s.T(tt)
-	s.ResetAllSets()
-	s.Static("/", "www")
-
-	as := s.AsyncStart1()
-	r := as.Get("/")
-	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
-	r = as.Get("/aaa/111.json")
-	t.Test(r.Error == nil && r.String() == "111", "Static 111.json", r.Error, r.String())
-	r = as.Get("/ooo.html")
-	t.Test(r.Error == nil && r.Response.StatusCode == 404, "Static 404", r.Error, r.String())
-	as.Stop()
-}
+//func TestStatic(tt *testing.T) {
+//	t := s.T(tt)
+//	s.ResetAllSets()
+//	s.Static("/", "www")
+//
+//	as := s.AsyncStart1()
+//	r := as.Get("/")
+//	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
+//	r = as.Get("/aaa/111.json")
+//	t.Test(r.Error == nil && r.String() == "111", "Static 111.json", r.Error, r.String())
+//	r = as.Get("/ooo.html")
+//	t.Test(r.Error == nil && r.Response.StatusCode == 404, "Static 404", r.Error, r.String())
+//	as.Stop()
+//}
 
 func TestWelcomeWithRestful(tt *testing.T) {
 	t := s.T(tt)
