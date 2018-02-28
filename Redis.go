@@ -26,8 +26,9 @@ type redisConfig struct {
 }
 
 type Redis struct {
-	pool  *redis.Pool
-	Error error
+	pool        *redis.Pool
+	ReadTimeout int
+	Error       error
 }
 
 var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
@@ -48,7 +49,7 @@ func EnableLogs(enabled bool) {
 	enabledLogs = enabled
 }
 
-var redisConfigs = make(map[string]redisConfig)
+var redisConfigs = make(map[string]*redisConfig)
 var redisInstances = make(map[string]*Redis)
 
 func GetRedis(name string) *Redis {
@@ -84,9 +85,12 @@ func GetRedis(name string) *Redis {
 	if conf.ConnTimeout == 0 {
 		conf.ConnTimeout = 10000
 	}
-	//if conf.RwTimeout == 0 {
-	//	conf.RwTimeout = 5000
-	//}
+	if conf.ReadTimeout == 0 {
+		conf.ReadTimeout = 10000
+	}
+	if conf.WriteTimeout == 0 {
+		conf.WriteTimeout = 10000
+	}
 
 	decryptedPassword := ""
 	if conf.Password != "" {
@@ -114,6 +118,7 @@ func GetRedis(name string) *Redis {
 	}
 
 	redis := new(Redis)
+	redis.ReadTimeout = conf.ReadTimeout
 	redis.pool = conn
 
 	redisInstances[fullName] = redis

@@ -37,14 +37,32 @@ func toFloat64(s string) float64 {
 func (rs *Result) Int() int {
 	return int(rs.Int64())
 }
-func (rs *Result) Uint64() uint64 {
-	return uint64(rs.Int64())
+func (rs *Result) Int8() int8 {
+	return int8(rs.Int64())
+}
+func (rs *Result) Int16() int16 {
+	return int16(rs.Int64())
+}
+func (rs *Result) Int32() int32 {
+	return int32(rs.Int64())
+}
+func (rs *Result) Int64() int64 {
+	return toInt64(rs.String())
 }
 func (rs *Result) Uint() uint {
 	return uint(rs.Int64())
 }
-func (rs *Result) Int64() int64 {
-	return toInt64(rs.String())
+func (rs *Result) Uint8() uint8 {
+	return uint8(rs.Int64())
+}
+func (rs *Result) Uint16() uint16 {
+	return uint16(rs.Int64())
+}
+func (rs *Result) Uint32() uint32 {
+	return uint32(rs.Int64())
+}
+func (rs *Result) Uint64() uint64 {
+	return uint64(rs.Int64())
 }
 func (rs *Result) Float() float32 {
 	return float32(rs.Float64())
@@ -159,11 +177,29 @@ func (rs *Result) byteSlices() [][]byte {
 }
 func (rs *Result) ToValue(t reflect.Type) reflect.Value {
 	switch t.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int:
+		return reflect.ValueOf(rs.Int())
+	case reflect.Int8:
+		return reflect.ValueOf(rs.Int8())
+	case reflect.Int16:
+		return reflect.ValueOf(rs.Int16())
+	case reflect.Int32:
+		return reflect.ValueOf(rs.Int32())
+	case reflect.Int64:
 		return reflect.ValueOf(rs.Int64())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Uint:
+		return reflect.ValueOf(rs.Uint())
+	case reflect.Uint8:
+		return reflect.ValueOf(rs.Uint8())
+	case reflect.Uint16:
+		return reflect.ValueOf(rs.Uint16())
+	case reflect.Uint32:
+		return reflect.ValueOf(rs.Uint32())
+	case reflect.Uint64:
 		return reflect.ValueOf(rs.Uint64())
-	case reflect.Float32, reflect.Float64:
+	case reflect.Float32:
+		return reflect.ValueOf(rs.Float())
+	case reflect.Float64:
 		return reflect.ValueOf(rs.Float64())
 	case reflect.Bool:
 		return reflect.ValueOf(rs.Bool())
