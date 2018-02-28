@@ -74,6 +74,10 @@ func GetRedis(name string) *Redis {
 	}
 
 	conf := redisConfigs[name]
+	if conf == nil {
+		conf = new(redisConfig)
+		redisConfigs[name] = conf
+	}
 	if conf.Host == "" {
 		conf.Host = "127.0.0.1:6379"
 	}
