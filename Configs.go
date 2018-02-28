@@ -64,7 +64,7 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 				log.Println("LoadConfig", prefix, ev, err)
 			}
 		} else {
-			log.Println("LoadConfig", prefix, ev, "Can't set config for interface{}")
+			log.Println("LoadConfig", prefix, ev, "Can't set config because CanSet() == false", t, v)
 		}
 	}
 

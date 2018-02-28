@@ -204,3 +204,17 @@ func FixUpperCase(data []byte) {
 		}
 	}
 }
+
+func If(i bool, a, b interface{}) interface{} {
+	if i {
+		return a
+	}
+	return b
+}
+
+func Switch(i uint, args ...interface{}) interface{} {
+	if i < uint(len(args)) {
+		return args[i]
+	}
+	return nil
+}

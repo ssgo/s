@@ -1,3 +1,8 @@
 {
-  "name": "test-config"
+  "name": "test-config",
+  "list": {
+    "aaa" :{
+      "name": "111"
+    }
+  }
 }

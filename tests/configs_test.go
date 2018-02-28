@@ -20,6 +20,9 @@ func TestForMap(t *testing.T) {
 type testConfType struct {
 	Name string
 	Sets []int
+	List map[string]*struct {
+		Name string
+	}
 }
 
 func TestForStruct(t *testing.T) {
@@ -33,6 +36,9 @@ func TestForStruct(t *testing.T) {
 	}
 	if len(testConf.Sets) != 3 || testConf.Sets[1] != 2 {
 		t.Error("sets in test.json failed", testConf.Sets)
+	}
+	if testConf.List["aaa"].Name != "222" {
+		t.Error("list in test.json failed", testConf.List["aaa"])
 	}
 }
 
@@ -60,6 +66,9 @@ func TestForStructWithBadEnv(t *testing.T) {
 	}
 	if len(testConf.Sets) != 3 || testConf.Sets[1] != 2 {
 		t.Error("sets in test.json failed", testConf.Sets)
+	}
+	if testConf.List["aaa"].Name != "222" {
+		t.Error("list in test.json failed", testConf.Sets)
 	}
 }
 
