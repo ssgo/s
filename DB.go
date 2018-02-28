@@ -42,7 +42,7 @@ func EnableLogs(enabled bool) {
 	enabledLogs = enabled
 }
 
-var dbConfigs = make(map[string]dbInfo)
+var dbConfigs = make(map[string]*dbInfo)
 var dbInstances = make(map[string]*DB)
 
 func GetDB(name string) *DB {
@@ -55,6 +55,10 @@ func GetDB(name string) *DB {
 	}
 
 	conf := dbConfigs[name]
+	if conf == nil {
+		conf = new(dbInfo)
+		dbConfigs[name] = conf
+	}
 	if conf.Host == "" {
 		conf.Host = "127.0.0.1:3306"
 	}
