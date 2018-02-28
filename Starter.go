@@ -31,8 +31,9 @@ func init() {
 }
 
 func loadPid() (string, int) {
-	app := os.Args[0][strings.LastIndexByte(os.Args[0], '/')+1:]
-	pidFile, err := os.Open("/tmp/" + app + ".pid")
+	//app := os.Args[0][strings.LastIndexByte(os.Args[0], '/')+1:]
+	app := os.Args[0]
+	pidFile, err := os.Open("/tmp/" + strings.Replace(os.Args[0], "/", "_", 100) + ".pid")
 	if err == nil {
 		b := make([]byte, 10)
 		n, err := pidFile.Read(b)
@@ -48,7 +49,7 @@ func loadPid() (string, int) {
 }
 
 func savePid(app string, pid int) {
-	pidFile, err := os.OpenFile("/tmp/"+app+".pid", os.O_CREATE|os.O_WRONLY, 0600)
+	pidFile, err := os.OpenFile("/tmp/"+strings.Replace(os.Args[0], "/", "_", 100)+".pid", os.O_CREATE|os.O_WRONLY, 0600)
 	if err == nil {
 		pidFile.Write([]byte(strconv.Itoa(pid)))
 		pidFile.Close()
@@ -86,7 +87,7 @@ func stopProcess() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	os.Remove("/tmp/" + app + ".pid")
+	os.Remove("/tmp/" + strings.Replace(os.Args[0], "/", "_", 100) + ".pid")
 	fmt.Printf("%s	%d	stopped\n", app, cmd.Process.Pid)
 }
 
