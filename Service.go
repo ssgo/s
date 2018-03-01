@@ -23,22 +23,26 @@ type Map = map[string]interface{}
 var recordLogs = true
 
 var config = struct {
-	Listen           string
-	RwTimeout        int
-	KeepaliveTimeout int
-	CallTimeout      int
-	LogFile          string
-	NoLogHeaders     string
-	LogResponseSize  int
-	Compress         bool
-	CertFile         string
-	KeyFile          string
-	Registry         string
-	RegistryPrefix   string
-	AccessTokens     map[string]uint
-	App              string
-	Weight           uint
-	Calls            map[string]*struct {
+	Listen            string
+	RwTimeout         int
+	KeepaliveTimeout  int
+	CallTimeout       int
+	LogFile           string
+	NoLogHeaders      string
+	LogResponseSize   int
+	Compress          bool
+	XForwardedForName string
+	XRealIpName       string
+	CertFile          string
+	KeyFile           string
+	Registry          string
+	RegistryCalls     string
+	RegistryPrefix    string
+	AccessTokens      map[string]uint
+	App               string
+	Weight            uint
+	AppAllows         []string
+	Calls             map[string]*struct {
 		AccessToken string
 		Timeout     int
 		HttpVersion int
@@ -147,6 +151,9 @@ func initConfig() {
 	if config.Registry == "" {
 		config.Registry = "discover:15"
 	}
+	if config.RegistryCalls == "" {
+		config.RegistryCalls = "discover:15"
+	}
 
 	if config.Weight <= 0 {
 		config.Weight = 1
@@ -154,6 +161,14 @@ func initConfig() {
 
 	if config.LogResponseSize == 0 {
 		config.LogResponseSize = 2048
+	}
+
+	if config.XForwardedForName == "" {
+		config.XForwardedForName = "S-Forwarded-For"
+	}
+
+	if config.XRealIpName == "" {
+		config.XRealIpName = "S-Real-Ip"
 	}
 
 	if config.NoLogHeaders == "" {

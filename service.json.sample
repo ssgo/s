@@ -8,6 +8,7 @@
   "keyFile": "",
 
   "registry": "discover:15",
+  "registryCalls": "discover:15",
   "registryPrefix": "DC_",
   "app": "demo",
   "weight": 1,

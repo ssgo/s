@@ -144,6 +144,10 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 	if request.Header.Get("S-Unique-Id") == "" {
 		request.Header.Set("S-Unique-Id", base.UniqueId())
+		// 在没有 S-Unique-Id 的情况下忽略 X-Real-Ip
+		if request.Header.Get(config.XRealIpName) != "" {
+			request.Header.Del(config.XRealIpName)
+		}
 	}
 
 	// SessionId
@@ -192,7 +196,11 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	var logName string
 	if proxyToApp != nil {
 		caller := &Caller{request: request}
-		result = caller.Do(request.Method, *proxyToApp, *proxyToPath, args, "S-Unique-Id", request.Header.Get("S-Unique-Id")).Bytes()
+		result = caller.Do(request.Method, *proxyToApp, *proxyToPath, args,
+			"S-Unique-Id", request.Header.Get("S-Unique-Id"),
+			config.XRealIpName, getRealIp(request),
+			config.XForwardedForName, request.Header.Get(config.XForwardedForName)+base.StringIf(request.Header.Get(config.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')],
+		).Bytes()
 		logName = "PROXY"
 	} else {
 		// 处理 Websocket
@@ -297,5 +305,9 @@ func writeLog(logName string, outBytes []byte, isJson bool, request *http.Reques
 	if !isJson {
 		makePrintable(outBytes)
 	}
-	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, request.RemoteAddr, config.App, request.Host, request.Method, request.RequestURI, authLevel, usedTime, statusCode, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), config.App, request.Host, request.Method, request.RequestURI, authLevel, usedTime, statusCode, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+}
+
+func getRealIp(request *http.Request) string {
+	return base.StringIf(request.Header.Get(config.XRealIpName) != "", request.Header.Get(config.XRealIpName), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 }

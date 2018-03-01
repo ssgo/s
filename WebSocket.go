@@ -197,7 +197,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 		nowTime := time.Now()
 		usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
 		*startTime = nowTime
-		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
+		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
 	}
 
 	if err == nil {
@@ -244,7 +244,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if ws.decoder != nil {
 					actionName, messageData, err = ws.decoder(*msg)
 					if err != nil {
-						log.Printf("ERROR	Read a bad message	%s	%s	%s", request.RemoteAddr, request.RequestURI, fmt.Sprint(*msg))
+						log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
 					}
 				} else {
 					actionName = ""
@@ -269,7 +269,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if webSocketActionAuthChecker != nil {
 					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
 						if recordLogs {
-							log.Printf("WSREJECT	%s	%s	%s	%s	%d", request.RemoteAddr, request.RequestURI, actionName, string(printableMsg), action.authLevel)
+							log.Printf("WSREJECT	%s	%s	%s	%s	%d", getRealIp(request), request.RequestURI, actionName, string(printableMsg), action.authLevel)
 						}
 						(*response).WriteHeader(403)
 						continue
@@ -281,9 +281,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if recordLogs {
 					usedTime := time.Now().UnixNano() - startTime.UnixNano()
 					if err == nil {
-						log.Printf("WSACTION	%s	%s	%s	%.6f	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(printableMsg))
+						log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
 					} else {
-						log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", request.RemoteAddr, request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
+						log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
 					}
 				}
 			}
@@ -305,7 +305,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 
 			if recordLogs {
 				usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-				log.Printf("WSCLOSE	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
+				log.Printf("WSCLOSE	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
 			}
 
 		}

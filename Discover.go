@@ -11,7 +11,8 @@ import (
 	"time"
 )
 
-var dcRedis *redis.Redis
+var dcRedisService *redis.Redis
+var dcRedisCalls *redis.Redis
 var isService = false
 var isClient = false
 var syncerRunning = false
@@ -120,8 +121,8 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			node.FailedTimes++
 			if node.FailedTimes >= 3 {
 				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, statusCode, r.Error)
-				if dcRedis.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
-					dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+				if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+					dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
 				}
 			}
 		} else {
@@ -139,9 +140,17 @@ func startDiscover(addr string) bool {
 	isService = config.App != "" && config.Weight > 0
 	isClient = len(config.Calls) > 0
 	if isService || isClient {
-		dcRedis = redis.GetRedis(config.Registry)
-		if dcRedis.Error != nil {
-			return false
+		if isService {
+			dcRedisService = redis.GetRedis(config.Registry)
+			if dcRedisService.Error != nil {
+				return false
+			}
+		}
+		if isClient {
+			dcRedisCalls = redis.GetRedis(config.RegistryCalls)
+			if dcRedisCalls.Error != nil {
+				return false
+			}
 		}
 	} else {
 		return true
@@ -157,9 +166,9 @@ func startDiscover(addr string) bool {
 		}
 
 		// 注册节点
-		if dcRedis.HSET(config.RegistryPrefix+config.App, addr, config.Weight) {
+		if dcRedisService.HSET(config.RegistryPrefix+config.App, addr, config.Weight) {
 			log.Printf("DISCOVER	Registered	%s	%s	%d", config.App, addr, config.Weight)
-			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", addr, config.Weight))
+			dcRedisService.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", addr, config.Weight))
 		} else {
 			log.Printf("DISCOVER	Register failed	%s	%s	%d", config.App, addr, config.Weight)
 			return false
@@ -195,9 +204,9 @@ var syncConn *redigo.PubSubConn
 // 保持 redis 链接，否则会因为超时而发生错误
 func pingRedis() {
 	n := 15
-	if dcRedis.ReadTimeout > 2000 {
-		n = dcRedis.ReadTimeout / 1000 / 2
-	} else if dcRedis.ReadTimeout > 0 {
+	if dcRedisCalls.ReadTimeout > 2000 {
+		n = dcRedisCalls.ReadTimeout / 1000 / 2
+	} else if dcRedisCalls.ReadTimeout > 0 {
 		n = 1
 	}
 	for {
@@ -224,7 +233,7 @@ func pingRedis() {
 func syncDiscover(initedChan chan bool) {
 	inited := false
 	for {
-		syncConn = &redigo.PubSubConn{Conn: dcRedis.GetConnection()}
+		syncConn = &redigo.PubSubConn{Conn: dcRedisCalls.GetConnection()}
 		err := syncConn.Subscribe(appSubscribeKeys...)
 		if err != nil {
 			log.Print("REDIS SUBSCRIBE	", err)
@@ -248,7 +257,7 @@ func syncDiscover(initedChan chan bool) {
 				appNodes[app] = map[string]*NodeInfo{}
 			}
 
-			appResults := dcRedis.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
+			appResults := dcRedisCalls.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
 			for _, node := range appNodes[app] {
 				if appResults[node.Addr] == nil {
 					log.Printf("DISCOVER	Remove When Reset	%s	%s	%d", app, node.Addr, 0)
@@ -348,9 +357,9 @@ func stopDiscover() {
 	}
 
 	if isService {
-		if dcRedis.HDEL(config.RegistryPrefix+config.App, myAddr) > 0 {
+		if dcRedisService.HDEL(config.RegistryPrefix+config.App, myAddr) > 0 {
 			log.Printf("DISCOVER	Unregistered	%s	%s	%d", config.App, myAddr, 0)
-			dcRedis.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", myAddr, 0))
+			dcRedisService.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", myAddr, 0))
 		}
 	}
 }

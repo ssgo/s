@@ -116,6 +116,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "keyFile": "",
 
   "registry": "discover:15",
+  "registryCalls": "discover:15",
   "registryPrefix": "",
   "app": "demo",
   "weight": 1,

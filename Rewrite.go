@@ -73,7 +73,7 @@ func processRewrite(request *http.Request, response *http.ResponseWriter, header
 
 	// 处理 Rewrite
 	if rewriteToPath != nil {
-		log.Printf("REWRITE	%s	%s	%s	%s	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, *rewriteToPath)
+		log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
 		if strings.Contains(*rewriteToPath, "://") {
 			// 转发到外部地址
 			var bodyBytes []byte = nil
