@@ -212,6 +212,13 @@ func If(i bool, a, b interface{}) interface{} {
 	return b
 }
 
+func StringIf(i bool, a, b string) string {
+	if i {
+		return a
+	}
+	return b
+}
+
 func Switch(i uint, args ...interface{}) interface{} {
 	if i < uint(len(args)) {
 		return args[i]
