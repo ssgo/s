@@ -11,14 +11,35 @@ import (
 )
 
 var envConfigs = map[string]string{}
+var envUpperConfigs = map[string]string{}
+var inited = false
 
-func init() {
+func initConfig() {
 	envConf := map[string]interface{}{}
 	LoadConfig("env", &envConf)
 	initEnvConfigFromFile("", reflect.ValueOf(envConf))
+	for _, e := range os.Environ() {
+		a := strings.SplitN(e, "=", 2)
+		if len(a) == 2 {
+			envConfigs[a[0]] = a[1]
+		}
+	}
+	for k1, v1 := range envConfigs {
+		envUpperConfigs[strings.ToUpper(k1)] = v1
+	}
+}
+
+func ResetConfigEnv() {
+	envConfigs = map[string]string{}
+	envUpperConfigs = map[string]string{}
+	initConfig()
 }
 
 func LoadConfig(name string, conf interface{}) error {
+	if !inited {
+		inited = true
+		initConfig()
+	}
 
 	var file *os.File
 	var err error
@@ -38,7 +59,7 @@ func LoadConfig(name string, conf interface{}) error {
 
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(conf)
-	makeEnvConfig(strings.ToUpper(name), reflect.ValueOf(conf))
+	makeEnvConfig(name, reflect.ValueOf(conf))
 	return err
 }
 
@@ -47,12 +68,11 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 		v = v.Elem()
 	}
 	t := v.Type()
-	ev, has := os.LookupEnv(prefix)
-	if !has && envConfigs[prefix] != "" {
-		ev = envConfigs[prefix]
-		has = true
+	ev := envConfigs[prefix]
+	if ev == "" {
+		ev = envUpperConfigs[strings.ToUpper(prefix)]
 	}
-	if has {
+	if ev != "" {
 		if v.CanSet() {
 			newValue := reflect.New(t)
 			err := json.Unmarshal([]byte(ev), newValue.Interface())
@@ -70,11 +90,35 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 
 	if t.Kind() == reflect.Struct {
 		for i := 0; i < v.NumField(); i++ {
-			makeEnvConfig(prefix+"_"+strings.ToUpper(v.Type().Field(i).Name), v.Field(i))
+			makeEnvConfig(prefix+"_"+v.Type().Field(i).Name, v.Field(i))
 		}
 	} else if t.Kind() == reflect.Map {
+		// 查找 环境变量 或 env.json 中是否有配置项
+		if t.Elem().Kind() != reflect.Interface {
+			findPrefix := prefix + "_"
+			for k1, _ := range envConfigs {
+				if strings.HasPrefix(k1, findPrefix) || strings.HasPrefix(strings.ToUpper(k1), strings.ToUpper(findPrefix)) {
+					findPostfix := k1[len(findPrefix):]
+					a1 := strings.Split(findPostfix, "_")
+					k2 := strings.ToLower(a1[0])
+					if k2 != "" && v.MapIndex(reflect.ValueOf(k2)).Kind() == reflect.Invalid {
+						var v1 reflect.Value
+						if t.Elem().Kind() == reflect.Ptr {
+							v1 = reflect.New(t.Elem().Elem())
+						} else {
+							v1 = reflect.New(t.Elem()).Elem()
+						}
+						if len(v.MapKeys()) == 0 {
+							v.Set(reflect.MakeMap(t))
+						}
+						v.SetMapIndex(reflect.ValueOf(strings.ToLower(a1[0])), v1)
+					}
+				}
+			}
+		}
 		for _, mk := range v.MapKeys() {
-			makeEnvConfig(prefix+"_"+strings.ToUpper(mk.String()), v.MapIndex(mk))
+			log.Println("	---	", prefix, mk)
+			makeEnvConfig(prefix+"_"+mk.String(), v.MapIndex(mk))
 		}
 	} else if t.Kind() == reflect.Slice {
 		for i := 0; i < v.Len(); i++ {
@@ -97,7 +141,7 @@ func initEnvConfigFromFile(prefix string, v reflect.Value) {
 			prefix += "_"
 		}
 		for _, mk := range v.MapKeys() {
-			initEnvConfigFromFile(prefix+strings.ToUpper(mk.String()), v.MapIndex(mk))
+			initEnvConfigFromFile(prefix+mk.String(), v.MapIndex(mk))
 		}
 	} else if t.Kind() == reflect.String {
 		envConfigs[prefix] = v.String()
