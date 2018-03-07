@@ -52,9 +52,23 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	requestPath, finished := processRewrite(request, &response, &headers, &startTime)
+	finished := processRewrite(request, &response, &headers, &startTime)
 	if finished {
 		return
+	}
+
+	// 处理 ProxyBy
+	finished = processProxy(request, &response, &headers, &startTime)
+	if finished {
+		return
+	}
+
+	var requestPath string
+	pos := strings.LastIndex(request.RequestURI, "?")
+	if pos != -1 {
+		requestPath = request.RequestURI[0:pos]
+	} else {
+		requestPath = request.RequestURI
 	}
 
 	// 处理静态文件
@@ -64,24 +78,19 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 	args := make(map[string]interface{})
 
-	// 查找 Proxy
-	proxyToApp, proxyToPath := findProxy(requestPath)
-
 	// 先看缓存中是否有 Service
 	var s *webServiceType
 	var ws *websocketServiceType
-	if proxyToApp == nil {
-		s = webServices[request.Method+requestPath]
+	s = webServices[request.Method+requestPath]
+	if s == nil {
+		s = webServices[requestPath]
 		if s == nil {
-			s = webServices[requestPath]
-			if s == nil {
-				ws = websocketServices[requestPath]
-			}
+			ws = websocketServices[requestPath]
 		}
 	}
 
 	// 未匹配到缓存，尝试匹配新的 Service
-	if proxyToApp == nil && s == nil && ws == nil {
+	if s == nil && ws == nil {
 		for _, tmpS := range regexWebServices {
 			if tmpS.method != "" && tmpS.method != request.Method {
 				continue
@@ -100,7 +109,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 
 	// 未匹配到缓存和Service，尝试匹配新的WebsocketService
-	if proxyToApp == nil && s == nil && ws == nil {
+	if s == nil && ws == nil {
 		for _, tmpS := range regexWebsocketServices {
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
@@ -115,9 +124,9 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 
 	// 全都未匹配，输出404
-	if proxyToApp == nil && s == nil && ws == nil {
+	if s == nil && ws == nil {
 		if requestPath != "/favicon.ico" {
-			writeLog("FAIL", nil, false, request, &response, &args, &headers, &startTime, 0, 404)
+			writeLog("FAIL", nil, 0, false, request, &response, &args, &headers, &startTime, 0, 404)
 		}
 		response.WriteHeader(404)
 		return
@@ -186,31 +195,34 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(headers)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
-			writeLog("REJECT", nil, false, request, &response, &args, &headers, &startTime, authLevel, 403)
+			writeLog("REJECT", nil, 0, false, request, &response, &args, &headers, &startTime, authLevel, 403)
 			response.WriteHeader(403)
 			return
 		}
 	}
 
 	// 处理 Proxy
-	var logName string
-	if proxyToApp != nil {
-		caller := &Caller{request: request}
-		result = caller.Do(request.Method, *proxyToApp, *proxyToPath, args,
-			"S-Unique-Id", request.Header.Get("S-Unique-Id"),
-			config.XRealIpName, getRealIp(request),
-			config.XForwardedForName, request.Header.Get(config.XForwardedForName)+base.StringIf(request.Header.Get(config.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')],
-		).Bytes()
-		logName = "PROXY"
-	} else {
-		// 处理 Websocket
-		if ws != nil && result == nil {
-			doWebsocketService(ws, request, &response, &args, &headers, &startTime)
-		} else if s != nil || result != nil {
-			result = doWebService(s, request, &response, &args, &headers, result, &startTime)
-			logName = "ACCESS"
-		}
+	//var logName string
+	//var statusCode int
+	//if proxyToApp != nil {
+	//	caller := &Caller{request: request}
+	//	r := caller.Do(request.Method, *proxyToApp, *proxyToPath, args, "Host", request.Host)
+	//	result = r.Bytes()
+	//	statusCode = 500
+	//	if r.Error == nil && r.Response != nil {
+	//		statusCode = r.Response.StatusCode
+	//	}
+	//	logName = "PROXY"
+	//} else {
+	// 处理 Websocket
+	if ws != nil && result == nil {
+		doWebsocketService(ws, request, &response, &args, &headers, &startTime)
+	} else if s != nil || result != nil {
+		result = doWebService(s, request, &response, &args, &headers, result, &startTime)
+		//logName = "ACCESS"
+		//statusCode = 200
 	}
+	//}
 
 	if ws == nil {
 		// 后置过滤器
@@ -257,7 +269,14 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 		// 记录访问日志
 		if recordLogs {
-			writeLog(logName, outBytes, isJson, request, &response, &args, &headers, &startTime, authLevel, 200)
+			outLen := 0
+			//if logName != "ACCESS" {
+			//	if outBytes != nil {
+			//		outLen = len(outBytes)
+			//		outBytes = nil
+			//	}
+			//}
+			writeLog("ACCESS", outBytes, outLen, isJson, request, &response, &args, &headers, &startTime, authLevel, 200)
 		}
 	}
 
@@ -266,7 +285,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 }
 
-func writeLog(logName string, outBytes []byte, isJson bool, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, statusCode int) {
+func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, statusCode int) {
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 	var byteArgs []byte
 	if args != nil {
@@ -274,19 +293,23 @@ func writeLog(logName string, outBytes []byte, isJson bool, request *http.Reques
 	}
 	var byteHeaders []byte
 	if headers != nil {
-		if (*headers)["Access-Token"] != "" {
-			(*headers)["Access-Token"] = (*headers)["Access-Token"][0:4] + "*******"
+		at := (*headers)["Access-Token"]
+		if at != "" {
+			if len(at) > 6 {
+				(*headers)["Access-Token"] = at[0:3] + "***" + at[len(at)-3:]
+			} else if len(at) > 4 {
+				(*headers)["Access-Token"] = at[0:2] + "***" + at[len(at)-2:]
+			}
 		}
 		byteHeaders, _ = json.Marshal(*headers)
 	}
 
-	outLen := 0
-	if outBytes != nil {
+	if outLen == 0 && outBytes != nil {
 		outLen = len(outBytes)
 	}
 	outHeaders := make(map[string]string)
 	for k, v := range (*response).Header() {
-		if k == "Content-Length" {
+		if outLen == 0 && k == "Content-Length" {
 			outLen, _ = strconv.Atoi(v[0])
 		}
 		if noLogHeaders[k] {
@@ -305,7 +328,7 @@ func writeLog(logName string, outBytes []byte, isJson bool, request *http.Reques
 	if !isJson {
 		makePrintable(outBytes)
 	}
-	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), config.App, request.Host, request.Method, request.RequestURI, authLevel, usedTime, statusCode, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, statusCode, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
 }
 
 func getRealIp(request *http.Request) string {

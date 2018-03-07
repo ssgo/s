@@ -29,18 +29,6 @@ type webServiceType struct {
 	funcValue     reflect.Value
 }
 
-type rewriteInfo struct {
-	matcher *regexp.Regexp
-	toPath  string
-}
-
-type proxyInfo struct {
-	authLevel uint
-	matcher   *regexp.Regexp
-	toApp     string
-	toPath    string
-}
-
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make(map[string]*webServiceType)
 
@@ -175,11 +163,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.responseIndex] = reflect.ValueOf(*response)
 		}
 		if service.callerIndex >= 0 {
-			caller := &Caller{headers: []string{
-				"S-Unique-Id", request.Header.Get("S-Unique-Id"),
-				config.XRealIpName, getRealIp(request),
-				config.XForwardedForName, request.Header.Get(config.XForwardedForName) + base.StringIf(request.Header.Get(config.XForwardedForName) == "", "", ", ") + request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')],
-			}, request: request}
+			caller := &Caller{request: request}
 			parms[service.callerIndex] = reflect.ValueOf(caller)
 		}
 		for i, parm := range parms {
@@ -222,8 +206,9 @@ func makePrintable(data []byte) {
 		c := data[i]
 		if c == '\t' || c == '\n' || c == '\r' {
 			data[i] = ' '
-		} else if c < 32 || c > 126 {
-			data[i] = '?'
+			//} else if c < 32 || c > 126 {
+			//} else if c < 32 {
+			//	data[i] = '?'
 		}
 	}
 }

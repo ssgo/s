@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/base"
 	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -34,10 +36,10 @@ func GetClient() *ClientPool {
 	if config.CallTimeout > 0 {
 		clientConfig.Timeout = time.Duration(config.CallTimeout) * time.Millisecond
 	}
-	return &ClientPool{pool: clientConfig, globalHeaders: map[string]string{"User-Agent": "S-Client/2.0"}}
+	return &ClientPool{pool: clientConfig}
 }
 func GetClient1() *ClientPool {
-	return &ClientPool{pool: &http.Client{}, globalHeaders: map[string]string{"User-Agent": "S-Client/1.1"}}
+	return &ClientPool{pool: &http.Client{}}
 }
 
 func (cp *ClientPool) SetGlobalHeader(k, v string) {
@@ -63,6 +65,16 @@ func (cp *ClientPool) Delete(url string, data interface{}, headers ...string) *R
 func (cp *ClientPool) Head(url string, data interface{}, headers ...string) *Result {
 	return cp.Do("HEAD", url, data, headers...)
 }
+func (cp *ClientPool) DoByRequest(request *http.Request, method, url string, data interface{}, settedHeaders ...string) *Result {
+	headers := make([]string, 0)
+	for k, v := range request.Header {
+		headers = append(headers, k, v[0])
+	}
+	headers = append(headers, config.XRealIpName, getRealIp(request))
+	headers = append(headers, config.XForwardedForName, request.Header.Get(config.XForwardedForName)+base.StringIf(request.Header.Get(config.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	headers = append(headers, settedHeaders...)
+	return cp.Do(method, url, data, headers...)
+}
 func (cp *ClientPool) Do(method, url string, data interface{}, headers ...string) *Result {
 	var req *http.Request
 	var err error
@@ -70,23 +82,40 @@ func (cp *ClientPool) Do(method, url string, data interface{}, headers ...string
 		req, err = http.NewRequest(method, url, nil)
 	} else {
 		var bytesData []byte
-		bytesData, err = json.Marshal(data)
+		err = nil
+		isJson := false
+		switch t := data.(type) {
+		case []byte:
+			bytesData = t
+		case string:
+			bytesData = []byte(t)
+		default:
+			bytesData, err = json.Marshal(data)
+			isJson = true
+		}
 		if err == nil {
 			req, err = http.NewRequest(method, url, bytes.NewReader(bytesData))
-			req.Header.Add("Content-Type", "application/json")
+			if isJson {
+				req.Header.Set("Content-Type", "application/json")
+			}
 		}
 	}
 	if err != nil {
 		return &Result{Error: err}
 	}
 
-	for k, v := range cp.globalHeaders {
-		req.Header.Add(k, v)
+	for i := 1; i < len(headers); i += 2 {
+		if headers[i-1] == "Host" {
+			req.Host = headers[i]
+		} else {
+			req.Header.Set(headers[i-1], headers[i])
+		}
 	}
 
-	for i := 1; i < len(headers); i += 2 {
-		req.Header.Add(headers[i-1], headers[i])
+	for k, v := range cp.globalHeaders {
+		req.Header.Set(k, v)
 	}
+
 	//t1 := time.Now()
 	res, err := cp.pool.Do(req)
 	//log.Print(" ((((((((((	", url, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
@@ -170,7 +199,7 @@ func (rs *Result) To(result interface{}) error {
 func convertBytesToObject(data []byte, result interface{}) error {
 	var err error = nil
 	if data == nil {
-		return fmt.Errorf("No Result")
+		return fmt.Errorf("no result")
 	}
 
 	t := reflect.TypeOf(result)

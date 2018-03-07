@@ -21,8 +21,10 @@ type Arr = []interface{}
 type Map = map[string]interface{}
 
 var recordLogs = true
+var inited = false
+var running = false
 
-var config = struct {
+type configInfo struct {
 	Listen            string
 	RwTimeout         int
 	KeepaliveTimeout  int
@@ -42,13 +44,23 @@ var config = struct {
 	App               string
 	Weight            uint
 	AppAllows         []string
-	Calls             map[string]*struct {
-		AccessToken string
-		Timeout     int
-		HttpVersion int
-	}
-}{}
+	Calls             map[string]*Call
+}
+
+var config = configInfo{}
+
+type Call struct {
+	AccessToken string
+	Timeout     int
+	HttpVersion int
+}
+
 var noLogHeaders = map[string]bool{}
+var serverAddr string
+
+func GetConfig() configInfo {
+	return config
+}
 
 // 启动HTTP/1.1服务
 func Start1() {
@@ -123,7 +135,8 @@ func asyncStart(httpVersion int) *AsyncServer {
 	return as
 }
 
-func initConfig() {
+func Init() {
+	inited = true
 	base.LoadConfig("service", &config)
 
 	log.SetFlags(log.Ldate | log.Lmicroseconds)
@@ -180,6 +193,7 @@ func initConfig() {
 }
 
 func start(httpVersion int, as *AsyncServer) error {
+	running = true
 
 	if len(os.Args) > 1 {
 		for i := 1; i < len(os.Args); i++ {
@@ -193,7 +207,9 @@ func start(httpVersion int, as *AsyncServer) error {
 			}
 		}
 	}
-	initConfig()
+	if !inited {
+		Init()
+	}
 
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)
 
@@ -240,12 +256,14 @@ func start(httpVersion int, as *AsyncServer) error {
 		addrs, _ := net.InterfaceAddrs()
 		for _, a := range addrs {
 			an := a.(*net.IPNet)
-			if an.IP.IsGlobalUnicast() {
+			// 忽略 Docker 私有网段
+			if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
 				ip = an.IP.To4()
+				break
 			}
 		}
 	}
-	serverAddr := fmt.Sprintf("%s:%d", ip.String(), port)
+	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
 	if startDiscover(serverAddr) == false {
 		log.Printf("SERVER	failed to start discover")
@@ -292,6 +310,7 @@ func start(httpVersion int, as *AsyncServer) error {
 			srv.Serve(listener)
 		}
 	}
+	running = false
 
 	log.Printf("SERVER	%s	Stopping Discover", serverAddr)
 	stopDiscover()
@@ -307,6 +326,10 @@ func start(httpVersion int, as *AsyncServer) error {
 		as.stopChan <- true
 	}
 	return nil
+}
+
+func IsRunning() bool {
+	return running
 }
 
 //func EnableLogs(enabled bool) {

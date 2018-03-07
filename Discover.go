@@ -19,6 +19,8 @@ var syncerRunning = false
 var syncerStopChan = make(chan bool)
 var pingStopChan = make(chan bool)
 
+//var forceDiscoverClient = false
+
 var myAddr = ""
 var appNodes = map[string]map[string]*NodeInfo{}
 
@@ -35,7 +37,6 @@ var appSubscribeKeys []interface{}
 var appClientPools = map[string]*ClientPool{}
 
 type Caller struct {
-	headers []string
 	request *http.Request
 }
 
@@ -75,7 +76,6 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	if appConf.AccessToken != "" {
 		headers = append(headers, "Access-Token", appConf.AccessToken)
 	}
-	headers = append(headers, caller.headers...)
 
 	var r *Result
 	excludes := make(map[string]bool)
@@ -108,7 +108,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		// 请求节点
 		startTime := time.Now()
 		node.UsedTimes++
-		r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
+		r = appClientPools[app].DoByRequest(caller.request, method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
 		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
 		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
@@ -138,29 +138,13 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 func startDiscover(addr string) bool {
 	myAddr = addr
 	isService = config.App != "" && config.Weight > 0
-	isClient = len(config.Calls) > 0
-	if isService || isClient {
-		if isService {
-			dcRedisService = redis.GetRedis(config.Registry)
-			if dcRedisService.Error != nil {
-				return false
-			}
-		}
-		if isClient {
-			dcRedisCalls = redis.GetRedis(config.RegistryCalls)
-			if dcRedisCalls.Error != nil {
-				return false
-			}
-		}
-	} else {
-		return true
-	}
-
 	if isService {
+		dcRedisService = redis.GetRedis(config.Registry)
+
 		// 设置默认的AuthChecker
 		if webAuthChecker == nil {
 			SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
-				//log.Println(" ***** ", (*headers)["AccessToken"], config.AccessTokens[(*headers)["AccessToken"]], authLevel)
+				//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)
 				return config.AccessTokens[request.Header.Get("Access-Token")] >= authLevel
 			})
 		}
@@ -175,27 +159,41 @@ func startDiscover(addr string) bool {
 		}
 	}
 
-	if isClient {
-		syncerRunning = true
+	if len(config.Calls) > 0 {
 		for app, conf := range config.Calls {
-			appSubscribeKeys = append(appSubscribeKeys, config.RegistryPrefix+"CH_"+app)
-
-			var cp *ClientPool
-			if conf.HttpVersion == 1 {
-				cp = GetClient1()
-			} else {
-				cp = GetClient()
-			}
-			if conf.Timeout > 0 {
-				cp.pool.Timeout = time.Duration(conf.Timeout) * time.Millisecond
-			}
-			appClientPools[app] = cp
+			AddCall(app, *conf)
 		}
-		initedChan := make(chan bool)
-		go syncDiscover(initedChan)
-		<-initedChan
-		go pingRedis()
+		if RestartDiscoverSyncer() == false {
+			return false
+		}
 	}
+	return true
+}
+
+func AddCall(app string, conf Call) bool {
+	if appClientPools[app] != nil {
+		return false
+	}
+	if len(config.Calls) == 0 {
+		config.Calls = make(map[string]*Call)
+	}
+	if config.Calls[app] == nil {
+		config.Calls[app] = &conf
+	}
+
+	appNodes[app] = map[string]*NodeInfo{}
+	appSubscribeKeys = append(appSubscribeKeys, config.RegistryPrefix+"CH_"+app)
+
+	var cp *ClientPool
+	if conf.HttpVersion == 1 {
+		cp = GetClient1()
+	} else {
+		cp = GetClient()
+	}
+	if conf.Timeout > 0 {
+		cp.pool.Timeout = time.Duration(conf.Timeout) * time.Millisecond
+	}
+	appClientPools[app] = cp
 	return true
 }
 
@@ -221,7 +219,6 @@ func pingRedis() {
 		}
 		if syncConn != nil {
 			syncConn.Ping("1")
-			//log.Print("	-0-0-0-0-0-0-	Ping")
 		}
 		if !syncerRunning {
 			break
@@ -253,10 +250,6 @@ func syncDiscover(initedChan chan bool) {
 
 		// 第一次或断线后重新获取（订阅开始后再获取全量确保信息完整）
 		for app := range config.Calls {
-			if appNodes[app] == nil {
-				appNodes[app] = map[string]*NodeInfo{}
-			}
-
 			appResults := dcRedisCalls.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
 			for _, node := range appNodes[app] {
 				if appResults[node.Addr] == nil {
@@ -344,6 +337,31 @@ func pushNode(app, addr string, weight int) {
 		node.Weight = weight
 		node.UsedTimes = uint64(float64(node.UsedTimes) / float64(node.Weight) * float64(weight))
 	}
+}
+
+func RestartDiscoverSyncer() bool {
+	if dcRedisCalls == nil {
+		dcRedisCalls = redis.GetRedis(config.RegistryCalls)
+	}
+
+	if isClient == false {
+		isClient = true
+	}
+
+	if syncConn != nil {
+		syncConn.Unsubscribe(appSubscribeKeys)
+		syncConn.Close()
+		syncConn = nil
+	}
+
+	if syncerRunning == false {
+		syncerRunning = true
+		initedChan := make(chan bool)
+		go syncDiscover(initedChan)
+		<-initedChan
+		go pingRedis()
+	}
+	return true
 }
 
 func stopDiscover() {
