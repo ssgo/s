@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
+	// 不切换方便开发，生产环境注意路径，尽量使用绝对路径
+	//os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
