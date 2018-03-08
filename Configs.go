@@ -51,7 +51,9 @@ func LoadConfig(name string, conf interface{}) error {
 			file, err = os.Open(execPath + "/" + name + ".json")
 			if err != nil {
 				u, _ := user.Current()
-				file, err = os.Open(u.HomeDir + "/" + name + ".json")
+				if u != nil {
+					file, err = os.Open(u.HomeDir + "/" + name + ".json")
+				}
 			}
 		}
 	}
