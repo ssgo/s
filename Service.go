@@ -168,6 +168,11 @@ func Init() {
 		config.RegistryCalls = "discover:15"
 	}
 
+	if config.App != "" && config.App[0] == '_' {
+		log.Print("ERROR	", config.App, " is a not available name")
+		config.App = ""
+	}
+
 	if config.Weight <= 0 {
 		config.Weight = 1
 	}
