@@ -119,7 +119,7 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 			}
 		}
 		for _, mk := range v.MapKeys() {
-			log.Println("	---	", prefix, mk)
+			//log.Println("	---	", prefix, mk)
 			makeEnvConfig(prefix+"_"+mk.String(), v.MapIndex(mk))
 		}
 	} else if t.Kind() == reflect.Slice {
