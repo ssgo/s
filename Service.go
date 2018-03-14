@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -57,6 +58,35 @@ type Call struct {
 
 var noLogHeaders = map[string]bool{}
 var serverAddr string
+var checker func(request *http.Request) bool
+
+func SetChecker(ck func(request *http.Request) bool) {
+	checker = ck
+}
+
+func defaultChecker(request *http.Request, response http.ResponseWriter) {
+	if request.Header.Get("Pid") != strconv.Itoa(serviceInfo.pid) {
+		response.WriteHeader(591)
+		return
+	}
+
+	var ok bool
+	if checker != nil {
+		ok = running && checker(request)
+	} else {
+		ok = running
+	}
+
+	if ok {
+		response.WriteHeader(299)
+	} else {
+		if !running {
+			response.WriteHeader(592)
+		} else {
+			response.WriteHeader(593)
+		}
+	}
+}
 
 func GetConfig() configInfo {
 	return config
@@ -276,6 +306,18 @@ func start(httpVersion int, as *AsyncServer) error {
 		return errors.New("failed to start discover")
 	}
 
+	// 信息记录到 pid file
+	serviceInfo.pid = os.Getpid()
+	serviceInfo.httpVersion = httpVersion
+	if config.CertFile != "" && config.KeyFile != "" {
+		serviceInfo.baseUrl = "https://" + serverAddr
+	} else {
+		serviceInfo.baseUrl = "http://" + serverAddr
+	}
+	serviceInfo.save()
+
+	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
+
 	log.Printf("SERVER	%s	Started", serverAddr)
 
 	if as != nil {
@@ -317,15 +359,21 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	running = false
 
-	log.Printf("SERVER	%s	Stopping Discover", serverAddr)
-	stopDiscover()
+	if isClient || isService {
+		log.Printf("SERVER	%s	Stopping Discover", serverAddr)
+		stopDiscover()
+	}
 	log.Printf("SERVER	%s	Stopping Router", serverAddr)
 	rh.Stop()
 
 	log.Printf("SERVER	%s	Waitting Router", serverAddr)
 	rh.Wait()
-	log.Printf("SERVER	%s	Waitting Discover", serverAddr)
-	waitDiscover()
+	if isClient {
+		log.Printf("SERVER	%s	Waitting Discover", serverAddr)
+		waitDiscover()
+	}
+	serviceInfo.remove()
+
 	log.Printf("SERVER	%s	Stopped", serverAddr)
 	if as != nil {
 		as.stopChan <- true
