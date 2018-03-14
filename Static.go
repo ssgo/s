@@ -10,6 +10,12 @@ import (
 var statics = make(map[string]*string)
 
 func Static(path, rootPath string) {
+	if rootPath[0] != '/' {
+		pos := strings.LastIndexByte(os.Args[0], '/')
+		if pos > 0 {
+			rootPath = os.Args[0][0:pos+1] + rootPath
+		}
+	}
 	statics[path] = &rootPath
 }
 

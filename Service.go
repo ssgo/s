@@ -41,7 +41,7 @@ type configInfo struct {
 	Registry          string
 	RegistryCalls     string
 	RegistryPrefix    string
-	AccessTokens      map[string]uint
+	AccessTokens      map[string]*uint
 	App               string
 	Weight            uint
 	AppAllows         []string

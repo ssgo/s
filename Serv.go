@@ -276,7 +276,11 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 			//		outBytes = nil
 			//	}
 			//}
-			writeLog("ACCESS", outBytes, outLen, isJson, request, &response, &args, &headers, &startTime, authLevel, 200)
+
+			// /__CHECK__ 不记录日志
+			if requestPath != "/__CHECK__" {
+				writeLog("ACCESS", outBytes, outLen, isJson, request, &response, &args, &headers, &startTime, authLevel, 200)
+			}
 		}
 	}
 
