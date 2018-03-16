@@ -53,7 +53,7 @@ func SetRewriteBy(by func(request *http.Request) (toPath string, httpVersion int
 	rewriteBy = by
 }
 
-func processRewrite(request *http.Request, response *http.ResponseWriter, headers *map[string]string, startTime *time.Time) (finished bool) {
+func processRewrite(request *http.Request, response *Response, headers *map[string]string, startTime *time.Time) (finished bool) {
 	// 获取路径
 	requestPath := request.RequestURI
 	var queryString string
@@ -131,22 +131,22 @@ func processRewrite(request *http.Request, response *http.ResponseWriter, header
 				statusCode = r.Response.StatusCode
 				outBytes = r.Bytes()
 				for k, v := range r.Response.Header {
-					(*response).Header().Set(k, v[0])
+					response.Header().Set(k, v[0])
 				}
 			} else {
 				statusCode = 500
 				outBytes = []byte(r.Error.Error())
 			}
 
-			(*response).WriteHeader(statusCode)
-			(*response).Write(outBytes)
+			response.WriteHeader(statusCode)
+			response.Write(outBytes)
 			if recordLogs {
 				outLen := 0
 				if outBytes != nil {
 					outLen = len(outBytes)
 				}
 				outBytes = nil
-				writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0, statusCode)
+				writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0)
 			}
 			return true
 		} else {

@@ -182,22 +182,22 @@ func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
 	byteArgs, _ := json.Marshal(*args)
 	byteHeaders, _ := json.Marshal(*headers)
 
 	message := "OK"
-	client, err := ws.updater.Upgrade(*response, request, nil)
+	client, err := ws.updater.Upgrade(response.writer, request, nil)
 	if err != nil {
 		message = err.Error()
-		(*response).WriteHeader(500)
+		response.WriteHeader(500)
 	}
 
 	if recordLogs {
 		nowTime := time.Now()
 		usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
 		*startTime = nowTime
-		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
+		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%d	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, response.status, message, string(byteArgs), string(byteHeaders), request.Proto)
 	}
 
 	if err == nil {
@@ -271,7 +271,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 						if recordLogs {
 							log.Printf("WSREJECT	%s	%s	%s	%s	%d", getRealIp(request), request.RequestURI, actionName, string(printableMsg), action.authLevel)
 						}
-						(*response).WriteHeader(403)
+						response.WriteHeader(403)
 						continue
 					}
 				}

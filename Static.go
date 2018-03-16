@@ -19,7 +19,7 @@ func Static(path, rootPath string) {
 	statics[path] = &rootPath
 }
 
-func processStatic(requestPath string, request *http.Request, response *http.ResponseWriter, headers *map[string]string, startTime *time.Time) bool {
+func processStatic(requestPath string, request *http.Request, response *Response, headers *map[string]string, startTime *time.Time) bool {
 	if len(statics) == 0 {
 		return false
 	}
@@ -52,9 +52,9 @@ func processStatic(requestPath string, request *http.Request, response *http.Res
 		filePath = filePath[len(filePath)-11:]
 	}
 
-	http.ServeFile(*response, request, *rootPath+requestPath)
+	http.ServeFile(response, request, *rootPath+requestPath)
 
-	writeLog("STATIC", nil, 0, false, request, response, nil, headers, startTime, 0, 200)
+	writeLog("STATIC", nil, 0, false, request, response, nil, headers, startTime, 0)
 
 	return true
 }

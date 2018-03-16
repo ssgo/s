@@ -14,6 +14,30 @@ import (
 	"time"
 )
 
+type Response struct {
+	writer http.ResponseWriter
+	status int
+}
+
+func (response *Response) Header() http.Header {
+	return response.writer.Header()
+}
+func (response *Response) Write(bytes []byte) (int, error) {
+	return response.writer.Write(bytes)
+}
+func (response *Response) WriteHeader(code int) {
+	response.status = code
+	response.writer.WriteHeader(code)
+}
+
+//func (response *Response) Hijacker() (net.Conn, *bufio.ReadWriter, error) {
+//	h, ok := response.writer.(http.Hijacker)
+//	if !ok {
+//		return nil, nil, errors.New("bad Hijacker")
+//	}
+//	return h.Hijack()
+//}
+
 type routeHandler struct {
 	webRequestingNum int64
 	wsConns          map[string]*websocket.Conn
@@ -35,7 +59,9 @@ func (rh *routeHandler) Wait() {
 	}
 }
 
-func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	var myResponse *Response = &Response{writer: writer, status: 200}
+	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
@@ -52,13 +78,13 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	finished := processRewrite(request, &response, &headers, &startTime)
+	finished := processRewrite(request, myResponse, &headers, &startTime)
 	if finished {
 		return
 	}
 
 	// 处理 ProxyBy
-	finished = processProxy(request, &response, &headers, &startTime)
+	finished = processProxy(request, myResponse, &headers, &startTime)
 	if finished {
 		return
 	}
@@ -72,7 +98,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 
 	// 处理静态文件
-	if processStatic(requestPath, request, &response, &headers, &startTime) {
+	if processStatic(requestPath, request, myResponse, &headers, &startTime) {
 		return
 	}
 
@@ -125,10 +151,10 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 	// 全都未匹配，输出404
 	if s == nil && ws == nil {
-		if requestPath != "/favicon.ico" {
-			writeLog("FAIL", nil, 0, false, request, &response, &args, &headers, &startTime, 0, 404)
-		}
 		response.WriteHeader(404)
+		if requestPath != "/favicon.ico" {
+			writeLog("FAIL", nil, 0, false, request, myResponse, &args, &headers, &startTime, 0)
+		}
 		return
 	}
 
@@ -195,8 +221,8 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(headers)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
-			writeLog("REJECT", nil, 0, false, request, &response, &args, &headers, &startTime, authLevel, 403)
 			response.WriteHeader(403)
+			writeLog("REJECT", nil, 0, false, request, myResponse, &args, &headers, &startTime, authLevel)
 			return
 		}
 	}
@@ -216,7 +242,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, &response, &args, &headers, &startTime)
+		doWebsocketService(ws, request, myResponse, &args, &headers, &startTime)
 	} else if s != nil || result != nil {
 		result = doWebService(s, request, &response, &args, &headers, result, &startTime)
 		//logName = "ACCESS"
@@ -279,7 +305,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 
 			// /__CHECK__ 不记录日志
 			if requestPath != "/__CHECK__" {
-				writeLog("ACCESS", outBytes, outLen, isJson, request, &response, &args, &headers, &startTime, authLevel, 200)
+				writeLog("ACCESS", outBytes, outLen, isJson, request, myResponse, &args, &headers, &startTime, authLevel)
 			}
 		}
 	}
@@ -289,7 +315,7 @@ func (rh *routeHandler) ServeHTTP(response http.ResponseWriter, request *http.Re
 	}
 }
 
-func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, statusCode int) {
+func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint) {
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 	var byteArgs []byte
 	if args != nil {
@@ -332,7 +358,7 @@ func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request 
 	if !isJson {
 		makePrintable(outBytes)
 	}
-	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, statusCode, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
 }
 
 func getRealIp(request *http.Request) string {

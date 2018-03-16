@@ -16,8 +16,8 @@ var dcRedisCalls *redis.Redis
 var isService = false
 var isClient = false
 var syncerRunning = false
-var syncerStopChan = make(chan bool)
-var pingStopChan = make(chan bool)
+var syncerStopChan chan bool
+var pingStopChan chan bool
 
 //var forceDiscoverClient = false
 
@@ -79,7 +79,9 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 
 	var r *Result
 	excludes := make(map[string]bool)
+	tryTimes := 0
 	for {
+		tryTimes++
 		var node *NodeInfo
 		if withNode != "" {
 			node = appNodes[app][withNode]
@@ -90,7 +92,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		if node == nil {
 			nodes := make([]*NodeInfo, 0)
 			for _, node := range appNodes[app] {
-				if excludes[node.Addr] || node.FailedTimes >= 3 {
+				if excludes[node.Addr] || node.FailedTimes >= config.CallRetryTimes {
 					continue
 				}
 				nodes = append(nodes, node)
@@ -101,7 +103,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			}
 		}
 		if node == nil {
-			log.Printf("DISCOVER	No Node	%s	%s	%d", app, path, len(appNodes[app]))
+			log.Printf("DISCOVER	No Node	%s	%s	%d / %d", app, path, tryTimes, len(appNodes[app]))
 			break
 		}
 
@@ -116,11 +118,11 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			if r.Response != nil {
 				statusCode = r.Response.StatusCode
 			}
-			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, statusCode, r.Error)
+			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
-			if node.FailedTimes >= 3 {
-				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, node.FailedTimes, statusCode, r.Error)
+			if node.FailedTimes >= config.CallRetryTimes {
+				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 				if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
 					dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
 				}
@@ -132,7 +134,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	}
 
 	// 全部失败，返回最后一个失败的结果
-	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(appNodes[app]))}, ""
+	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d / %d)", app, path, tryTimes, len(appNodes[app]))}, ""
 }
 
 func startDiscover(addr string) bool {
@@ -162,7 +164,7 @@ func startDiscover(addr string) bool {
 
 	if len(config.Calls) > 0 {
 		for app, conf := range config.Calls {
-			AddCall(app, *conf)
+			addApp(app, *conf, false)
 		}
 		if RestartDiscoverSyncer() == false {
 			return false
@@ -171,7 +173,11 @@ func startDiscover(addr string) bool {
 	return true
 }
 
-func AddCall(app string, conf Call) bool {
+func AddExternalApp(app string, conf Call) bool {
+	return addApp(app, conf, true)
+}
+
+func addApp(app string, conf Call, fetch bool) bool {
 	if appClientPools[app] != nil {
 		return false
 	}
@@ -195,6 +201,12 @@ func AddCall(app string, conf Call) bool {
 		cp.pool.Timeout = time.Duration(conf.Timeout) * time.Millisecond
 	}
 	appClientPools[app] = cp
+
+	// 立刻获取一次应用信息
+	if fetch {
+		fetchApp(app)
+	}
+
 	return true
 }
 
@@ -225,7 +237,28 @@ func pingRedis() {
 			break
 		}
 	}
-	pingStopChan <- true
+	if pingStopChan != nil {
+		pingStopChan <- true
+	}
+}
+
+func fetchApp(app string) {
+	if dcRedisCalls == nil {
+		dcRedisCalls = redis.GetRedis(config.RegistryCalls)
+	}
+
+	appResults := dcRedisCalls.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
+	for _, node := range appNodes[app] {
+		if appResults[node.Addr] == nil {
+			log.Printf("DISCOVER	Remove When Reset	%s	%s	%d", app, node.Addr, 0)
+			pushNode(app, node.Addr, 0)
+		}
+	}
+	for addr, weightResult := range appResults {
+		weight := weightResult.Int()
+		log.Printf("DISCOVER	Reset	%s	%s	%d", app, addr, weight)
+		pushNode(app, addr, weight)
+	}
 }
 
 func syncDiscover(initedChan chan bool) {
@@ -251,18 +284,19 @@ func syncDiscover(initedChan chan bool) {
 
 		// 第一次或断线后重新获取（订阅开始后再获取全量确保信息完整）
 		for app := range config.Calls {
-			appResults := dcRedisCalls.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
-			for _, node := range appNodes[app] {
-				if appResults[node.Addr] == nil {
-					log.Printf("DISCOVER	Remove When Reset	%s	%s	%d", app, node.Addr, 0)
-					pushNode(app, node.Addr, 0)
-				}
-			}
-			for addr, weightResult := range appResults {
-				weight := weightResult.Int()
-				log.Printf("DISCOVER	Reset	%s	%s	%d", app, addr, weight)
-				pushNode(app, addr, weight)
-			}
+			fetchApp(app)
+			//appResults := dcRedisCalls.Do("HGETALL", config.RegistryPrefix+app).ResultMap()
+			//for _, node := range appNodes[app] {
+			//	if appResults[node.Addr] == nil {
+			//		log.Printf("DISCOVER	Remove When Reset	%s	%s	%d", app, node.Addr, 0)
+			//		pushNode(app, node.Addr, 0)
+			//	}
+			//}
+			//for addr, weightResult := range appResults {
+			//	weight := weightResult.Int()
+			//	log.Printf("DISCOVER	Reset	%s	%s	%d", app, addr, weight)
+			//	pushNode(app, addr, weight)
+			//}
 		}
 		if !inited {
 			inited = true
@@ -299,6 +333,9 @@ func syncDiscover(initedChan chan bool) {
 			if isErr {
 				break
 			}
+			if !syncerRunning {
+				break
+			}
 		}
 		if !syncerRunning {
 			break
@@ -315,7 +352,9 @@ func syncDiscover(initedChan chan bool) {
 		syncConn = nil
 	}
 
-	syncerStopChan <- true
+	if syncerStopChan != nil {
+		syncerStopChan <- true
+	}
 }
 
 func pushNode(app, addr string, weight int) {
@@ -341,6 +380,7 @@ func pushNode(app, addr string, weight int) {
 }
 
 func RestartDiscoverSyncer() bool {
+	log.Print("DISCOVER	restarting	", appSubscribeKeys)
 	if dcRedisCalls == nil {
 		dcRedisCalls = redis.GetRedis(config.RegistryCalls)
 	}
@@ -349,29 +389,43 @@ func RestartDiscoverSyncer() bool {
 		isClient = true
 	}
 
+	// 如果之前没有启动
 	if syncConn != nil {
+		log.Print("DISCOVER	stopping for restart")
 		syncConn.Unsubscribe(appSubscribeKeys)
 		syncConn.Close()
 		syncConn = nil
+		log.Print("DISCOVER	stopped for restart")
 	}
 
+	// 如果之前没有启动
 	if syncerRunning == false {
+		log.Print("DISCOVER	starting for restart")
 		syncerRunning = true
 		initedChan := make(chan bool)
 		go syncDiscover(initedChan)
 		<-initedChan
 		go pingRedis()
+		log.Print("DISCOVER	started for restart")
 	}
 	return true
 }
 
 func stopDiscover() {
 	if isClient {
+		syncerStopChan = make(chan bool)
+		pingStopChan = make(chan bool)
 		syncerRunning = false
 		if syncConn != nil {
+			log.Print("DISCOVER	unsubscribing	", appSubscribeKeys)
 			syncConn.Unsubscribe(appSubscribeKeys)
-			syncConn.Close()
+			log.Print("DISCOVER	closeing syncConn")
+			tmpConn := syncConn
 			syncConn = nil
+			go func() {
+				tmpConn.Close()
+				log.Print("DISCOVER	closed syncConn")
+			}()
 		}
 	}
 
@@ -385,7 +439,13 @@ func stopDiscover() {
 
 func waitDiscover() {
 	if isClient {
-		<-syncerStopChan
-		<-pingStopChan
+		if syncerStopChan != nil {
+			<-syncerStopChan
+			syncerStopChan = nil
+		}
+		if pingStopChan != nil {
+			<-pingStopChan
+			pingStopChan = nil
+		}
 	}
 }

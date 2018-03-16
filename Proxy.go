@@ -77,7 +77,7 @@ func findProxy(request *http.Request) (*string, *string) {
 }
 
 // ProxyBy
-func processProxy(request *http.Request, response *http.ResponseWriter, headers *map[string]string, startTime *time.Time) (finished bool) {
+func processProxy(request *http.Request, response *Response, headers *map[string]string, startTime *time.Time) (finished bool) {
 	proxyToApp, proxyToPath := findProxy(request)
 	var proxyHeaders *map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
@@ -93,7 +93,8 @@ func processProxy(request *http.Request, response *http.ResponseWriter, headers 
 
 	// 注册新的Call，并重启订阅
 	if appClientPools[*proxyToApp] == nil {
-		AddCall(*proxyToApp, Call{})
+		log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
+		AddExternalApp(*proxyToApp, Call{})
 		RestartDiscoverSyncer()
 	}
 
@@ -119,22 +120,22 @@ func processProxy(request *http.Request, response *http.ResponseWriter, headers 
 		statusCode = r.Response.StatusCode
 		outBytes = r.Bytes()
 		for k, v := range r.Response.Header {
-			(*response).Header().Set(k, v[0])
+			response.Header().Set(k, v[0])
 		}
 	} else {
 		statusCode = 500
 		outBytes = []byte(r.Error.Error())
 	}
 
-	(*response).WriteHeader(statusCode)
-	(*response).Write(outBytes)
+	response.WriteHeader(statusCode)
+	response.Write(outBytes)
 	if recordLogs {
 		outLen := 0
 		if outBytes != nil {
 			outLen = len(outBytes)
 		}
 		outBytes = nil
-		writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0, statusCode)
+		writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0)
 	}
 	return true
 

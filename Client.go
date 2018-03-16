@@ -28,11 +28,17 @@ type Result struct {
 }
 
 func GetClient() *ClientPool {
-	clientConfig := &http.Client{Transport: &http2.Transport{
-		AllowHTTP: true,
-		DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-			return net.Dial(network, addr)
-		}}}
+	clientConfig := &http.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				return net.Dial(network, addr)
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	if config.CallTimeout > 0 {
 		clientConfig.Timeout = time.Duration(config.CallTimeout) * time.Millisecond
 	}
@@ -42,6 +48,9 @@ func GetClient1() *ClientPool {
 	return &ClientPool{pool: &http.Client{}}
 }
 
+func (cp *ClientPool) EnableRedirect() {
+	cp.pool.CheckRedirect = nil
+}
 func (cp *ClientPool) SetGlobalHeader(k, v string) {
 	if v == "" {
 		delete(cp.globalHeaders, k)
@@ -118,7 +127,6 @@ func (cp *ClientPool) Do(method, url string, data interface{}, headers ...string
 
 	//t1 := time.Now()
 	res, err := cp.pool.Do(req)
-	//log.Print(" ((((((((((	", url, "	", float32(time.Now().UnixNano()-t1.UnixNano()) / 1e6)
 	if err != nil {
 		return &Result{Error: err}
 	}

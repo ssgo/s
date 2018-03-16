@@ -46,6 +46,7 @@ type configInfo struct {
 	Weight            uint
 	AppAllows         []string
 	Calls             map[string]*Call
+	CallRetryTimes    uint8
 }
 
 var config = configInfo{}
@@ -196,6 +197,9 @@ func Init() {
 	}
 	if config.RegistryCalls == "" {
 		config.RegistryCalls = "discover:15"
+	}
+	if config.CallRetryTimes <= 0 {
+		config.CallRetryTimes = 10
 	}
 
 	if config.App != "" && config.App[0] == '_' {
