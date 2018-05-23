@@ -91,3 +91,22 @@ func (this *Redis) HINCR(key, field string) int64 {
 func (this *Redis) HDECR(key, field string) int64 {
 	return this.Do("HDECRBY", key, field, 1).Int64()
 }
+
+func (this *Redis) LPUSH(key string, values ...string) int {
+	return this.Do("LPUSH", append(append([]interface{}{}, key), StringsToInterfaces(values)...)...).Int()
+}
+func (this *Redis) RPUSH(key string, values ...string) int {
+	return this.Do("RPUSH", append(append([]interface{}{}, key), StringsToInterfaces(values)...)...).Int()
+}
+func (this *Redis) LPOP(key string) *Result {
+	return this.Do("LPOP", key)
+}
+func (this *Redis) RPOP(key string) *Result {
+	return this.Do("RPOP", key)
+}
+func (this *Redis) LLEN(key string) int {
+	return this.Do("LLEN", key).Int()
+}
+func (this *Redis) LRANGE(key string, start, stop int) []Result {
+	return this.Do("LRANGE", key, start, stop).Results()
+}
