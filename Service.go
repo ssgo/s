@@ -1,7 +1,6 @@
 package s
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/ssgo/base"
@@ -27,6 +26,7 @@ var running = false
 
 type configInfo struct {
 	Listen            string
+	HttpVersion       int
 	RwTimeout         int
 	KeepaliveTimeout  int
 	CallTimeout       int
@@ -250,6 +250,10 @@ func start(httpVersion int, as *AsyncServer) error {
 		Init()
 	}
 
+	if config.HttpVersion == 1 || config.HttpVersion == 2 {
+		httpVersion = config.HttpVersion
+	}
+
 	log.Printf("SERVER	[%s]	Starting...", config.Listen)
 
 	rh := routeHandler{}
@@ -329,10 +333,8 @@ func start(httpVersion int, as *AsyncServer) error {
 		as.startChan <- true
 	}
 	if httpVersion == 2 {
-		srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
-		s2 := &http2.Server{
-			IdleTimeout: 1 * time.Minute,
-		}
+		//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
+		s2 := &http2.Server{}
 		err := http2.ConfigureServer(srv, s2)
 		if err != nil {
 			log.Print("SERVER	", err)

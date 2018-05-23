@@ -127,12 +127,12 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 		}
 	}
 
-	finder, err := regexp.Compile("\\{(.+?)\\}")
+	finder, err := regexp.Compile("\\{(.*?)\\}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
 		finds := finder.FindAllStringSubmatch(path, 20)
 		for _, found := range finds {
-			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.+?)", 1)
+			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.*?)", 1)
 			s.pathArgs = append(s.pathArgs, found[1])
 		}
 		if len(s.pathArgs) > 0 {

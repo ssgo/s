@@ -17,7 +17,7 @@ type proxyInfo struct {
 }
 
 var proxies = make(map[string]*proxyInfo, 0)
-var regexProxies = make(map[string]*proxyInfo, 0)
+var regexProxies = make([]*proxyInfo, 0)
 var proxyBy func(*http.Request) (*string, *string, *map[string]string)
 
 // 跳转
@@ -35,7 +35,7 @@ func Proxy(path string, toApp, toPath string) {
 			log.Print("Proxy Error	Compile	", err)
 		} else {
 			p.matcher = matcher
-			regexProxies[path] = p
+			regexProxies = append(regexProxies, p)
 		}
 	}
 	if p.matcher == nil {

@@ -30,7 +30,7 @@ type webServiceType struct {
 }
 
 var webServices = make(map[string]*webServiceType)
-var regexWebServices = make(map[string]*webServiceType)
+var regexWebServices = make([]*webServiceType, 0)
 
 var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
@@ -104,12 +104,12 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 
 	s.authLevel = authLevel
 	s.method = method
-	finder, err := regexp.Compile("\\{(.+?)\\}")
+	finder, err := regexp.Compile("\\{(.*?)\\}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
 		finds := finder.FindAllStringSubmatch(path, 20)
 		for _, found := range finds {
-			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.+?)", 1)
+			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.*?)", 1)
 			s.pathArgs = append(s.pathArgs, found[1])
 		}
 		if len(s.pathArgs) > 0 {
@@ -117,7 +117,7 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 			if err != nil {
 				log.Print("Register	Compile	", err)
 			}
-			regexWebServices[method+path] = s
+			regexWebServices = append(regexWebServices, s)
 		}
 	}
 	if s.pathMatcher == nil {

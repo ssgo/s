@@ -19,7 +19,7 @@ type rewriteInfo struct {
 
 var rewrites = make(map[string]*rewriteInfo)
 var rewriteBy func(*http.Request) (string, int, *map[string]string, bool)
-var regexRewrites = make(map[string]*rewriteInfo)
+var regexRewrites = make([]*rewriteInfo, 0)
 
 var clientForRewrite1 *ClientPool
 var clientForRewrite2 *ClientPool
@@ -34,7 +34,7 @@ func setRewrite(path string, toPath string, httpVersion int) {
 			log.Print("Rewrite Error	Compile	", err)
 		} else {
 			s.matcher = matcher
-			regexRewrites[path] = s
+			regexRewrites = append(regexRewrites, s)
 		}
 	}
 	if s.matcher == nil {

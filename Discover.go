@@ -97,6 +97,15 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 				}
 				nodes = append(nodes, node)
 			}
+			if len(nodes) == 0 {
+				// 没有可用节点的情况下，尝试已经失败多次的节点
+				for _, node := range appNodes[app] {
+					if excludes[node.Addr] {
+						continue
+					}
+					nodes = append(nodes, node)
+				}
+			}
 			if len(nodes) > 0 {
 				node = settedLoadBalancer.Next(nodes, caller.request)
 				excludes[node.Addr] = true
@@ -121,12 +130,12 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
-			if node.FailedTimes >= config.CallRetryTimes {
-				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
-				if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
-					dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
-				}
-			}
+			//if node.FailedTimes >= config.CallRetryTimes {
+			//	log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+			//	if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+			//		dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+			//	}
+			//}
 		} else {
 			// 成功
 			return r, node.Addr

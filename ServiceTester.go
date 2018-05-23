@@ -24,9 +24,9 @@ import (
 
 func ResetAllSets() {
 	rewrites = make(map[string]*rewriteInfo)
-	regexRewrites = make(map[string]*rewriteInfo)
+	regexRewrites = make([]*rewriteInfo, 0)
 	proxies = make(map[string]*proxyInfo, 0)
-	regexProxies = make(map[string]*proxyInfo, 0)
+	regexProxies = make([]*proxyInfo, 0)
 	statics = make(map[string]*string)
 	sessionKey = ""
 	sessionCreator = nil
@@ -34,7 +34,7 @@ func ResetAllSets() {
 	injectObjects = map[reflect.Type]interface{}{}
 
 	webServices = make(map[string]*webServiceType)
-	regexWebServices = make(map[string]*webServiceType)
+	regexWebServices = make([]*webServiceType, 0)
 	inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 	outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 

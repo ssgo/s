@@ -42,10 +42,10 @@ func GetClient() *ClientPool {
 	if config.CallTimeout > 0 {
 		clientConfig.Timeout = time.Duration(config.CallTimeout) * time.Millisecond
 	}
-	return &ClientPool{pool: clientConfig}
+	return &ClientPool{pool: clientConfig, globalHeaders: map[string]string{}}
 }
 func GetClient1() *ClientPool {
-	return &ClientPool{pool: &http.Client{}}
+	return &ClientPool{pool: &http.Client{}, globalHeaders: map[string]string{}}
 }
 
 func (cp *ClientPool) EnableRedirect() {
