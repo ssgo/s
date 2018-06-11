@@ -4,6 +4,7 @@
   "keepaliveTimeout": 5000,
   "callTimeout": 5000,
   "logFile": "",
+  "noLogGets": false,
   "certFile": "",
   "keyFile": "",
 

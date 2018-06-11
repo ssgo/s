@@ -316,6 +316,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 }
 
 func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint) {
+	if config.NoLogGets && request.Method == "GET" {
+		return
+	}
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 	var byteArgs []byte
 	if args != nil {

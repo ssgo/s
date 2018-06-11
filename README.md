@@ -112,6 +112,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "NoLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
   "CallTimeout": 5000,
   "logFile": "",
+  "noLogGets": false,
   "certFile": "",
   "keyFile": "",
 

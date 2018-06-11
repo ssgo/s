@@ -31,6 +31,7 @@ type configInfo struct {
 	KeepaliveTimeout  int
 	CallTimeout       int
 	LogFile           string
+	NoLogGets         bool
 	NoLogHeaders      string
 	LogResponseSize   int
 	Compress          bool
