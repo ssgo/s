@@ -2,6 +2,7 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/discover"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -92,10 +93,11 @@ func processProxy(request *http.Request, response *Response, headers *map[string
 	}
 
 	// 注册新的Call，并重启订阅
-	if appClientPools[*proxyToApp] == nil {
+	if config.Calls[*proxyToApp] == nil {
 		log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
-		AddExternalApp(*proxyToApp, Call{})
-		RestartDiscoverSyncer()
+		config.Calls[*proxyToApp] = &Call{}
+		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
+		discover.Restart()
 	}
 
 	// 处理 Proxy
@@ -104,7 +106,7 @@ func processProxy(request *http.Request, response *Response, headers *map[string
 		bodyBytes, _ = ioutil.ReadAll(request.Body)
 		request.Body.Close()
 	}
-	caller := &Caller{request: request}
+	caller := &discover.Caller{Request: request}
 	requestHeaders := make([]string, 0)
 	if proxyHeaders != nil {
 		for k, v := range *proxyHeaders {
@@ -138,21 +140,4 @@ func processProxy(request *http.Request, response *Response, headers *map[string
 		writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0)
 	}
 	return true
-
-	//var statusCode int
-	//caller := &Caller{request: request}
-	//requestHeaders := make([]string, 0)
-	//if proxyHeaders != nil {
-	//	for k, v := range *proxyHeaders {
-	//		requestHeaders = append(requestHeaders, k, v)
-	//	}
-	//}
-	//requestHeaders = append(requestHeaders, "Host", request.Host)
-	//r := caller.Do(request.Method, *proxyToApp, *proxyToPath, args, requestHeaders...)
-	//result := r.Bytes()
-	//statusCode = 500
-	//if r.Error == nil && r.Response != nil {
-	//	statusCode = r.Response.StatusCode
-	//}
-
 }

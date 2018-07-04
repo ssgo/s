@@ -2,6 +2,7 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/httpclient"
 	"os"
 	"os/exec"
 	"strconv"
@@ -185,11 +186,11 @@ func checkProcess() {
 		return
 	}
 
-	var client *ClientPool
+	var client *httpclient.ClientPool
 	if serviceInfo.httpVersion == 1 {
-		client = GetClient1()
+		client = httpclient.GetClient(3000)
 	} else {
-		client = GetClient()
+		client = httpclient.GetClientH2C(3000)
 	}
 
 	checkUrl := serviceInfo.baseUrl + "/__CHECK__"

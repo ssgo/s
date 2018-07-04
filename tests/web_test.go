@@ -2,6 +2,7 @@ package tests
 
 import (
 	".."
+	"github.com/ssgo/httpclient"
 	"net/http"
 	"os"
 	"testing"
@@ -84,7 +85,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 	s.Register(0, "/", Welcome)
 	as := s.AsyncStart()
 
-	c := s.GetClient()
+	c := httpclient.GetClientH2C(1000)
 	r := c.Get("http://" + as.Addr)
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
 	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)

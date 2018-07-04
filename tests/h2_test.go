@@ -2,6 +2,7 @@ package tests
 
 import (
 	".."
+	"github.com/ssgo/httpclient"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestHttp1(tt *testing.T) {
 	as := s.AsyncStart()
 	defer as.Stop()
 
-	c := s.GetClient()
+	c := httpclient.GetClientH2C(1000)
 	r := c.Get("http://" + as.Addr)
 	t.Test(r.Error == nil && r.String() == "Hello", "Hello", r.Error, r.String())
 }

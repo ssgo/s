@@ -3,6 +3,7 @@ package main
 import (
 	".."
 	"github.com/ssgo/base"
+	"github.com/ssgo/discover"
 	"github.com/ssgo/redis"
 	"os"
 	"testing"
@@ -18,7 +19,7 @@ func TestBase(tt *testing.T) {
 		return
 	})
 
-	s.Register(1, "/dc/c1", func(c *s.Caller) string {
+	s.Register(1, "/dc/c1", func(c *discover.Caller) string {
 		r := struct{ Name string }{}
 		c.Get("a1", "/dc/s1").To(&r)
 		return r.Name

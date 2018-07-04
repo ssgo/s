@@ -36,6 +36,63 @@ var settedLoadBalancer LoadBalancer = &DefaultLoadBalancer{}
 var appSubscribeKeys []interface{}
 var appClientPools = map[string]*ClientPool{}
 
+type DiscoverApp struct {
+	excludes map[string]bool
+	tryTimes int
+}
+
+func (discoverApp *DiscoverApp) Next(app string, request *http.Request) *NodeInfo {
+	return discoverApp.NextWithNode(app, "", request)
+}
+
+func (discoverApp *DiscoverApp) NextWithNode(app, withNode string, request *http.Request) *NodeInfo {
+	if discoverApp.excludes == nil {
+		discoverApp.excludes = map[string]bool{}
+	}
+
+	if appNodes[app] == nil {
+		log.Printf("DISCOVER	No App	%s	For Proxy", app)
+		return nil
+	}
+	if len(appNodes[app]) == 0 {
+		log.Printf("DISCOVER	No Node	%s	%d	For Proxy", app, len(appNodes[app]))
+		return nil
+	}
+
+	discoverApp.tryTimes++
+	if withNode != "" {
+		discoverApp.excludes[withNode] = true
+		return appNodes[app][withNode]
+	}
+
+	var node *NodeInfo
+	nodes := make([]*NodeInfo, 0)
+	for _, node := range appNodes[app] {
+		if discoverApp.excludes[node.Addr] || node.FailedTimes >= config.CallRetryTimes {
+			continue
+		}
+		nodes = append(nodes, node)
+	}
+	if len(nodes) == 0 {
+		// 没有可用节点的情况下，尝试已经失败多次的节点
+		for _, node := range appNodes[app] {
+			if discoverApp.excludes[node.Addr] {
+				continue
+			}
+			nodes = append(nodes, node)
+		}
+	}
+	if len(nodes) > 0 {
+		node = settedLoadBalancer.Next(nodes, request)
+		discoverApp.excludes[node.Addr] = true
+	}
+	if node == nil {
+		log.Printf("DISCOVER	No Node	%s	%d / %d", app, discoverApp.tryTimes, len(appNodes[app]))
+	}
+
+	return node
+}
+
 type Caller struct {
 	request *http.Request
 }
@@ -60,15 +117,6 @@ func (caller *Caller) Do(method, app, path string, data interface{}, headers ...
 	return r
 }
 func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ...string) (*Result, string) {
-	if appNodes[app] == nil {
-		log.Printf("DISCOVER	No App	%s	%s", app, path)
-		return &Result{Error: fmt.Errorf("CALL	%s	%s	not exists", app, path)}, ""
-	}
-	if len(appNodes[app]) == 0 {
-		log.Printf("DISCOVER	No Node	%s	%s	%d", app, path, len(appNodes[app]))
-		return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d)", app, path, len(appNodes[app]))}, ""
-	}
-
 	appConf := config.Calls[app]
 	if headers == nil {
 		headers = []string{}
@@ -78,41 +126,10 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	}
 
 	var r *Result
-	excludes := make(map[string]bool)
-	tryTimes := 0
+	da := DiscoverApp{}
 	for {
-		tryTimes++
-		var node *NodeInfo
-		if withNode != "" {
-			node = appNodes[app][withNode]
-			excludes[withNode] = true
-			withNode = ""
-		}
-
+		node := da.NextWithNode(app, withNode, caller.request)
 		if node == nil {
-			nodes := make([]*NodeInfo, 0)
-			for _, node := range appNodes[app] {
-				if excludes[node.Addr] || node.FailedTimes >= config.CallRetryTimes {
-					continue
-				}
-				nodes = append(nodes, node)
-			}
-			if len(nodes) == 0 {
-				// 没有可用节点的情况下，尝试已经失败多次的节点
-				for _, node := range appNodes[app] {
-					if excludes[node.Addr] {
-						continue
-					}
-					nodes = append(nodes, node)
-				}
-			}
-			if len(nodes) > 0 {
-				node = settedLoadBalancer.Next(nodes, caller.request)
-				excludes[node.Addr] = true
-			}
-		}
-		if node == nil {
-			log.Printf("DISCOVER	No Node	%s	%s	%d / %d", app, path, tryTimes, len(appNodes[app]))
 			break
 		}
 
@@ -127,15 +144,15 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			if r.Response != nil {
 				statusCode = r.Response.StatusCode
 			}
-			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, da.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
-			//if node.FailedTimes >= config.CallRetryTimes {
-			//	log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
-			//	if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
-			//		dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
-			//	}
-			//}
+			if node.FailedTimes >= config.CallRetryTimes {
+				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, da.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+				if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+					dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+				}
+			}
 		} else {
 			// 成功
 			return r, node.Addr
@@ -143,8 +160,86 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	}
 
 	// 全部失败，返回最后一个失败的结果
-	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d / %d)", app, path, tryTimes, len(appNodes[app]))}, ""
+	return &Result{Error: fmt.Errorf("CALL	%s	%s	No node avaliable	(%d / %d)", app, path, da.tryTimes, len(appNodes[app]))}, ""
 }
+
+//func (caller *Caller) ProxyApp(method, app string, request *http.Request, response http.ResponseWriter) error {
+//	if appNodes[app] == nil {
+//		log.Printf("DISCOVER	No App	%s	For Proxy", app)
+//		return fmt.Errorf("CALL	%s	not exists	For Proxy", app)
+//	}
+//	if len(appNodes[app]) == 0 {
+//		log.Printf("DISCOVER	No Node	%s	%d	For Proxy", app, len(appNodes[app]))
+//		return fmt.Errorf("CALL	%s	No node avaliable	(%d)	For Proxy", app, len(appNodes[app]))
+//	}
+//
+//	appConf := config.Calls[app]
+//	if appConf.AccessToken != "" {
+//		response.Header().Set("Access-Token", appConf.AccessToken)
+//	}
+//
+//	var r *Result
+//	excludes := make(map[string]bool)
+//	tryTimes := 0
+//	for {
+//		tryTimes++
+//		var node *NodeInfo
+//		if node == nil {
+//			nodes := make([]*NodeInfo, 0)
+//			for _, node := range appNodes[app] {
+//				if excludes[node.Addr] || node.FailedTimes >= config.CallRetryTimes {
+//					continue
+//				}
+//				nodes = append(nodes, node)
+//			}
+//			if len(nodes) == 0 {
+//				// 没有可用节点的情况下，尝试已经失败多次的节点
+//				for _, node := range appNodes[app] {
+//					if excludes[node.Addr] {
+//						continue
+//					}
+//					nodes = append(nodes, node)
+//				}
+//			}
+//			if len(nodes) > 0 {
+//				node = settedLoadBalancer.Next(nodes, caller.request)
+//				excludes[node.Addr] = true
+//			}
+//		}
+//		if node == nil {
+//			log.Printf("DISCOVER	No Node	%s	%d / %d	For Proxy", app, tryTimes, len(appNodes[app]))
+//			break
+//		}
+//
+//		// 请求节点
+//		startTime := time.Now()
+//		node.UsedTimes++
+//		r = appClientPools[app].DoByRequest(caller.request, method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
+//		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
+//
+//		if r.Error != nil || r.Response.StatusCode == 502 || r.Response.StatusCode == 503 || r.Response.StatusCode == 504 {
+//			statusCode := 0
+//			if r.Response != nil {
+//				statusCode = r.Response.StatusCode
+//			}
+//			log.Printf("DISCOVER	Failed	%s	%d	%d	%d / %d	%d / %d	%d	%s	For Proxy", node.Addr, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+//			// 错误处理
+//			node.FailedTimes++
+//			if node.FailedTimes >= config.CallRetryTimes {
+//				log.Printf("DISCOVER	Removed	%s	%d	%d	%d / %d	%d / %d	%d	%s	For Proxy", node.Addr, node.Weight, node.UsedTimes, tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+//				if dcRedisCalls.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+//					dcRedisCalls.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+//				}
+//			}
+//		} else {
+//			// 成功
+//			return r, node.Addr
+//		}
+//	}
+//
+//	// 全部失败，返回最后一个失败的结果
+//	return fmt.Errorf("CALL	%s	No node avaliable	(%d / %d)	For Proxy", app, tryTimes, len(appNodes[app]))
+//}
 
 func startDiscover(addr string) bool {
 	myAddr = addr

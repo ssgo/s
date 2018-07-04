@@ -3,6 +3,7 @@ package tests
 import (
 	".."
 	"github.com/ssgo/base"
+	"github.com/ssgo/discover"
 	"os"
 	"testing"
 )
@@ -10,10 +11,10 @@ import (
 func TestRewrite(tt *testing.T) {
 	t := s.T(tt)
 
-	s.Register(1, "/echo", func(in struct{ S1, S2 string }, c *s.Caller) string {
+	s.Register(1, "/echo", func(in struct{ S1, S2 string }, c *discover.Caller) string {
 		return in.S1 + " " + in.S2
 	})
-	s.Register(1, "/echo/{s1}", func(in struct{ S1, S2 string }, c *s.Caller) string {
+	s.Register(1, "/echo/{s1}", func(in struct{ S1, S2 string }, c *discover.Caller) string {
 		return in.S1 + " " + in.S2
 	})
 

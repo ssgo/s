@@ -3,6 +3,7 @@ package s
 import (
 	"fmt"
 	"github.com/ssgo/base"
+	"github.com/ssgo/httpclient"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -21,8 +22,8 @@ var rewrites = make(map[string]*rewriteInfo)
 var rewriteBy func(*http.Request) (string, int, *map[string]string, bool)
 var regexRewrites = make([]*rewriteInfo, 0)
 
-var clientForRewrite1 *ClientPool
-var clientForRewrite2 *ClientPool
+var clientForRewrite1 *httpclient.ClientPool
+var clientForRewrite2 *httpclient.ClientPool
 
 // 跳转
 func setRewrite(path string, toPath string, httpVersion int) {
@@ -111,10 +112,10 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				request.Body.Close()
 			}
 			if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
-				clientForRewrite1 = GetClient1()
+				clientForRewrite1 = httpclient.GetClient(time.Duration(config.CallTimeout) * time.Millisecond)
 			}
 			if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
-				clientForRewrite2 = GetClient()
+				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(config.CallTimeout) * time.Millisecond)
 			}
 			requestHeaders := make([]string, 0)
 			if rewriteHeaders != nil {
@@ -122,7 +123,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 					requestHeaders = append(requestHeaders, k, v)
 				}
 			}
-			c := base.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*ClientPool)
+			c := base.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
 			r := c.DoByRequest(request, request.Method, *rewriteToPath, bodyBytes, requestHeaders...)
 
 			var statusCode int

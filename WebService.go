@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 	"github.com/ssgo/base"
+	"github.com/ssgo/discover"
 	"log"
 	"net/http"
 	"reflect"
@@ -163,7 +164,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.responseIndex] = reflect.ValueOf(*response)
 		}
 		if service.callerIndex >= 0 {
-			caller := &Caller{request: request}
+			caller := &discover.Caller{Request: request}
 			parms[service.callerIndex] = reflect.ValueOf(caller)
 		}
 		for i, parm := range parms {
@@ -236,7 +237,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.responseIndex = i
 		} else if t.String() == "*http.Header" {
 			targetService.headersIndex = i
-		} else if t.String() == "*s.Caller" {
+		} else if t.String() == "*discover.Caller" {
 			targetService.callerIndex = i
 		} else if t.Kind() == reflect.Struct || (t.Kind() == reflect.Map && t.Elem().Kind() == reflect.Interface) {
 			if targetService.inType == nil {

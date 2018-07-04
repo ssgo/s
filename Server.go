@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ssgo/base"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/httpclient"
 	"golang.org/x/net/http2"
 	"log"
 	"net"
@@ -110,7 +112,7 @@ type AsyncServer struct {
 	httpVersion int
 	listener    net.Listener
 	Addr        string
-	clientPool  *ClientPool
+	clientPool  *httpclient.ClientPool
 }
 
 func (as *AsyncServer) Stop() {
@@ -122,22 +124,22 @@ func (as *AsyncServer) Stop() {
 	}
 }
 
-func (as *AsyncServer) Get(path string, headers ...string) *Result {
+func (as *AsyncServer) Get(path string, headers ...string) *httpclient.Result {
 	return as.Do("GET", path, nil, headers...)
 }
-func (as *AsyncServer) Post(path string, data interface{}, headers ...string) *Result {
+func (as *AsyncServer) Post(path string, data interface{}, headers ...string) *httpclient.Result {
 	return as.Do("POST", path, data, headers...)
 }
-func (as *AsyncServer) Put(path string, data interface{}, headers ...string) *Result {
+func (as *AsyncServer) Put(path string, data interface{}, headers ...string) *httpclient.Result {
 	return as.Do("PUT", path, data, headers...)
 }
-func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) *Result {
+func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) *httpclient.Result {
 	return as.Do("DELETE", path, data, headers...)
 }
-func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *Result {
+func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *httpclient.Result {
 	return as.Do("HEAD", path, data, headers...)
 }
-func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *Result {
+func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	r := as.clientPool.Do(method, fmt.Sprintf("http://%s%s", as.Addr, path), data, headers...)
 	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
 		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
@@ -158,9 +160,9 @@ func AsyncStart1() *AsyncServer {
 func asyncStart(httpVersion int) *AsyncServer {
 	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool), httpVersion: httpVersion}
 	if as.httpVersion == 1 {
-		as.clientPool = GetClient1()
+		as.clientPool = httpclient.GetClient(time.Duration(config.CallTimeout) * time.Millisecond)
 	} else {
-		as.clientPool = GetClient()
+		as.clientPool = httpclient.GetClientH2C(time.Duration(config.CallTimeout) * time.Millisecond)
 	}
 	go start(httpVersion, as)
 	<-as.startChan
@@ -309,7 +311,31 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
-	if startDiscover(serverAddr) == false {
+	dconf := discover.Config{
+		Registry:          config.Registry,
+		RegistryPrefix:    config.RegistryPrefix,
+		RegistryCalls:     config.RegistryCalls,
+		App:               config.App,
+		Weight:            config.Weight,
+		CallRetryTimes:    config.CallRetryTimes,
+		XForwardedForName: config.XForwardedForName,
+		XRealIpName:       config.XRealIpName,
+		CallTimeout:       config.CallTimeout,
+	}
+	calls := map[string]*discover.CallInfo{}
+	for k, v := range config.Calls {
+		call := discover.CallInfo{
+			Timeout:     v.Timeout,
+			HttpVersion: v.HttpVersion,
+		}
+		call.Headers = map[string]string{}
+		if v.AccessToken != "" {
+			call.Headers["Access-Token"] = v.AccessToken
+		}
+		calls[k] = &call
+	}
+	dconf.Calls = calls
+	if discover.Start(serverAddr, dconf) == false {
 		log.Printf("SERVER	failed to start discover")
 		listener.Close()
 		return errors.New("failed to start discover")
@@ -366,18 +392,18 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	running = false
 
-	if isClient || isService {
+	if discover.IsClient() || discover.IsServer() {
 		log.Printf("SERVER	%s	Stopping Discover", serverAddr)
-		stopDiscover()
+		discover.Stop()
 	}
 	log.Printf("SERVER	%s	Stopping Router", serverAddr)
 	rh.Stop()
 
 	log.Printf("SERVER	%s	Waitting Router", serverAddr)
 	rh.Wait()
-	if isClient {
+	if discover.IsClient() {
 		log.Printf("SERVER	%s	Waitting Discover", serverAddr)
-		waitDiscover()
+		discover.Wait()
 	}
 	serviceInfo.remove()
 
