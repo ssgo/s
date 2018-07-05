@@ -36,7 +36,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 	if headers == nil {
 		headers = []string{}
 	}
-	if appConf.Headers != nil {
+	if appConf != nil && appConf.Headers != nil {
 		for k, v := range appConf.Headers {
 			headers = append(headers, k, v)
 		}
