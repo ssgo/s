@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type serviceInfoType struct {
@@ -170,18 +171,43 @@ func checkProcess() {
 		return
 	}
 	pid := strconv.Itoa(serviceInfo.pid)
-	cmd := exec.Command("ps", "-p", pid)
-	outBytes, err := cmd.Output()
+	
+	// ps 非系统内置命令
+	// wencan 2018-07-12
+//	cmd := exec.Command("ps", "-p", pid)
+//	outBytes, err := cmd.Output()
+//	if err != nil {
+//		fmt.Println(err)
+//		os.Exit(1)
+//		return
+//	}
+
+//	out := string(outBytes)
+//	if strings.Index(out, "\n"+pid+" ") == -1 && strings.Index(out, " "+pid+" ") == -1 {
+//		fmt.Printf("pid: %s not found\n", pid)
+//		fmt.Println(string(out))
+//		os.Exit(1)
+//		return
+//	}
+
+	// 通过给进程发信号的方式检测进程是否存活
+	// wencan 2018-07-12
+	npid, err := strconv.Atoi(pid)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 		return
 	}
+	err = syscall.Kill(npid, 0)
+	if err != nil {
+		errno, ok := err.(syscall.Errno)
+		if ok && errno == syscall.ESRCH {
+			// no such process
+			fmt.Printf("pid: %d not found\n", npid)
+		} else {
+			fmt.Println("kill fail:", err)
+		}
 
-	out := string(outBytes)
-	if strings.Index(out, "\n"+pid+" ") == -1 && strings.Index(out, " "+pid+" ") == -1 {
-		fmt.Printf("pid: %s not found\n", pid)
-		fmt.Println(string(out))
 		os.Exit(1)
 		return
 	}
