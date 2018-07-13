@@ -68,10 +68,12 @@ func Start(addr string, conf Config) bool {
 		config.Weight = 1
 	}
 
+	if config.XUniqueId == "" {
+		config.XUniqueId = "X-Unique-Id"
+	}
 	if config.XForwardedForName == "" {
 		config.XForwardedForName = "X-Forwarded-For"
 	}
-
 	if config.XRealIpName == "" {
 		config.XRealIpName = "X-Real-Ip"
 	}
@@ -200,6 +202,9 @@ func addApp(app string, conf CallInfo, fetch bool) bool {
 	} else {
 		cp = httpclient.GetClientH2C(time.Duration(timeout) * time.Millisecond)
 	}
+	cp.XUniqueId = config.XUniqueId
+	cp.XRealIpName = config.XRealIpName
+	cp.XForwardedForName = config.XForwardedForName
 	appClientPools[app] = cp
 
 	// 立刻获取一次应用信息

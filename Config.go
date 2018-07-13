@@ -10,6 +10,7 @@ type Config struct {
 	Weight            uint                 // 1
 	Calls             map[string]*CallInfo // defines which apps will call
 	CallRetryTimes    uint8                // 10
+	XUniqueId         string               // X-Unique-Id
 	XForwardedForName string               // X-Forwarded-For
 	XRealIpName       string               // X-Real-Ip
 	CallTimeout       int                  // 10000
@@ -19,4 +20,5 @@ type CallInfo struct {
 	Headers     map[string]string
 	Timeout     int
 	HttpVersion int
+	WithSSL     bool
 }

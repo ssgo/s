@@ -53,10 +53,14 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		// 请求节点
 		startTime := time.Now()
 		node.UsedTimes++
+		scheme := "http"
+		if appConf.WithSSL {
+			scheme += "s"
+		}
 		if caller.Request == nil {
-			r = appClientPools[app].Do(method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
+			r = appClientPools[app].Do(method, fmt.Sprintf("%s://%s%s", scheme, node.Addr, path), data, headers...)
 		}else {
-			r = appClientPools[app].DoByRequest(caller.Request, method, fmt.Sprintf("http://%s%s", node.Addr, path), data, headers...)
+			r = appClientPools[app].DoByRequest(caller.Request, method, fmt.Sprintf("%s://%s%s", scheme, node.Addr, path), data, headers...)
 		}
 		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
 
@@ -68,12 +72,12 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
-			if node.FailedTimes >= config.CallRetryTimes {
-				log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
-				if clientRedisPool.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
-					clientRedisPool.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
-				}
-			}
+			//if node.FailedTimes >= config.CallRetryTimes {
+			//	log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+			//	if clientRedisPool.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+			//		clientRedisPool.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+			//	}
+			//}
 		} else {
 			// 成功
 			return r, node.Addr
