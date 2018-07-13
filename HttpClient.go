@@ -19,6 +19,7 @@ import (
 type ClientPool struct {
 	pool              *http.Client
 	GlobalHeaders     map[string]string
+	XUniqueId       string
 	XRealIpName       string
 	XForwardedForName string
 }
@@ -88,11 +89,17 @@ func (cp *ClientPool) DoByRequest(request *http.Request, method, url string, dat
 	if cp.XForwardedForName == "" {
 		cp.XForwardedForName = "X-Forwarded-For"
 	}
-
+	if cp.XUniqueId == "" {
+		cp.XUniqueId = "X-Unique-Id"
+	}
 	if cp.XRealIpName == "" {
 		cp.XRealIpName = "X-Real-Ip"
 	}
 
+	uniqueId := request.Header.Get(cp.XUniqueId)
+	if request.Header.Get(cp.XUniqueId) != "" {
+		headers = append(headers, cp.XUniqueId, uniqueId)
+	}
 	headers = append(headers, cp.XRealIpName, cp.getRealIp(request))
 	headers = append(headers, cp.XForwardedForName, request.Header.Get(cp.XForwardedForName)+base.StringIf(request.Header.Get(cp.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 	headers = append(headers, settedHeaders...)
