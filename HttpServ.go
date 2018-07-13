@@ -15,19 +15,45 @@ import (
 )
 
 type Response struct {
-	writer http.ResponseWriter
-	status int
+	writer      http.ResponseWriter
+	status      int
+	outLen      int
+	ProxyHeader *http.Header
 }
 
 func (response *Response) Header() http.Header {
+	if response.ProxyHeader != nil {
+		return *response.ProxyHeader
+	}
 	return response.writer.Header()
 }
 func (response *Response) Write(bytes []byte) (int, error) {
+	response.outLen += len(bytes)
+	if response.ProxyHeader != nil {
+		response.copyProxyHeader()
+	}
 	return response.writer.Write(bytes)
 }
 func (response *Response) WriteHeader(code int) {
 	response.status = code
+	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
+		return
+	}
 	response.writer.WriteHeader(code)
+	if response.ProxyHeader != nil {
+		response.copyProxyHeader()
+	}
+}
+
+func (response *Response) copyProxyHeader() {
+	src := *response.ProxyHeader
+	dst := response.writer.Header()
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+	response.ProxyHeader = nil
 }
 
 //func (response *Response) Hijacker() (net.Conn, *bufio.ReadWriter, error) {
@@ -64,27 +90,35 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
+	if request.Header.Get("S-Unique-Id") == "" {
+		request.Header.Set("S-Unique-Id", base.UniqueId())
+		// 在没有 S-Unique-Id 的情况下忽略 X-Real-Ip
+		if request.Header.Get(config.XRealIpName) != "" {
+			request.Header.Del(config.XRealIpName)
+		}
+	}
+
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-	headers := make(map[string]string)
+	logHeaders := make(map[string]string)
 	for k, v := range request.Header {
 		if noLogHeaders[k] {
 			continue
 		}
 		if len(v) > 1 {
-			headers[k] = strings.Join(v, ", ")
+			logHeaders[k] = strings.Join(v, ", ")
 		} else {
-			headers[k] = v[0]
+			logHeaders[k] = v[0]
 		}
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	finished := processRewrite(request, myResponse, &headers, &startTime)
+	finished := processRewrite(request, myResponse, &logHeaders, &startTime)
 	if finished {
 		return
 	}
 
 	// 处理 ProxyBy
-	finished = processProxy(request, myResponse, &headers, &startTime)
+	finished = processProxy(request, myResponse, &logHeaders, &startTime)
 	if finished {
 		return
 	}
@@ -98,7 +132,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理静态文件
-	if processStatic(requestPath, request, myResponse, &headers, &startTime) {
+	if processStatic(requestPath, request, myResponse, &logHeaders, &startTime) {
 		return
 	}
 
@@ -153,7 +187,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog("FAIL", nil, 0, false, request, myResponse, &args, &headers, &startTime, 0)
+			writeLog("FAIL", nil, 0, false, request, myResponse, &args, &logHeaders, &startTime, 0)
 		}
 		return
 	}
@@ -174,14 +208,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		request.Body.Close()
 		if len(bodyBytes) > 1 && bodyBytes[0] == 123 {
 			json.Unmarshal(bodyBytes, &args)
-		}
-	}
-
-	if request.Header.Get("S-Unique-Id") == "" {
-		request.Header.Set("S-Unique-Id", base.UniqueId())
-		// 在没有 S-Unique-Id 的情况下忽略 X-Real-Ip
-		if request.Header.Get(config.XRealIpName) != "" {
-			request.Header.Del(config.XRealIpName)
 		}
 	}
 
@@ -219,10 +245,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if authLevel > 0 && webAuthChecker(authLevel, &request.RequestURI, &args, request) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
-			//byteHeaders, _ := json.Marshal(headers)
+			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
 			response.WriteHeader(403)
-			writeLog("REJECT", nil, 0, false, request, myResponse, &args, &headers, &startTime, authLevel)
+			writeLog("REJECT", nil, 0, false, request, myResponse, &args, &logHeaders, &startTime, authLevel)
 			return
 		}
 	}
@@ -242,9 +268,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, myResponse, &args, &headers, &startTime)
+		doWebsocketService(ws, request, myResponse, &args, &logHeaders, &startTime)
 	} else if s != nil || result != nil {
-		result = doWebService(s, request, &response, &args, &headers, result, &startTime)
+		result = doWebService(s, request, &response, &args, &logHeaders, result, &startTime)
 		//logName = "ACCESS"
 		//statusCode = 200
 	}
@@ -305,7 +331,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 			// /__CHECK__ 不记录日志
 			if requestPath != "/__CHECK__" {
-				writeLog("ACCESS", outBytes, outLen, isJson, request, myResponse, &args, &headers, &startTime, authLevel)
+				writeLog("ACCESS", outBytes, outLen, isJson, request, myResponse, &args, &logHeaders, &startTime, authLevel)
 			}
 		}
 	}

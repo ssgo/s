@@ -20,6 +20,6 @@
   },
   "calls": {
     "user": {}
-    "news": {"AccessToken": "hasfjlkdlasfsa", "Timeout": 5000}
+    "news": {"AccessToken": "hasfjlkdlasfsa", "Timeout": 5000, "httpVersion": 1, "withSSL": false}
   }
 }

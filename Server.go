@@ -37,6 +37,7 @@ type configInfo struct {
 	NoLogHeaders      string
 	LogResponseSize   int
 	Compress          bool
+	XUniqueId         string
 	XForwardedForName string
 	XRealIpName       string
 	CertFile          string
@@ -56,8 +57,10 @@ var config = configInfo{}
 
 type Call struct {
 	AccessToken string
+	Host        string
 	Timeout     int
 	HttpVersion int
+	WithSSL     bool
 }
 
 var noLogHeaders = map[string]bool{}
@@ -140,7 +143,7 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 	return as.Do("HEAD", path, data, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
-	r := as.clientPool.Do(method, fmt.Sprintf("http://%s%s", as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", base.StringIf(config.CertFile != "" && config.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
 		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
 	}
@@ -159,13 +162,13 @@ func AsyncStart1() *AsyncServer {
 }
 func asyncStart(httpVersion int) *AsyncServer {
 	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool), httpVersion: httpVersion}
-	if as.httpVersion == 1 {
+	go start(httpVersion, as)
+	<-as.startChan
+	if as.httpVersion == 1 || config.CertFile != "" {
 		as.clientPool = httpclient.GetClient(time.Duration(config.CallTimeout) * time.Millisecond)
 	} else {
 		as.clientPool = httpclient.GetClientH2C(time.Duration(config.CallTimeout) * time.Millisecond)
 	}
-	go start(httpVersion, as)
-	<-as.startChan
 	return as
 }
 
@@ -188,11 +191,11 @@ func Init() {
 	}
 
 	if config.KeepaliveTimeout <= 0 {
-		config.KeepaliveTimeout = 10000
+		config.KeepaliveTimeout = 15000
 	}
 
 	if config.CallTimeout <= 0 {
-		config.CallTimeout = 5000
+		config.CallTimeout = 10000
 	}
 
 	if config.Registry == "" {
@@ -216,6 +219,10 @@ func Init() {
 
 	if config.LogResponseSize == 0 {
 		config.LogResponseSize = 2048
+	}
+
+	if config.XUniqueId == "" {
+		config.XUniqueId = "S-Unique-Id"
 	}
 
 	if config.XForwardedForName == "" {
@@ -318,6 +325,7 @@ func start(httpVersion int, as *AsyncServer) error {
 		App:               config.App,
 		Weight:            config.Weight,
 		CallRetryTimes:    config.CallRetryTimes,
+		XUniqueId:         config.XUniqueId,
 		XForwardedForName: config.XForwardedForName,
 		XRealIpName:       config.XRealIpName,
 		CallTimeout:       config.CallTimeout,
@@ -327,10 +335,14 @@ func start(httpVersion int, as *AsyncServer) error {
 		call := discover.CallInfo{
 			Timeout:     v.Timeout,
 			HttpVersion: v.HttpVersion,
+			WithSSL:     v.WithSSL,
 		}
 		call.Headers = map[string]string{}
 		if v.AccessToken != "" {
 			call.Headers["Access-Token"] = v.AccessToken
+		}
+		if v.Host != "" {
+			call.Headers["Host"] = v.Host
 		}
 		calls[k] = &call
 	}

@@ -2,17 +2,22 @@ package main
 
 import (
 	".."
+	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/ssgo/base"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/redis"
+	"net/http"
 	"os"
+	"strings"
 	"testing"
 )
 
 func TestBase(tt *testing.T) {
 	t := s.T(tt)
 
-	redis.GetRedis("discover:15").DEL("a1")
+	dc := redis.GetRedis("discover:15")
+	dc.DEL("a1")
 
 	s.Register(2, "/dc/s1", func() (out struct{ Name string }) {
 		out.Name = "s1"
@@ -25,40 +30,61 @@ func TestBase(tt *testing.T) {
 		return r.Name
 	})
 
-	s.Proxy("/dc1/s1", "a1", "/dc/s1")
-	s.Proxy("/dc2/(.+?)", "a1", "/dc/$1")
+	i := 0
+	s.Register(2, "/dc/s2", func(response http.ResponseWriter) string {
+		i++
+		if i%2 == 1 {
+			response.WriteHeader(502)
+			return ""
+		}
+		response.WriteHeader(200)
+		return "OK"
+	})
 
-	//s.Rewrite("/rrr/123", "/dc/c1")
-	//s.Rewrite("/r2/(.+?)/aa", "/dc/$1")
-	//s.Rewrite("/r3\\?name=(\\w+)", "/dc/$1")
-	//s.Rewrite1("/bd", "http://www.hfjy.com/")
+	ws := s.RegisterWebsocket(1, "/dc/ws", nil, nil, nil, nil, nil)
+	ws.RegisterAction(0, "hello", func(in struct{ Name string }) (out struct{ Name string }) {
+		out.Name = in.Name + "!"
+		return
+	})
+
+	s.Proxy("/dc1/s1", "a1", "/dc/s1")
+	s.Proxy("/proxy/(.+?)", "a1", "/dc/$1")
 
 	os.Setenv("SERVICE_APP", "a1")
 	os.Setenv("SERVICE_WEIGHT", "100")
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
-	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "aabbcc222", "timeout": 200}}`)
+	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "aabbcc222", "httpVersion": 1}}`)
 	base.ResetConfigEnv()
-	as := s.AsyncStart()
+	as := s.AsyncStart1()
+
+	addr2 := "127.0.0.1:" + strings.Split(as.Addr, ":")[1]
+	dc.HSET("a1", addr2, 1)
+	dc.Do("PUBLISH", "CH_a1", fmt.Sprintf("%s %d", addr2, 1))
+
 	defer as.Stop()
 
-	r := as.Get("/dc/c1", "Access-Token", "aabbcc")
-	t.Test(r.Error == nil && r.String() == "s1", "DC", r.Error, r.String())
+	r0 := as.Get("/dc/s1", "Access-Token", "aabbcc222")
+	t.Test(r0.Error == nil && r0.String() == "{\"name\":\"s1\"}", "Service", r0.Error, r0.String())
 
-	//r = as.Get("/rrr/123?a=1", "Access-Token", "aabbcc")
-	//t.Test(r.Error == nil && r.String() == "s1", "DC by rewrite", r.Error, r.String())
-	//
-	//r = as.Get("/r2/c1/aa", "Access-Token", "aabbcc")
-	//t.Test(r.Error == nil && r.String() == "s1", "DC by rewrite 2", r.Error, r.String())
-	//
-	//r = as.Get("/r3?name=c1", "Access-Token", "aabbcc")
-	//t.Test(r.Error == nil && r.String() == "s1", "DC by rewrite 3", r.Error, r.String())
+	r0 = as.Get("/dc/c1", "Access-Token", "aabbcc")
+	t.Test(r0.Error == nil && r0.String() == "s1", "DC", r0.Error, r0.String())
 
 	r1 := as.Get("/dc1/s1", "Access-Token", "aabbcc").Map()
-	t.Test(r.Error == nil && r1["name"] == "s1", "DC by proxy", r.Error, r1)
+	t.Test(r1["name"] == "s1", "DC by proxy", r1)
 
-	r1 = as.Get("/dc2/s1", "Access-Token", "aabbcc").Map()
-	t.Test(r.Error == nil && r1["name"] == "s1", "DC by proxy 2", r.Error, r1)
+	r1 = as.Get("/proxy/s1", "Access-Token", "aabbcc").Map()
+	t.Test(r1["name"] == "s1", "DC by proxy 2", r1)
 
-	//r = as.Get("/bd")
-	//t.Test(r.Error == nil && strings.Contains(r.String(), "baidu"), "DC by rewrite baidu", r.Error, r.String())
+	r2 := as.Get("/proxy/s2", "Access-Token", "aabbcc")
+	fmt.Println(r2.Error)
+	t.Test(r2.String() == "OK", "DC by proxy 3", r2)
+
+	c, _, err := websocket.DefaultDialer.Dial("ws://"+addr2+"/proxy/ws", nil)
+	t.Test(err == nil, "Connect", err)
+	r := map[string]string{}
+	err = c.WriteJSON(s.Map{"action": "hello", "name": "aaa"})
+	t.Test(err == nil, "send hello", err)
+	err = c.ReadJSON(&r)
+	t.Test(err == nil || r["action"] != "hello" || r["name"] != "aaa!", "read hello", err, r)
+	c.Close()
 }

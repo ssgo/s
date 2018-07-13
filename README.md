@@ -128,7 +128,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   },
   "calls": {
     "user": {}
-    "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2}
+    "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2, "withSSL": false}
   }
 }
 ```
