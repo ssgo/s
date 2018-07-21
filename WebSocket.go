@@ -16,6 +16,7 @@ import (
 
 type websocketServiceType struct {
 	authLevel         uint
+	path              string
 	pathMatcher       *regexp.Regexp
 	pathArgs          []string
 	updater           *websocket.Upgrader
@@ -69,6 +70,7 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 
 	s := new(websocketServiceType)
 	s.authLevel = authLevel
+	s.path = path
 	if updater == nil {
 		s.updater = new(websocket.Upgrader)
 	} else {

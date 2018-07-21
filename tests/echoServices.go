@@ -8,7 +8,7 @@ import (
 )
 
 type echo1Args struct {
-	Aaa int
+	Aaa int `check ^\d+$`
 	Bbb string
 	Ccc string
 	Ddd float32

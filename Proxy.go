@@ -19,9 +19,10 @@ import (
 )
 
 type proxyInfo struct {
-	matcher *regexp.Regexp
-	toApp   string
-	toPath  string
+	matcher  *regexp.Regexp
+	fromPath string
+	toApp    string
+	toPath   string
 }
 
 var proxies = make(map[string]*proxyInfo, 0)
@@ -36,7 +37,7 @@ func SetProxyBy(by func(request *http.Request) (toApp, toPath *string, headers *
 
 // 代理
 func Proxy(path string, toApp, toPath string) {
-	p := &proxyInfo{toApp: toApp, toPath: toPath}
+	p := &proxyInfo{fromPath: path, toApp: toApp, toPath: toPath}
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {

@@ -17,6 +17,7 @@ import (
 type webServiceType struct {
 	authLevel     uint
 	method        string
+	path          string
 	pathMatcher   *regexp.Regexp
 	pathArgs      []string
 	parmsNum      int
@@ -105,6 +106,7 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 
 	s.authLevel = authLevel
 	s.method = method
+	s.path = path
 	finder, err := regexp.Compile("\\{(.*?)\\}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)

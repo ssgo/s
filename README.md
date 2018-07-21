@@ -281,3 +281,38 @@ func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *
 
 ```
 
+
+
+## Document 自动生成接口文档
+
+```go
+// 生成文档数据
+func MakeDocument() []Api {}
+
+// 生成文档并存储到 json 文件中
+func MakeJsonDocumentFile(file string) {
+
+// 生成文档并存储到 html 文件中，使用默认html模版
+func MakeHtmlDocument(title, toFile string) string {}
+
+// 生成文档并存储到 html 文件中，使用指定html模版
+func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {}
+
+```
+
+## Document 使用命令行创建文档（假设编译好的文件为 ./server）
+
+```shell
+// 直接输出 json 格式文档
+./server doc
+
+// 生成 json 格式文档
+./server doc xxx.json
+
+// 生成 html 格式文档，使用默认html模版
+./server doc xxx.html
+
+// 生成 html 格式文档，使用指定html模版
+./server doc xxx.html tpl.html
+
+```

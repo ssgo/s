@@ -242,6 +242,18 @@ func Init() {
 }
 
 func start(httpVersion int, as *AsyncServer) error {
+	// document must after registers
+	if inDocumentMode {
+		if len(os.Args) >= 4 {
+			makeDockment(os.Args[2], os.Args[3])
+		} else if len(os.Args) >= 3 {
+			makeDockment(os.Args[2], "")
+		} else {
+			makeDockment("", "")
+		}
+		os.Exit(0)
+	}
+
 	running = true
 
 	if len(os.Args) > 1 {

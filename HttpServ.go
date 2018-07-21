@@ -290,7 +290,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 		// 返回结果
 		outType := reflect.TypeOf(result)
-		if outType.Kind() == reflect.Ptr {
+		for outType.Kind() == reflect.Ptr {
 			outType = outType.Elem()
 		}
 		var outBytes []byte

@@ -15,6 +15,7 @@ import (
 type rewriteInfo struct {
 	matcher     *regexp.Regexp
 	httpVersion int
+	fromPath    string
 	toPath      string
 }
 
@@ -27,7 +28,7 @@ var clientForRewrite2 *httpclient.ClientPool
 
 // 跳转
 func setRewrite(path string, toPath string, httpVersion int) {
-	s := &rewriteInfo{toPath: toPath, httpVersion: httpVersion}
+	s := &rewriteInfo{fromPath: path, toPath: toPath, httpVersion: httpVersion}
 
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
