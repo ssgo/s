@@ -42,5 +42,5 @@ func TestDoc(tt *testing.T) {
 	//t.Test(true, "json doc")
 	t.Test(len(doc) > 0, "json doc")
 
-	s.MakeHtmlDocument("测试文档", "doc.html")
+	s.MakeHtmlDocumentFile("测试文档", "doc.html")
 }

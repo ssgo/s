@@ -129,7 +129,7 @@ func MakeJsonDocumentFile(file string) {
 }
 
 // 生成文档并存储到 html 文件中，使用默认html模版
-func MakeHtmlDocument(title, toFile string) string {
+func MakeHtmlDocumentFile(title, toFile string) string {
 	return MakeHtmlDocumentFromFile(title, toFile, "DocTpl.html")
 }
 

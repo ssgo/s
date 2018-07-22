@@ -121,7 +121,7 @@ func makeDockment(toFile, fromFile string) {
 		fmt.Println(string(data))
 	} else if strings.HasSuffix(toFile, ".html") {
 		if fromFile == "" {
-			MakeHtmlDocument("Api", toFile)
+			MakeHtmlDocumentFile("Api", toFile)
 		} else {
 			MakeHtmlDocumentFromFile("Api", toFile, fromFile)
 		}
