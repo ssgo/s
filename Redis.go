@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/ssgo/base"
-	"log"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +26,7 @@ type redisConfig struct {
 type Redis struct {
 	pool        *redis.Pool
 	ReadTimeout int
+	Config      *redisConfig
 	Error       error
 }
 
@@ -62,28 +61,56 @@ func GetRedis(name string) *Redis {
 	}
 
 	fullName := name
-	specialDB := -1
-	pos := strings.LastIndexByte(name, ':')
-	if pos != -1 {
-		var err error
-		specialDB, err = strconv.Atoi(name[pos+1:])
-		if err != nil {
-			specialDB = -1
+	// config name support Host:Port
+	args := strings.Split(name, ":")
+	if len(args) > 1 {
+		arg1, err := strconv.Atoi(args[1])
+		if err == nil && arg1 > 0 && arg1 <= 15 {
+			name = args[0]
+		} else {
+			name = args[0] + ":" + args[1]
 		}
-		name = name[0:pos]
 	}
 
 	conf := redisConfigs[name]
 	if conf == nil {
 		conf = new(redisConfig)
 		redisConfigs[name] = conf
+
+		if len(args) > 1 {
+			arg1, err := strconv.Atoi(args[1])
+			if err == nil && arg1 > 0 && arg1 <= 15 {
+				conf.DB = arg1
+			} else {
+				conf.Host = args[0] + ":" + args[1]
+			}
+		}
 	}
+
+	for i := 2; i < len(args); i++ {
+		arg2, err := strconv.Atoi(args[i])
+		if err == nil {
+			if arg2 > 0 && arg2 <= 15 {
+				conf.DB = arg2
+			} else if arg2 > 15 && arg2 < 86400000 {
+				if conf.ConnTimeout == 0 {
+					conf.ConnTimeout = arg2
+				} else {
+					conf.ReadTimeout = arg2
+					conf.WriteTimeout = arg2
+				}
+			} else {
+				conf.Password = args[i]
+			}
+		} else {
+			conf.Password = args[i]
+		}
+	}
+
 	if conf.Host == "" {
 		conf.Host = "127.0.0.1:6379"
 	}
-	if specialDB >= 0 {
-		conf.DB = specialDB
-	} else if conf.DB == 0 {
+	if conf.DB == 0 {
 		conf.DB = 1
 	}
 	if conf.ConnTimeout == 0 {
@@ -124,6 +151,7 @@ func GetRedis(name string) *Redis {
 	redis := new(Redis)
 	redis.ReadTimeout = conf.ReadTimeout
 	redis.pool = conn
+	redis.Config = conf
 
 	redisInstances[fullName] = redis
 	return redis
@@ -131,7 +159,7 @@ func GetRedis(name string) *Redis {
 
 func (rd *Redis) Destroy() error {
 	if rd.pool == nil {
-		return fmt.Errorf("Operat on a bad redis pool")
+		return fmt.Errorf("operat on a bad redis pool")
 	}
 	err := rd.pool.Close()
 	logError(err, 0)
@@ -151,7 +179,7 @@ func (rd *Redis) GetConnection() redis.Conn {
 
 func (rd *Redis) Do(cmd string, values ...interface{}) *Result {
 	if rd.pool == nil {
-		return &Result{Error: fmt.Errorf("Operat on a bad redis pool")}
+		return &Result{Error: fmt.Errorf("operat on a bad redis pool")}
 	}
 	conn := rd.pool.Get()
 	if conn.Err() != nil {
@@ -270,25 +298,8 @@ func _checkValue(values []interface{}, index int) {
 
 func logError(err error, skips int) {
 	if enabledLogs && err != nil {
-		traces := make([]interface{}, 2)
-		traces[0] = "Redis	"
-		traces[1] = err.Error()
-		i := 1
-		for {
-			_, file, line, ok := runtime.Caller(skips + i)
-			i++
-			if !ok {
-				break
-			}
-			if strings.Contains(file, "/garyburd/redigo/") || strings.Contains(file, "/go/src/") {
-				continue
-			}
-			pos := strings.Index(file, "/ssgo/redis/")
-			if pos != -1 {
-				file = file[pos+12:]
-			}
-			traces = append(traces, fmt.Sprintf("	%s:%d", file, line))
-		}
-		log.Print(traces...)
+		base.TraceLogOmit("Redis", map[string]interface{}{
+			"error": err.Error(),
+		}, "/ssgo/redis/")
 	}
 }

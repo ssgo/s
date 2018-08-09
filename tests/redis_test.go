@@ -2,6 +2,7 @@ package tests
 
 import (
 	".."
+	"fmt"
 	"testing"
 	"time"
 )
@@ -101,7 +102,7 @@ func TestBase(t *testing.T) {
 		"name": "BBB",
 	})
 	results := redis.MGET("rtestName", "rtestUser")
-	if len(results) != 2 || results[0].String() != "Sam Lee"{
+	if len(results) != 2 || results[0].String() != "Sam Lee" {
 		t.Error("MGET Results", results)
 	}
 	ru2 := new(userInfo)
@@ -113,7 +114,7 @@ func TestBase(t *testing.T) {
 	r = redis.Do("MGET", "rtestName", "rtestUser")
 	r1 := make([]string, 0)
 	r.To(&r1)
-	if len(r1) != 2 || r1[0] != "Sam Lee"{
+	if len(r1) != 2 || r1[0] != "Sam Lee" {
 		t.Error("MGET2 Strings", r1)
 	}
 	r2 := struct {
@@ -146,6 +147,25 @@ func TestBase(t *testing.T) {
 	}
 }
 
+func TestConfig(t *testing.T) {
+	redis := redis.GetRedis("localhost:6379:2:1000:500")
+	fmt.Println(redis.Config)
+	if redis.Error != nil {
+		t.Error("GetRedis error", redis)
+		return
+	}
+
+	redis.SET("rtestName", "12345")
+	r := redis.GET("rtestName")
+	if r.Error != nil && r.String() != "12345" {
+		t.Error("String", r)
+	}
+
+	num := redis.DEL("rtestName")
+	if num != 1 {
+		t.Error("DEL", num)
+	}
+}
 
 func TestHash(t *testing.T) {
 	redis := redis.GetRedis("test")
@@ -153,7 +173,6 @@ func TestHash(t *testing.T) {
 		t.Error("GetRedis error", redis)
 		return
 	}
-
 
 	r := redis.HGET("htest", "NotExists")
 	if r.String() != "" || r.Int() != 0 {
@@ -217,7 +236,7 @@ func TestHash(t *testing.T) {
 		"name": "BBB",
 	})
 	results := redis.HMGET("htest", "Name", "User")
-	if len(results) != 2 || results[0].String() != "Sam Lee"{
+	if len(results) != 2 || results[0].String() != "Sam Lee" {
 		t.Error("HMGET", results[0])
 	}
 	ru2 := new(userInfo)
@@ -229,7 +248,7 @@ func TestHash(t *testing.T) {
 	r = redis.Do("HMGET", "htest", "Name", "User")
 	r1 := make([]string, 0)
 	r.To(&r1)
-	if r.Error != nil && len(r1) != 2 || r1[0] != "Sam Lee"{
+	if r.Error != nil && len(r1) != 2 || r1[0] != "Sam Lee" {
 		t.Error("HMGET r1", r1)
 	}
 
