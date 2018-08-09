@@ -1,18 +1,35 @@
 package base
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"runtime"
 	"strings"
+	"time"
 )
 
-func LogWithCallers(fields ...string) {
-	LogWithCallersAndExtra("", fields...)
+func Log(logType string, args map[string]interface{}) {
+	args["_logTime"] = int(time.Now().UnixNano() / 1000000)
+	args["_logType"] = logType
+	data, err := json.Marshal(args)
+	if err != nil {
+		log.Print(map[string]interface{}{
+			"_logType":   "LogError",
+			"logType":    logType,
+			"logContent": args,
+		})
+		return
+	}
+	log.Print(string(data))
 }
 
-func LogWithCallersAndExtra(extra string, fields ...string) {
-	traces := []interface{}{strings.Join(fields, "	")}
+func TraceLog(logType string, args map[string]interface{}) {
+	TraceLogOmit(logType, args, "")
+}
+
+func TraceLogOmit(logType string, args map[string]interface{}, exclude string) {
+	traces := make([]interface{}, 0)
 	for i := 1; i < 20; i++ {
 		_, file, line, ok := runtime.Caller(i)
 		if !ok {
@@ -21,13 +38,14 @@ func LogWithCallersAndExtra(extra string, fields ...string) {
 		if strings.Contains(file, "/go/src/") {
 			continue
 		}
-		if extra != "" {
-			pos := strings.Index(file, extra)
+		if exclude != "" {
+			pos := strings.Index(file, exclude)
 			if pos != -1 {
 				file = file[pos+9:]
 			}
 		}
-		traces = append(traces, fmt.Sprintf("	%s:%d", file, line))
+		traces = append(traces, fmt.Sprintf("%s:%d", file, line))
 	}
-	log.Print(traces...)
+	args["traces"] = traces
+	Log(logType, args)
 }

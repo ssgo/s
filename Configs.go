@@ -3,7 +3,6 @@ package base
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/user"
 	"reflect"
@@ -83,10 +82,20 @@ func makeEnvConfig(prefix string, v reflect.Value) {
 			} else if err == nil {
 				v.Set(newValue.Elem())
 			} else {
-				log.Println("LoadConfig", prefix, ev, err)
+				TraceLog("LoadConfig", map[string]interface{}{
+					"prefix": prefix,
+					"event":  ev,
+					"error":  err.Error(),
+				})
 			}
 		} else {
-			log.Println("LoadConfig", prefix, ev, "Can't set config because CanSet() == false", t, v)
+			TraceLog("LoadConfig", map[string]interface{}{
+				"prefix":  prefix,
+				"event":   ev,
+				"error":   "Can't set config because CanSet() == false",
+				"varType": t.String(),
+				"value":   v.String(),
+			})
 		}
 	}
 
