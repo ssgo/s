@@ -139,7 +139,7 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	}
 
 	if recordLogs {
-		writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, logHeaders, startTime, 0)
+		writeLog("REDIRECT", nil, outLen, request, response, nil, logHeaders, startTime, 0)
 	}
 	return true
 }

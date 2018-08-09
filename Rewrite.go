@@ -147,8 +147,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				if outBytes != nil {
 					outLen = len(outBytes)
 				}
-				outBytes = nil
-				writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0)
+				writeLog("REDIRECT", nil, outLen, request, response, nil, headers, startTime, 0)
 			}
 			return true
 		} else {

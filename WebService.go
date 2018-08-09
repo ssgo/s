@@ -203,18 +203,18 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	return result
 }
 
-func makePrintable(data []byte) {
-	n := len(data)
-	for i := 0; i < n; i++ {
-		c := data[i]
-		if c == '\t' || c == '\n' || c == '\r' {
-			data[i] = ' '
-			//} else if c < 32 || c > 126 {
-			//} else if c < 32 {
-			//	data[i] = '?'
-		}
-	}
-}
+//func makePrintable(data []byte) {
+//	n := len(data)
+//	for i := 0; i < n; i++ {
+//		c := data[i]
+//		if c == '\t' || c == '\n' || c == '\r' {
+//			data[i] = ' '
+//			//} else if c < 32 || c > 126 {
+//			//} else if c < 32 {
+//			//	data[i] = '?'
+//		}
+//	}
+//}
 
 func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	// 类型或参数返回值个数不对

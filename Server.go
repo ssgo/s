@@ -33,9 +33,14 @@ type configInfo struct {
 	KeepaliveTimeout  int
 	CallTimeout       int
 	LogFile           string
+	LogLevel          string
 	NoLogGets         bool
 	NoLogHeaders      string
-	LogResponseSize   int
+	EncryptLogFields  string
+	NoLogInputFields  bool
+	LogInputArrayNum  int
+	LogOutputFields   string
+	LogOutputArrayNum int
 	Compress          bool
 	XUniqueId         string
 	XForwardedForName string
@@ -45,15 +50,16 @@ type configInfo struct {
 	Registry          string
 	RegistryCalls     string
 	RegistryPrefix    string
-	AccessTokens      map[string]*uint
 	App               string
 	Weight            uint
+	AccessTokens      map[string]*uint
 	AppAllows         []string
 	Calls             map[string]*Call
 	CallRetryTimes    uint8
 }
 
 var config = configInfo{}
+var configedLogLevel LogLevelType
 
 type Call struct {
 	AccessToken string
@@ -64,6 +70,9 @@ type Call struct {
 }
 
 var noLogHeaders = map[string]bool{}
+var encryptLogFields = map[string]bool{}
+var logOutputFields = map[string]bool{}
+
 var serverAddr string
 var checker func(request *http.Request) bool
 
@@ -190,6 +199,8 @@ func Init() {
 		log.SetOutput(os.Stdout)
 	}
 
+	configedLogLevel = getLogLevel(config.LogLevel)
+
 	if config.KeepaliveTimeout <= 0 {
 		config.KeepaliveTimeout = 15000
 	}
@@ -217,27 +228,45 @@ func Init() {
 		config.Weight = 1
 	}
 
-	if config.LogResponseSize == 0 {
-		config.LogResponseSize = 2048
-	}
-
 	if config.XUniqueId == "" {
-		config.XUniqueId = "S-Unique-Id"
+		config.XUniqueId = "X-Unique-Id"
 	}
 
 	if config.XForwardedForName == "" {
-		config.XForwardedForName = "S-Forwarded-For"
+		config.XForwardedForName = "X-Forwarded-For"
 	}
 
 	if config.XRealIpName == "" {
-		config.XRealIpName = "S-Real-Ip"
+		config.XRealIpName = "X-Real-Ip"
 	}
 
 	if config.NoLogHeaders == "" {
 		config.NoLogHeaders = "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests"
 	}
-	for _, k := range strings.Split(config.NoLogHeaders, ",") {
+	for _, k := range strings.Split(strings.ToLower(config.NoLogHeaders), ",") {
 		noLogHeaders[strings.TrimSpace(k)] = true
+	}
+
+	if config.EncryptLogFields == "" {
+		config.EncryptLogFields = "password,secure,token,accessToken"
+	}
+	for _, k := range strings.Split(strings.ToLower(config.EncryptLogFields), ",") {
+		encryptLogFields[strings.TrimSpace(k)] = true
+	}
+
+	if config.LogOutputFields == "" {
+		config.LogOutputFields = "code,message"
+	}
+	for _, k := range strings.Split(strings.ToLower(config.LogOutputFields), ",") {
+		logOutputFields[strings.TrimSpace(k)] = true
+	}
+
+	if config.LogInputArrayNum <= 0 {
+		config.LogInputArrayNum = 0
+	}
+
+	if config.LogOutputArrayNum <= 0 {
+		config.LogOutputArrayNum = 2
 	}
 }
 

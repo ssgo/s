@@ -1,17 +1,28 @@
 {
-  "listen": ":8001",
+  "listen": ":",
+  "httpVersion": 2,
   "rwTimeout": 5000,
-  "keepaliveTimeout": 5000,
-  "callTimeout": 5000,
+  "keepaliveTimeout": 15000,
+  "callTimeout": 10000,
   "logFile": "",
+  "logLevel": "info",
   "noLogGets": false,
+  "noLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
+  "encryptLogFields": "password,secure,token,accessToken",
+  "noLogInputFields": false,
+  "logInputArrayNum": 0,
+  "logOutputFields": "code,message",
+  "logOutputArrayNum": 2,
+  "compress": true,
+  "xUniqueId": "X-Unique-Id",
+  "xForwardedForName": "X-Forwarded-For",
+  "xRealIpName": "X-Real-Ip",
   "certFile": "",
   "keyFile": "",
-
   "registry": "discover:15",
   "registryCalls": "discover:15",
-  "registryPrefix": "DC_",
-  "app": "demo",
+  "registryPrefix": "",
+  "app": "",
   "weight": 1,
   "accessTokens": {
     "hasfjlkdlasfsa": 1,
@@ -20,6 +31,7 @@
   },
   "calls": {
     "user": {}
-    "news": {"AccessToken": "hasfjlkdlasfsa", "Timeout": 5000, "httpVersion": 1, "withSSL": false}
-  }
+    "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2, "withSSL": false}
+  },
+  "callRetryTimes": 10
 }

@@ -106,22 +106,32 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 ```json
 {
-  "listen": ":80",
-  "RwTimeout": 5000,
-  "KeepaliveTimeout": 5000,
-  "NoLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
-  "CallTimeout": 5000,
+  "listen": ":",
+  "httpVersion": 2,
+  "rwTimeout": 5000,
+  "keepaliveTimeout": 15000,
+  "callTimeout": 10000,
   "logFile": "",
+  "logLevel": "info",
   "noLogGets": false,
+  "noLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
+  "encryptLogFields": "password,secure,token,accessToken",
+  "noLogInputFields": false,
+  "logInputArrayNum": 0,
+  "logOutputFields": "code,message",
+  "logOutputArrayNum": 2,
+  "compress": true,
+  "xUniqueId": "X-Unique-Id",
+  "xForwardedForName": "X-Forwarded-For",
+  "xRealIpName": "X-Real-Ip",
   "certFile": "",
   "keyFile": "",
-
   "registry": "discover:15",
   "registryCalls": "discover:15",
   "registryPrefix": "",
-  "app": "demo",
+  "app": "",
   "weight": 1,
-  "AccessTokens": {
+  "accessTokens": {
     "hasfjlkdlasfsa": 1,
     "fdasfsadfdsa": 2,
     "9ifjjabdsadsa": 2
@@ -129,7 +139,8 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "calls": {
     "user": {}
     "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2, "withSSL": false}
-  }
+  },
+  "callRetryTimes": 10
 }
 ```
 
@@ -229,6 +240,27 @@ type LoadBalancer interface {
 	// 请求时根据节点的得分取最小值发起请求
 	Next(nodes []*NodeInfo, request *http.Request) *NodeInfo
 }
+
+```
+
+
+
+## 日志输出
+
+使用json格式输出日志
+
+```go
+func Debug(logType string, data Map) {}
+
+func Info(logType string, data Map) {}
+
+func Warning(logType string, data Map) {}
+
+func Error(logType string, data Map) {}
+
+func Log(logLevel LogLevelType, logType string, data Map) {}
+
+func TraceLog(logLevel LogLevelType, logType string, data Map) {}
 
 ```
 
