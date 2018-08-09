@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ssgo/base"
@@ -136,24 +135,10 @@ func makeKeysVarsValues(data interface{}) ([]string, []string, []interface{}) {
 
 func logError(err error, info *string, args []interface{}) {
 	if enabledLogs && err != nil {
-		traces := make([]string, 4)
-		traces[0] = "DB	"
-		traces[1] = err.Error()
-		if info == nil {
-			traces[2] = "	"
-		} else {
-			traces[2] = "	" + *info
-		}
-		if args == nil {
-			traces[3] = "	"
-		} else {
-			argsBytes, err := json.Marshal(args)
-			if err != nil || argsBytes == nil {
-				traces[3] = "	"
-			} else {
-				traces[3] = "	" + string(argsBytes)
-			}
-		}
-		base.LogWithCallersAndExtra("/ssgo/db/", traces...)
+		base.TraceLogOmit("DB", map[string]interface{}{
+			"sql":   *info,
+			"args":  args,
+			"error": err.Error(),
+		}, "/ssgo/db/")
 	}
 }
