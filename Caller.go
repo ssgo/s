@@ -5,7 +5,7 @@ import (
 	"github.com/ssgo/httpclient"
 	"time"
 	"fmt"
-	"log"
+	"github.com/ssgo/base"
 )
 
 type Caller struct {
@@ -59,7 +59,7 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 		}
 		if caller.Request == nil {
 			r = appClientPools[app].Do(method, fmt.Sprintf("%s://%s%s", scheme, node.Addr, path), data, headers...)
-		}else {
+		} else {
 			r = appClientPools[app].DoByRequest(caller.Request, method, fmt.Sprintf("%s://%s%s", scheme, node.Addr, path), data, headers...)
 		}
 		settedLoadBalancer.Response(node, r.Error, r.Response, startTime.UnixNano()-time.Now().UnixNano())
@@ -69,7 +69,17 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			if r.Response != nil {
 				statusCode = r.Response.StatusCode
 			}
-			log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+			base.TraceLog("DC", map[string]interface{}{
+				"type":       "callFailed",
+				"error":      r.Error,
+				"app":        app,
+				"statusCode": statusCode,
+				"path":       path,
+				"tryTimes":   appClient.tryTimes,
+				"node":       node,
+				"nodes":      appNodes[app],
+			})
+			//log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
 			//if node.FailedTimes >= config.CallRetryTimes {

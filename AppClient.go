@@ -2,7 +2,7 @@ package discover
 
 import (
 	"net/http"
-	"log"
+	"github.com/ssgo/base"
 )
 
 type AppClient struct {
@@ -20,11 +20,20 @@ func (appClient *AppClient) NextWithNode(app, withNode string, request *http.Req
 	}
 
 	if appNodes[app] == nil {
-		log.Printf("DISCOVER	No App	%s", app)
+		base.TraceLog("DC", map[string]interface{}{
+			"error": "app not found",
+			"app":   app,
+		})
+		//log.Printf("DISCOVER	No App	%s", app)
 		return nil
 	}
 	if len(appNodes[app]) == 0 {
-		log.Printf("DISCOVER	No Node	%s	%d", app, len(appNodes[app]))
+		base.TraceLog("DC", map[string]interface{}{
+			"error": "node not found",
+			"app":   app,
+			"nodes": appNodes[app],
+		})
+		//log.Printf("DISCOVER	No Node	%s	%d", app, len(appNodes[app]))
 		return nil
 	}
 
@@ -56,7 +65,13 @@ func (appClient *AppClient) NextWithNode(app, withNode string, request *http.Req
 		appClient.excludes[node.Addr] = true
 	}
 	if node == nil {
-		log.Printf("DISCOVER	No Node	%s	%d / %d", app, appClient.tryTimes, len(appNodes[app]))
+		base.TraceLog("DC", map[string]interface{}{
+			"error":    "node not found",
+			"app":      app,
+			"tryTimes": appClient.tryTimes,
+			"nodes":    appNodes[app],
+		})
+		//log.Printf("DISCOVER	No Node	%s	%d / %d", app, appClient.tryTimes, len(appNodes[app]))
 	}
 
 	return node
