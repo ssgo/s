@@ -6,7 +6,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/ssgo/base"
 	"github.com/ssgo/discover"
-	"log"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -100,7 +99,15 @@ func Register(authLevel uint, path string, serviceFunc interface{}) {
 func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		log.Printf("ERROR	%s	%s	", path, err)
+		Error("S", Map{
+			"subLogType": "web",
+			"type":       "registerFailed",
+			"authLevel":  authLevel,
+			"path":       path,
+			"method":     method,
+			"error":      err.Error(),
+		})
+		//log.Printf("ERROR	%s	%s	", path, err)
 		return
 	}
 
@@ -118,7 +125,15 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				log.Print("Register	Compile	", err)
+				Error("S", Map{
+					"subLogType": "web",
+					"type":       "compileFailed",
+					"authLevel":  authLevel,
+					"path":       path,
+					"method":     method,
+					"error":      err.Error(),
+				})
+				//log.Print("Register	Compile	", err)
 			}
 			regexWebServices = append(regexWebServices, s)
 		}

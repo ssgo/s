@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/ssgo/base"
 	"html/template"
-	"log"
 	"os"
 	"os/user"
 	"reflect"
@@ -152,7 +151,11 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 					}
 					realFromFile = gopath + "/src/github.com/ssgo/s/" + fromFile
 					if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-						log.Println("template file is bad	", err.Error())
+						Error("S", Map{
+							"subLogType": "document",
+							"message":    "template file is bad",
+							"error":      err.Error(),
+						})
 						return ""
 					}
 				}
@@ -163,7 +166,11 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
 	_, err := t.ParseFiles(realFromFile)
 	if err != nil {
-		log.Println("template file is bad	", err.Error())
+		Error("S", Map{
+			"subLogType": "document",
+			"message":    "template file is bad",
+			"error":      err.Error(),
+		})
 		return ""
 	}
 
@@ -174,7 +181,11 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	} else {
 		fp, err := os.OpenFile(toFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Println("dst file is bad	", err.Error())
+			Error("S", Map{
+				"subLogType": "document",
+				"message":    "dst file is bad",
+				"error":      err.Error(),
+			})
 			return ""
 		}
 		defer fp.Close()

@@ -13,6 +13,7 @@
   "logInputArrayNum": 0,
   "logOutputFields": "code,message",
   "logOutputArrayNum": 2,
+  "logWebsocketAction": false,
   "compress": true,
   "xUniqueId": "X-Unique-Id",
   "xForwardedForName": "X-Forwarded-For",

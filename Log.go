@@ -32,7 +32,7 @@ func Log(logLevel LogLevelType, logType string, data Map) {
 	if logLevel < configedLogLevel {
 		return
 	}
-	data["_logLevel"] = logLevel
+	data["_logLevel"] = getLogLevelName(logLevel)
 	base.Log(logType, data)
 }
 
@@ -40,7 +40,7 @@ func TraceLog(logLevel LogLevelType, logType string, data Map) {
 	if logLevel < configedLogLevel {
 		return
 	}
-	data["_logLevel"] = logLevel
+	data["_logLevel"] = getLogLevelName(logLevel)
 	base.TraceLog(logType, data)
 }
 
@@ -56,5 +56,20 @@ func getLogLevel(logLevel string) LogLevelType {
 		return LogError
 	default:
 		return LogInfo
+	}
+}
+
+func getLogLevelName(logLevel LogLevelType) string {
+	switch logLevel {
+	case LogDebug:
+		return "debug"
+	case LogInfo:
+		return "info"
+	case LogWarning:
+		return "warning"
+	case LogError:
+		return "error"
+	default:
+		return "info"
 	}
 }

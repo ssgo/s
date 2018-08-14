@@ -120,6 +120,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "logInputArrayNum": 0,
   "logOutputFields": "code,message",
   "logOutputArrayNum": 2,
+  "logWebsocketAction": false,
   "compress": true,
   "xUniqueId": "X-Unique-Id",
   "xForwardedForName": "X-Forwarded-For",

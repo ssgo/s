@@ -187,7 +187,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog("FAIL", nil, 0, request, myResponse, &args, &logHeaders, &startTime, 0)
+			writeLog("FAIL", nil, 0, request, myResponse, &args, &logHeaders, &startTime, 0, nil)
 		}
 		return
 	}
@@ -248,7 +248,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
 			response.WriteHeader(403)
-			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel)
+			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			return
 		}
 	}
@@ -268,7 +268,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, myResponse, &args, &logHeaders, &startTime)
+		doWebsocketService(ws, request, myResponse, authLevel, &args, &logHeaders, &startTime)
 	} else if s != nil || result != nil {
 		result = doWebService(s, request, &response, &args, &logHeaders, result, &startTime)
 		//logName = "ACCESS"
@@ -332,7 +332,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 			// /__CHECK__ 不记录日志
 			if requestPath != "/__CHECK__" {
-				writeLog("ACCESS", result, outLen, request, myResponse, &args, &logHeaders, &startTime, authLevel)
+				writeLog("ACCESS", result, outLen, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			}
 		}
 	}
@@ -359,7 +359,7 @@ func encryptField(value interface{}) string {
 	}
 }
 
-func writeLog(logName string, result interface{}, outLen int, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint) {
+func writeLog(logName string, result interface{}, outLen int, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, extraInfo Map) {
 	if config.NoLogGets && request.Method == "GET" {
 		return
 	}
@@ -469,24 +469,26 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 		result = makeLogableData(reflect.ValueOf(result), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
 	}
 
-	base.Log("S", Map{
-		"type":       logName,
-		"ip":         getRealIp(request),
-		"app":        config.App,
-		"host":       request.Host,
-		"server":     serverAddr,
-		"method":     request.Method,
-		"uri":        request.RequestURI,
-		"authLevel":  authLevel,
-		"usedTime":   usedTime,
-		"status":     response.status,
-		"outLen":     outLen,
-		"in":         args2,
-		"inHeaders":  headers,
-		"out":        result,
-		"outHeaders": outHeaders,
-		"proto":      request.Proto[5:],
-	})
+	if extraInfo == nil {
+		extraInfo = Map{}
+	}
+	extraInfo["type"] = logName
+	extraInfo["ip"] = getRealIp(request)
+	extraInfo["app"] = config.App
+	extraInfo["host"] = request.Host
+	extraInfo["server"] = serverAddr
+	extraInfo["method"] = request.Method
+	extraInfo["uri"] = request.RequestURI
+	extraInfo["authLevel"] = authLevel
+	extraInfo["usedTime"] = usedTime
+	extraInfo["status"] = response.status
+	extraInfo["outLen"] = outLen
+	extraInfo["in"] = args2
+	extraInfo["inHeaders"] = headers
+	extraInfo["out"] = result
+	extraInfo["outHeaders"] = outHeaders
+	extraInfo["proto"] = request.Proto[5:]
+	base.Log("S", extraInfo)
 	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
 }
 

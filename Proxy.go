@@ -8,7 +8,6 @@ import (
 	"github.com/ssgo/discover"
 	"golang.org/x/net/http2"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -41,7 +40,11 @@ func Proxy(path string, toApp, toPath string) {
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			log.Printf("PROXY	Compile	%s", err.Error())
+			Error("S", Map{
+				"type":    "Proxy",
+				"message": "compile field",
+				"error":   err.Error(),
+			})
 		} else {
 			p.matcher = matcher
 			regexProxies = append(regexProxies, p)
@@ -96,13 +99,22 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 		return false
 	}
 
-	if recordLogs {
-		log.Printf("PROXY	%s	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *proxyToApp, *proxyToPath)
-	}
+	//if recordLogs {
+	//	//log.Printf("PROXY	%s	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *proxyToApp, *proxyToPath)
+	//}
 
 	// 注册新的Call，并重启订阅
 	if config.Calls[*proxyToApp] == nil {
-		log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
+		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
+		Info("S", Map{
+			"subLogType": "proxy",
+			"type":       "addApp",
+			"app":        proxyToApp,
+			"ip":         getRealIp(request),
+			"host":       request.Host,
+			"method":     request.Method,
+			"uri":        request.RequestURI,
+		})
 		config.Calls[*proxyToApp] = &Call{HttpVersion: 2}
 		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
 		discover.Restart()
@@ -139,7 +151,11 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	}
 
 	if recordLogs {
-		writeLog("REDIRECT", nil, outLen, request, response, nil, logHeaders, startTime, 0)
+		writeLog("PROXY", nil, outLen, request, response, nil, logHeaders, startTime, 0, Map{
+			"toApp":        proxyToApp,
+			"toPath":       proxyToPath,
+			"proxyHeaders": proxyHeaders,
+		})
 	}
 	return true
 }
@@ -176,7 +192,18 @@ var updater = websocket.Upgrader{}
 func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf *Call) int {
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
-		log.Printf("PROXY	Upgrade	%s", err.Error())
+		Error("S", Map{
+			"subLogType": "proxy",
+			"type":       "upgradeFailed",
+			"app":        app,
+			"path":       path,
+			"ip":         getRealIp(request),
+			"method":     request.Method,
+			"host":       request.Host,
+			"uri":        request.RequestURI,
+			"error":      err.Error(),
+		})
+		//log.Printf("PROXY	Upgrade	%s", err.Error())
 		return 0
 	}
 	defer srcConn.Close()
@@ -198,7 +225,19 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		}
 		u, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
 		if err != nil {
-			log.Printf("PROXY	parsing websocket address	%s", err.Error())
+			Error("S", Map{
+				"subLogType": "proxy",
+				"type":       "parsingFailed",
+				"app":        app,
+				"path":       path,
+				"ip":         getRealIp(request),
+				"method":     request.Method,
+				"host":       request.Host,
+				"uri":        request.RequestURI,
+				"url":        u.String(),
+				"error":      err.Error(),
+			})
+			//log.Printf("PROXY	parsing websocket address	%s", err.Error())
 			return 0
 		}
 
@@ -226,7 +265,19 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		dialer := websocket.Dialer{}
 		dstConn, dstResponse, err := dialer.Dial(u.String(), sendHeader)
 		if err != nil {
-			log.Printf("PROXY	opening client websocket connection	%s", err.Error())
+			Error("S", Map{
+				"subLogType": "proxy",
+				"type":       "connectFailed",
+				"app":        app,
+				"path":       path,
+				"ip":         getRealIp(request),
+				"method":     request.Method,
+				"host":       request.Host,
+				"uri":        request.RequestURI,
+				"url":        u.String(),
+				"error":      err.Error(),
+			})
+			//log.Printf("PROXY	opening client websocket connection	%s", err.Error())
 			continue
 		}
 		if dstResponse.StatusCode == 502 || dstResponse.StatusCode == 503 || dstResponse.StatusCode == 504 {
@@ -242,14 +293,38 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				mt, message, err := dstConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						log.Print("PROXY	WS Error	reading message from the client websocket	", err)
+						Error("S", Map{
+							"subLogType": "proxy",
+							"type":       "readingFailed",
+							"app":        app,
+							"path":       path,
+							"ip":         getRealIp(request),
+							"method":     request.Method,
+							"host":       request.Host,
+							"uri":        request.RequestURI,
+							"url":        u.String(),
+							"error":      err.Error(),
+						})
+						//log.Print("PROXY	WS Error	reading message from the client websocket	", err)
 					}
 					break
 				}
 				totalOutLen += len(message)
 				err = srcConn.WriteMessage(mt, message)
 				if err != nil {
-					log.Print("PROXY	WS Error	writing message to the server websocket	", err)
+					Error("S", Map{
+						"subLogType": "proxy",
+						"type":       "writingFailed",
+						"app":        app,
+						"path":       path,
+						"ip":         getRealIp(request),
+						"method":     request.Method,
+						"host":       request.Host,
+						"uri":        request.RequestURI,
+						"url":        u.String(),
+						"error":      err.Error(),
+					})
+					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
 				}
 			}
@@ -262,13 +337,37 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				mt, message, err := srcConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						log.Print("PROXY	WS Error	reading message from the server websocket	", err)
+						Error("S", Map{
+							"subLogType": "proxy",
+							"type":       "closingFailed",
+							"app":        app,
+							"path":       path,
+							"ip":         getRealIp(request),
+							"method":     request.Method,
+							"host":       request.Host,
+							"uri":        request.RequestURI,
+							"url":        u.String(),
+							"error":      err.Error(),
+						})
+						//log.Print("PROXY	WS Error	reading message from the server websocket	", err)
 					}
 					break
 				}
 				err = dstConn.WriteMessage(mt, message)
 				if err != nil {
-					log.Print("PROXY	WS Error	writing message to the server websocket	", err)
+					Error("S", Map{
+						"subLogType": "proxy",
+						"type":       "writingFailed",
+						"app":        app,
+						"path":       path,
+						"ip":         getRealIp(request),
+						"method":     request.Method,
+						"host":       request.Host,
+						"uri":        request.RequestURI,
+						"url":        u.String(),
+						"error":      err.Error(),
+					})
+					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
 				}
 			}

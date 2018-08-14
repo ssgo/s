@@ -27,35 +27,36 @@ var inited = false
 var running = false
 
 type configInfo struct {
-	Listen            string
-	HttpVersion       int
-	RwTimeout         int
-	KeepaliveTimeout  int
-	CallTimeout       int
-	LogFile           string
-	LogLevel          string
-	NoLogGets         bool
-	NoLogHeaders      string
-	EncryptLogFields  string
-	NoLogInputFields  bool
-	LogInputArrayNum  int
-	LogOutputFields   string
-	LogOutputArrayNum int
-	Compress          bool
-	XUniqueId         string
-	XForwardedForName string
-	XRealIpName       string
-	CertFile          string
-	KeyFile           string
-	Registry          string
-	RegistryCalls     string
-	RegistryPrefix    string
-	App               string
-	Weight            uint
-	AccessTokens      map[string]*uint
-	AppAllows         []string
-	Calls             map[string]*Call
-	CallRetryTimes    uint8
+	Listen             string
+	HttpVersion        int
+	RwTimeout          int
+	KeepaliveTimeout   int
+	CallTimeout        int
+	LogFile            string
+	LogLevel           string
+	NoLogGets          bool
+	NoLogHeaders       string
+	EncryptLogFields   string
+	NoLogInputFields   bool
+	LogInputArrayNum   int
+	LogOutputFields    string
+	LogOutputArrayNum  int
+	LogWebsocketAction bool
+	Compress           bool
+	XUniqueId          string
+	XForwardedForName  string
+	XRealIpName        string
+	CertFile           string
+	KeyFile            string
+	Registry           string
+	RegistryCalls      string
+	RegistryPrefix     string
+	App                string
+	Weight             uint
+	AccessTokens       map[string]*uint
+	AppAllows          []string
+	Calls              map[string]*Call
+	CallRetryTimes     uint8
 }
 
 var config = configInfo{}
@@ -192,7 +193,12 @@ func Init() {
 			log.SetOutput(f)
 		} else {
 			log.SetOutput(os.Stdout)
-			log.Print("ERROR	", err)
+			Error("S", Map{
+				"subLogType": "server",
+				"type":       "openLogFileFailed",
+				"error":      err.Error(),
+			})
+			//log.Print("ERROR	", err)
 		}
 		recordLogs = config.LogFile != os.DevNull
 	} else {
@@ -220,7 +226,12 @@ func Init() {
 	}
 
 	if config.App != "" && config.App[0] == '_' {
-		log.Print("ERROR	", config.App, " is a not available name")
+		Warning("S", Map{
+			"subLogType": "server",
+			"type":       "invalidAppName",
+			"app":        config.App,
+		})
+		//log.Print("ERROR	", config.App, " is a not available name")
 		config.App = ""
 	}
 
@@ -305,7 +316,12 @@ func start(httpVersion int, as *AsyncServer) error {
 		httpVersion = config.HttpVersion
 	}
 
-	log.Printf("SERVER	[%s]	Starting...", config.Listen)
+	Info("S", Map{
+		"subLogType": "server",
+		"type":       "starting",
+		"listen":     config.Listen,
+	})
+	//log.Printf("SERVER	[%s]	Starting...", config.Listen)
 
 	rh := routeHandler{}
 	srv := &http.Server{
@@ -328,7 +344,13 @@ func start(httpVersion int, as *AsyncServer) error {
 		as.listener = listener
 	}
 	if err != nil {
-		log.Print("SERVER	", err)
+		Error("S", Map{
+			"subLogType": "server",
+			"type":       "listenFailed",
+			"listen":     config.Listen,
+			"error":      err.Error(),
+		})
+		//log.Print("SERVER	", err)
 		if as != nil {
 			as.startChan <- false
 		}
@@ -389,7 +411,13 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	dconf.Calls = calls
 	if discover.Start(serverAddr, dconf) == false {
-		log.Printf("SERVER	failed to start discover")
+		Error("S", Map{
+			"subLogType": "server",
+			"type":       "startDiscoverFailed",
+			"serverAddr": serverAddr,
+			"error":      err.Error(),
+		})
+		//log.Printf("SERVER	failed to start discover")
 		listener.Close()
 		return errors.New("failed to start discover")
 	}
@@ -406,7 +434,13 @@ func start(httpVersion int, as *AsyncServer) error {
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
-	log.Printf("SERVER	%s	Started", serverAddr)
+	Info("S", Map{
+		"subLogType": "server",
+		"type":       "started",
+		"listen":     config.Listen,
+		"serverAddr": serverAddr,
+	})
+	//log.Printf("SERVER	%s	Started", serverAddr)
 
 	if as != nil {
 		as.Addr = serverAddr
@@ -417,7 +451,14 @@ func start(httpVersion int, as *AsyncServer) error {
 		s2 := &http2.Server{}
 		err := http2.ConfigureServer(srv, s2)
 		if err != nil {
-			log.Print("SERVER	", err)
+			Error("S", Map{
+				"subLogType": "server",
+				"type":       "startFailed",
+				"listen":     config.Listen,
+				"serverAddr": serverAddr,
+				"error":      err.Error(),
+			})
+			//log.Print("SERVER	", err)
 			return err
 		}
 
@@ -430,7 +471,14 @@ func start(httpVersion int, as *AsyncServer) error {
 					if strings.Contains(err.Error(), "use of closed network connection") {
 						break
 					}
-					log.Print("SERVER	", err)
+					Error("S", Map{
+						"subLogType": "server",
+						"type":       "listenFailed",
+						"listen":     config.Listen,
+						"serverAddr": serverAddr,
+						"error":      err.Error(),
+					})
+					//log.Print("SERVER	", err)
 					continue
 				}
 				go s2.ServeConn(conn, &http2.ServeConnOpts{BaseConfig: srv})
@@ -446,21 +494,53 @@ func start(httpVersion int, as *AsyncServer) error {
 	running = false
 
 	if discover.IsClient() || discover.IsServer() {
-		log.Printf("SERVER	%s	Stopping Discover", serverAddr)
+		Info("S", Map{
+			"subLogType": "server",
+			"type":       "stoppingDiscover",
+			"listen":     config.Listen,
+			"serverAddr": serverAddr,
+			"isClient":   discover.IsClient(),
+			"isServer":   discover.IsServer(),
+		})
+		//log.Printf("SERVER	%s	Stopping Discover", serverAddr)
 		discover.Stop()
 	}
-	log.Printf("SERVER	%s	Stopping Router", serverAddr)
+	Info("S", Map{
+		"subLogType": "server",
+		"type":       "stoppingRouter",
+		"listen":     config.Listen,
+		"serverAddr": serverAddr,
+	})
+	//log.Printf("SERVER	%s	Stopping Router", serverAddr)
 	rh.Stop()
 
-	log.Printf("SERVER	%s	Waitting Router", serverAddr)
+	Info("S", Map{
+		"subLogType": "server",
+		"type":       "waitingRouter",
+		"listen":     config.Listen,
+		"serverAddr": serverAddr,
+	})
+	//log.Printf("SERVER	%s	Waiting Router", serverAddr)
 	rh.Wait()
 	if discover.IsClient() {
-		log.Printf("SERVER	%s	Waitting Discover", serverAddr)
+		Info("S", Map{
+			"subLogType": "server",
+			"type":       "waitingDiscover",
+			"listen":     config.Listen,
+			"serverAddr": serverAddr,
+		})
+		//log.Printf("SERVER	%s	Waiting Discover", serverAddr)
 		discover.Wait()
 	}
 	serviceInfo.remove()
 
-	log.Printf("SERVER	%s	Stopped", serverAddr)
+	Info("S", Map{
+		"subLogType": "server",
+		"type":       "stopped",
+		"listen":     config.Listen,
+		"serverAddr": serverAddr,
+	})
+	//log.Printf("SERVER	%s	Stopped", serverAddr)
 	if as != nil {
 		as.stopChan <- true
 	}
