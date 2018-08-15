@@ -63,12 +63,12 @@ func GetRedis(name string) *Redis {
 	fullName := name
 	// config name support Host:Port
 	args := strings.Split(name, ":")
+	db := 0
 	if len(args) > 1 {
 		arg1, err := strconv.Atoi(args[1])
 		if err == nil && arg1 > 0 && arg1 <= 15 {
 			name = args[0]
-		} else {
-			name = args[0] + ":" + args[1]
+			db = arg1
 		}
 	}
 
@@ -110,8 +110,8 @@ func GetRedis(name string) *Redis {
 	if conf.Host == "" {
 		conf.Host = "127.0.0.1:6379"
 	}
-	if conf.DB == 0 {
-		conf.DB = 1
+	if conf.DB == 0 && db > 0 && db <= 15 {
+		conf.DB = db
 	}
 	if conf.ConnTimeout == 0 {
 		conf.ConnTimeout = 10000
@@ -122,7 +122,6 @@ func GetRedis(name string) *Redis {
 	if conf.WriteTimeout == 0 {
 		conf.WriteTimeout = 10000
 	}
-
 	decryptedPassword := ""
 	if conf.Password != "" {
 		decryptedPassword = base.DecryptAes(conf.Password, settedKey, settedIv)
@@ -185,8 +184,9 @@ func (rd *Redis) Do(cmd string, values ...interface{}) *Result {
 	if conn.Err() != nil {
 		return &Result{Error: conn.Err()}
 	}
-	defer conn.Close()
-	return _do(conn, cmd, values...)
+	r := _do(conn, cmd, values...)
+	conn.Close()
+	return r
 }
 
 func _do(conn redis.Conn, cmd string, values ...interface{}) *Result {
