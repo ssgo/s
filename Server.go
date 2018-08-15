@@ -394,6 +394,9 @@ func start(httpVersion int, as *AsyncServer) error {
 		CallTimeout:       config.CallTimeout,
 	}
 	calls := map[string]*discover.CallInfo{}
+	if config.Calls == nil {
+		config.Calls = map[string]*Call{}
+	}
 	for k, v := range config.Calls {
 		call := discover.CallInfo{
 			Timeout:     v.Timeout,
