@@ -5,15 +5,16 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/base"
-	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/s/base"
+	"golang.org/x/net/http2"
 )
 
 type ClientPool struct {

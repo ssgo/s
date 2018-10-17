@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{.title}}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #fff;
+            color: #333;
+        }
+
+        header {
+            border-bottom: #ddd 1px solid;
+            margin-bottom: 5px;
+            color: #000;
+            padding: 8px;
+        }
+
+        header > span {
+            font-weight: bold;
+        }
+
+        label {
+            display: inline-block;
+            padding: 0 5px;
+            background: #666;
+            font-size: 12px;
+            color: #fff;
+        }
+
+        section {
+            margin-bottom: 20px;
+            white-space: nowrap;
+            font-size: 0;
+        }
+
+        header.Action, section.Action {
+            margin-left: 20px;
+        }
+
+        section > table {
+            width: 50%;
+            display: inline-table;
+            border-collapse: collapse;
+            vertical-align: top;
+            font-size: 16px;
+
+        }
+
+        section > table:last-child {
+            border-left: 1px solid #ddd;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        td {
+            padding: 3px 8px;
+            white-space: pre-wrap;
+        }
+
+        td:last-child {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+{{range .list}}
+<header class="{{.Type}}">
+    <span>{{.Path}}</span>
+{{if ne .AuthLevel 0}}<label>{{.AuthLevel}}</label>{{end}}
+{{if ne .Method ""}}<label>{{.Method}}</label>{{end}}
+{{if ne .Type "Web"}}<label>{{.Type}}</label>{{end}}
+</header>
+<section class="{{.Type}}">
+    <table>
+    {{if isMap .In}}
+    {{range $k, $v := .In}}
+        <tr>
+            <td width="30%">{{$k}}</td>
+            <td width="70%">{{toText $v}}</td>
+        </tr>
+    {{end}}
+    {{else}}
+        <tr>
+            <td colspan="2">{{.In}}</td>
+        </tr>
+    {{end}}
+    </table>
+    <table>
+    {{if isMap .Out}}
+    {{range $k, $v := .Out}}
+        <tr>
+            <td width="30%">{{$k}}</td>
+            <td width="70%">{{toText $v}}</td>
+        </tr>
+    {{end}}
+    {{else}}
+        <tr>
+            <td colspan="2">{{.Out}}</td>
+        </tr>
+    {{end}}
+    </table>
+</section>
+{{else}}
+<div><strong>no document</strong></div>
+{{end}}
+</body>
+</html>

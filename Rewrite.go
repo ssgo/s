@@ -2,19 +2,20 @@ package s
 
 import (
 	"fmt"
-	"github.com/ssgo/base"
-	"github.com/ssgo/httpclient"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/httpclient"
 )
 
 type rewriteInfo struct {
 	matcher     *regexp.Regexp
 	httpVersion int
+	fromPath    string
 	toPath      string
 }
 
@@ -27,12 +28,20 @@ var clientForRewrite2 *httpclient.ClientPool
 
 // 跳转
 func setRewrite(path string, toPath string, httpVersion int) {
-	s := &rewriteInfo{toPath: toPath, httpVersion: httpVersion}
+	s := &rewriteInfo{fromPath: path, toPath: toPath, httpVersion: httpVersion}
 
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			log.Print("Rewrite Error	Compile	", err)
+			Error("S", Map{
+				"subLogType":  "rewrite",
+				"type":        "compileFailed",
+				"fromPath":    path,
+				"toPath":      toPath,
+				"httpVersion": httpVersion,
+				"error":       err.Error(),
+			})
+			//log.Print("Rewrite Error	Compile	", err)
 		} else {
 			s.matcher = matcher
 			regexRewrites = append(regexRewrites, s)
@@ -101,9 +110,9 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 			if !strings.ContainsRune(*rewriteToPath, '?') && queryString != "" {
 				*rewriteToPath += queryString
 			}
-			if recordLogs {
-				log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
-			}
+			//if recordLogs {
+			//	log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
+			//}
 
 			// 转发到外部地址
 			var bodyBytes []byte = nil
@@ -146,14 +155,29 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				if outBytes != nil {
 					outLen = len(outBytes)
 				}
-				outBytes = nil
-				writeLog("REDIRECT", outBytes, outLen, false, request, response, nil, headers, startTime, 0)
+				writeLog("REWRITE", nil, outLen, request, response, nil, headers, startTime, 0, Map{
+					"toPath":         rewriteToPath,
+					"rewriteHeaders": rewriteHeaders,
+					"httpVersion":    rewriteHttpVersion,
+				})
 			}
 			return true
 		} else {
 			// 直接修改内部跳转地址
 			if recordLogs {
-				log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
+				Info("S", Map{
+					"subLogType":     "rewrite",
+					"type":           "compileFailed",
+					"fromPath":       request.RequestURI,
+					"toPath":         rewriteToPath,
+					"httpVersion":    rewriteHttpVersion,
+					"rewriteHeaders": rewriteHeaders,
+					"ip":             getRealIp(request),
+					"method":         request.Method,
+					"host":           request.Host,
+				})
+
+				//log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
 			}
 			request.RequestURI = *rewriteToPath
 			if queryString != "" {

@@ -3,20 +3,21 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/base"
-	"github.com/ssgo/discover"
-	"log"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/discover"
 )
 
 type webServiceType struct {
 	authLevel     uint
 	method        string
+	path          string
 	pathMatcher   *regexp.Regexp
 	pathArgs      []string
 	parmsNum      int
@@ -99,12 +100,21 @@ func Register(authLevel uint, path string, serviceFunc interface{}) {
 func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		log.Printf("ERROR	%s	%s	", path, err)
+		Error("S", Map{
+			"subLogType": "web",
+			"type":       "registerFailed",
+			"authLevel":  authLevel,
+			"path":       path,
+			"method":     method,
+			"error":      err.Error(),
+		})
+		//log.Printf("ERROR	%s	%s	", path, err)
 		return
 	}
 
 	s.authLevel = authLevel
 	s.method = method
+	s.path = path
 	finder, err := regexp.Compile("\\{(.*?)\\}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
@@ -116,7 +126,15 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				log.Print("Register	Compile	", err)
+				Error("S", Map{
+					"subLogType": "web",
+					"type":       "compileFailed",
+					"authLevel":  authLevel,
+					"path":       path,
+					"method":     method,
+					"error":      err.Error(),
+				})
+				//log.Print("Register	Compile	", err)
 			}
 			regexWebServices = append(regexWebServices, s)
 		}
@@ -201,18 +219,18 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	return result
 }
 
-func makePrintable(data []byte) {
-	n := len(data)
-	for i := 0; i < n; i++ {
-		c := data[i]
-		if c == '\t' || c == '\n' || c == '\r' {
-			data[i] = ' '
-			//} else if c < 32 || c > 126 {
-			//} else if c < 32 {
-			//	data[i] = '?'
-		}
-	}
-}
+//func makePrintable(data []byte) {
+//	n := len(data)
+//	for i := 0; i < n; i++ {
+//		c := data[i]
+//		if c == '\t' || c == '\n' || c == '\r' {
+//			data[i] = ' '
+//			//} else if c < 32 || c > 126 {
+//			//} else if c < 32 {
+//			//	data[i] = '?'
+//		}
+//	}
+//}
 
 func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	// 类型或参数返回值个数不对

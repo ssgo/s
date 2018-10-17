@@ -54,7 +54,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 
 	http.ServeFile(response, request, *rootPath+requestPath)
 
-	writeLog("STATIC", nil, 0, false, request, response, nil, headers, startTime, 0)
+	writeLog("STATIC", nil, 0, request, response, nil, headers, startTime, 0, nil)
 
 	return true
 }

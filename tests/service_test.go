@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
 	"net/http"
 	"os"
 	"testing"
+
+	".."
 )
 
 func TestEchos(tt *testing.T) {
@@ -149,7 +150,32 @@ func TestAuth(tt *testing.T) {
 	t.Test(r.Response.StatusCode == 200, "Test1", r.Response.StatusCode)
 }
 
-func BenchmarkEchosForStruct(tb *testing.B) {
+func BenchmarkEchosForStructWithLog(tb *testing.B) {
+	tb.StopTimer()
+	s.ResetAllSets()
+	s.Register(0, "/echo1", Echo1)
+
+	as := s.AsyncStart()
+	defer as.Stop()
+
+	as.Post("/echo1?aaa=11&bbb=_o_", s.Map{})
+
+	tb.StartTimer()
+
+	tb.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			as.Post("/echo1?aaa=11&bbb=_o_", s.Map{
+				"ccc": "ccc",
+				"DDD": 101.123,
+				"eEe": true,
+				"fff": nil,
+				"ggg": 223,
+			})
+		}
+	})
+}
+
+func BenchmarkEchosForStructNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo1", Echo1)
@@ -175,7 +201,7 @@ func BenchmarkEchosForStruct(tb *testing.B) {
 	})
 }
 
-func BenchmarkEchosForMap(tb *testing.B) {
+func BenchmarkEchosForMapNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo2", Echo2)

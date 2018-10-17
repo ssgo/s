@@ -1,9 +1,10 @@
 package tests
 
 import (
-	".."
-	"github.com/ssgo/httpclient"
 	"testing"
+
+	".."
+	"github.com/ssgo/s/httpclient"
 )
 
 func Hello() string {

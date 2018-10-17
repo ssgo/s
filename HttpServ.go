@@ -3,31 +3,58 @@ package s
 import (
 	"compress/gzip"
 	"encoding/json"
-	"github.com/ssgo/base"
-	"golang.org/x/net/websocket"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ssgo/s/base"
+	"golang.org/x/net/websocket"
 )
 
 type Response struct {
-	writer http.ResponseWriter
-	status int
+	writer      http.ResponseWriter
+	status      int
+	outLen      int
+	ProxyHeader *http.Header
 }
 
 func (response *Response) Header() http.Header {
+	if response.ProxyHeader != nil {
+		return *response.ProxyHeader
+	}
 	return response.writer.Header()
 }
 func (response *Response) Write(bytes []byte) (int, error) {
+	response.outLen += len(bytes)
+	if response.ProxyHeader != nil {
+		response.copyProxyHeader()
+	}
 	return response.writer.Write(bytes)
 }
 func (response *Response) WriteHeader(code int) {
 	response.status = code
+	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
+		return
+	}
 	response.writer.WriteHeader(code)
+	if response.ProxyHeader != nil {
+		response.copyProxyHeader()
+	}
+}
+
+func (response *Response) copyProxyHeader() {
+	src := *response.ProxyHeader
+	dst := response.writer.Header()
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+	response.ProxyHeader = nil
 }
 
 //func (response *Response) Hijacker() (net.Conn, *bufio.ReadWriter, error) {
@@ -64,27 +91,35 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
+	if request.Header.Get(config.XUniqueId) == "" {
+		request.Header.Set(config.XUniqueId, base.UniqueId())
+		// 在没有 X-Unique-Id 的情况下忽略 X-Real-Ip
+		if request.Header.Get(config.XRealIpName) != "" {
+			request.Header.Del(config.XRealIpName)
+		}
+	}
+
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-	headers := make(map[string]string)
+	logHeaders := make(map[string]string)
 	for k, v := range request.Header {
-		if noLogHeaders[k] {
+		if noLogHeaders[strings.ToLower(k)] {
 			continue
 		}
 		if len(v) > 1 {
-			headers[k] = strings.Join(v, ", ")
+			logHeaders[k] = strings.Join(v, ", ")
 		} else {
-			headers[k] = v[0]
+			logHeaders[k] = v[0]
 		}
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	finished := processRewrite(request, myResponse, &headers, &startTime)
+	finished := processRewrite(request, myResponse, &logHeaders, &startTime)
 	if finished {
 		return
 	}
 
 	// 处理 ProxyBy
-	finished = processProxy(request, myResponse, &headers, &startTime)
+	finished = processProxy(request, myResponse, &logHeaders, &startTime)
 	if finished {
 		return
 	}
@@ -98,7 +133,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理静态文件
-	if processStatic(requestPath, request, myResponse, &headers, &startTime) {
+	if processStatic(requestPath, request, myResponse, &logHeaders, &startTime) {
 		return
 	}
 
@@ -153,7 +188,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog("FAIL", nil, 0, false, request, myResponse, &args, &headers, &startTime, 0)
+			writeLog("FAIL", nil, 0, request, myResponse, &args, &logHeaders, &startTime, 0, nil)
 		}
 		return
 	}
@@ -174,14 +209,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		request.Body.Close()
 		if len(bodyBytes) > 1 && bodyBytes[0] == 123 {
 			json.Unmarshal(bodyBytes, &args)
-		}
-	}
-
-	if request.Header.Get("S-Unique-Id") == "" {
-		request.Header.Set("S-Unique-Id", base.UniqueId())
-		// 在没有 S-Unique-Id 的情况下忽略 X-Real-Ip
-		if request.Header.Get(config.XRealIpName) != "" {
-			request.Header.Del(config.XRealIpName)
 		}
 	}
 
@@ -219,10 +246,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if authLevel > 0 && webAuthChecker(authLevel, &request.RequestURI, &args, request) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
-			//byteHeaders, _ := json.Marshal(headers)
+			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
 			response.WriteHeader(403)
-			writeLog("REJECT", nil, 0, false, request, myResponse, &args, &headers, &startTime, authLevel)
+			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			return
 		}
 	}
@@ -242,9 +269,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, myResponse, &args, &headers, &startTime)
+		doWebsocketService(ws, request, myResponse, authLevel, &args, &logHeaders, &startTime)
 	} else if s != nil || result != nil {
-		result = doWebService(s, request, &response, &args, &headers, result, &startTime)
+		result = doWebService(s, request, &response, &args, &logHeaders, result, &startTime)
 		//logName = "ACCESS"
 		//statusCode = 200
 	}
@@ -264,14 +291,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 		// 返回结果
 		outType := reflect.TypeOf(result)
-		if outType.Kind() == reflect.Ptr {
+		for outType.Kind() == reflect.Ptr {
 			outType = outType.Elem()
 		}
 		var outBytes []byte
-		isJson := false
 		if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
 			outBytes = makeBytesResult(result)
-			isJson = true
 		} else if outType.Kind() == reflect.String {
 			outBytes = []byte(result.(string))
 		} else {
@@ -296,6 +321,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		// 记录访问日志
 		if recordLogs {
 			outLen := 0
+			if outBytes != nil {
+				outLen = len(outBytes)
+			}
 			//if logName != "ACCESS" {
 			//	if outBytes != nil {
 			//		outLen = len(outBytes)
@@ -305,7 +333,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 			// /__CHECK__ 不记录日志
 			if requestPath != "/__CHECK__" {
-				writeLog("ACCESS", outBytes, outLen, isJson, request, myResponse, &args, &headers, &startTime, authLevel)
+				writeLog("ACCESS", result, outLen, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			}
 		}
 	}
@@ -315,37 +343,48 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 }
 
-func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint) {
+func requireEncryptField(k string) bool {
+	return encryptLogFields[strings.ToLower(strings.Replace(k, "-", "", 3))]
+}
+
+func encryptField(value interface{}) string {
+	v := base.String(value)
+	if len(v) > 12 {
+		return v[0:3] + "***" + v[len(v)-3:]
+	} else if len(v) > 8 {
+		return v[0:2] + "***" + v[len(v)-2:]
+	} else if len(v) > 4 {
+		return v[0:1] + "***" + v[len(v)-1:]
+	} else {
+		return "***"
+	}
+}
+
+func writeLog(logName string, result interface{}, outLen int, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, extraInfo Map) {
 	if config.NoLogGets && request.Method == "GET" {
 		return
 	}
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-	var byteArgs []byte
-	if args != nil {
-		byteArgs, _ = json.Marshal(*args)
-	}
-	var byteHeaders []byte
+	//var byteArgs []byte
+	//if args != nil {
+	//	byteArgs, _ = json.Marshal(*args)
+	//}
+	//var byteHeaders []byte
 	if headers != nil {
-		at := (*headers)["Access-Token"]
-		if at != "" {
-			if len(at) > 6 {
-				(*headers)["Access-Token"] = at[0:3] + "***" + at[len(at)-3:]
-			} else if len(at) > 4 {
-				(*headers)["Access-Token"] = at[0:2] + "***" + at[len(at)-2:]
+		for k, v := range *headers {
+			if requireEncryptField(k) {
+				(*headers)[k] = encryptField(v)
 			}
 		}
-		byteHeaders, _ = json.Marshal(*headers)
+		//byteHeaders, _ = json.Marshal(*headers)
 	}
 
-	if outLen == 0 && outBytes != nil {
-		outLen = len(outBytes)
-	}
 	outHeaders := make(map[string]string)
 	for k, v := range (*response).Header() {
 		if outLen == 0 && k == "Content-Length" {
 			outLen, _ = strconv.Atoi(v[0])
 		}
-		if noLogHeaders[k] {
+		if noLogHeaders[strings.ToLower(k)] {
 			continue
 		}
 		if len(v) > 1 {
@@ -353,15 +392,178 @@ func writeLog(logName string, outBytes []byte, outLen int, isJson bool, request 
 		} else {
 			outHeaders[k] = v[0]
 		}
+
+		if requireEncryptField(k) {
+			outHeaders[k] = encryptField(outHeaders[k])
+		}
 	}
-	byteOutHeaders, _ := json.Marshal(outHeaders)
-	if len(outBytes) > config.LogResponseSize {
-		outBytes = outBytes[0:config.LogResponseSize]
+
+	//var args2 interface{}
+	//if config.NoLogInputFields == false {
+	//	for k, v := range *args {
+	//		if requireEncryptField(k) {
+	//			(*args)[k] = encryptField(v)
+	//		}
+	//
+	//		t := reflect.TypeOf(v)
+	//		for t.Kind() == reflect.Ptr {
+	//			t = t.Elem()
+	//		}
+	//		if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
+	//			if config.LogInputArrayNum == 0 {
+	//				(*args)[k] = fmt.Sprintln(reflect.ValueOf(v).Len(), t.String())
+	//			}
+	//		}
+	//	}
+	//	args2 = makeLogableData(reflect.ValueOf(args), config.LogInputArrayNum).Interface()
+	//}
+
+	//ov := reflect.ValueOf(result)
+	//ot := ov.Type()
+	//for ot.Kind() == reflect.Ptr {
+	//	ot = ot.Elem()
+	//	ov = ov.Elem()
+	//}
+	//if len(logOutputFields) > 0 {
+	//	if ot.Kind() == reflect.Map {
+	//		if requireEncryptField(k) {
+	//			(*args)[k] = encryptField(v)
+	//		}
+	//
+	//		t := reflect.TypeOf(v)
+	//		for t.Kind() == reflect.Ptr {
+	//			t = t.Elem()
+	//		}
+	//		if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
+	//			if config.LogInputArrayNum == 0 {
+	//				(*args)[k] = fmt.Sprintln(reflect.ValueOf(v).Len(), t.String())
+	//			}
+	//		}
+	//	}
+	//
+	//	for k, v := range *args {
+	//	}
+	//	args2 = makeLogableData(reflect.ValueOf(args), config.LogInputArrayNum).Interface()
+	//}
+
+	////byteOutHeaders, _ := json.Marshal(outHeaders)
+	//if outLen > config.LogResponseSize && result != nil {
+	//	//outBytes = outBytes[0:config.LogResponseSize]
+	//	t := reflect.TypeOf(result)
+	//	for t.Kind() == reflect.Ptr {
+	//		t = t.Elem()
+	//	}
+	//	if t.Kind() == reflect.String {
+	//		result = result.(string)[0:config.LogResponseSize]
+	//	} else if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
+	//		result = result.([]byte)[0:config.LogResponseSize]
+	//	} else {
+	//		result = makeLogableData(reflect.ValueOf(result)).Interface()
+	//	}
+	//}
+
+	var args2 interface{}
+	if args != nil {
+		args2 = makeLogableData(reflect.ValueOf(args), nil, config.LogInputArrayNum, 1).Interface()
 	}
-	if !isJson {
-		makePrintable(outBytes)
+	if result != nil {
+		result = makeLogableData(reflect.ValueOf(result), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
 	}
-	log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+
+	if extraInfo == nil {
+		extraInfo = Map{}
+	}
+	extraInfo["type"] = logName
+	extraInfo["ip"] = getRealIp(request)
+	extraInfo["app"] = config.App
+	extraInfo["host"] = request.Host
+	extraInfo["server"] = serverAddr
+	extraInfo["method"] = request.Method
+	extraInfo["uri"] = request.RequestURI
+	extraInfo["authLevel"] = authLevel
+	extraInfo["usedTime"] = usedTime
+	extraInfo["status"] = response.status
+	extraInfo["outLen"] = outLen
+	extraInfo["in"] = args2
+	extraInfo["inHeaders"] = headers
+	extraInfo["out"] = result
+	extraInfo["outHeaders"] = outHeaders
+	extraInfo["proto"] = request.Proto[5:]
+	base.Log("S", extraInfo)
+	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+}
+
+func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, level int) reflect.Value {
+	t := v.Type()
+	if t == nil {
+		return reflect.ValueOf(nil)
+	}
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+		v = v.Elem()
+	}
+
+	switch t.Kind() {
+	case reflect.Struct:
+		v2 := reflect.MakeMap(reflect.TypeOf(Map{}))
+		for i := 0; i < v.NumField(); i++ {
+			k := t.Field(i).Name
+			if level == 1 && allows != nil && (*allows)[strings.ToLower(k)] == false {
+				continue
+			}
+			if requireEncryptField(k) {
+				v2.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(encryptField(v.Interface())))
+			} else {
+				v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), nil, numArrays, level+1))
+			}
+		}
+		return v2
+	case reflect.Map:
+		v2 := reflect.MakeMap(t)
+		for _, mk := range v.MapKeys() {
+			k := mk.String()
+			if allows != nil && (*allows)[strings.ToLower(k)] == false {
+				fmt.Println("	>>", mk, "over")
+				continue
+			}
+			if requireEncryptField(k) {
+				v2.SetMapIndex(mk, reflect.ValueOf(encryptField(v.Interface())))
+			} else {
+				v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, level+1))
+			}
+		}
+		return v2
+	case reflect.Slice:
+		if numArrays == 0 {
+			var tStr string
+			if t.Elem().Kind() == reflect.Interface && v.Len() > 0 {
+				tStr = reflect.TypeOf(v.Index(0).Interface()).String()
+			} else {
+				tStr = t.Elem().String()
+			}
+			return reflect.ValueOf(fmt.Sprintf("%s (%d)", tStr, v.Len()))
+		}
+		v2 := reflect.MakeSlice(reflect.TypeOf(Arr{}), 0, 0)
+		for i := 0; i < v.Len(); i++ {
+			if i >= numArrays {
+				break
+			}
+			v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, level+1))
+		}
+		return v2
+	case reflect.Interface:
+		v2 := reflect.ValueOf(v.Interface())
+		if v2.Kind() == reflect.Invalid {
+			return reflect.ValueOf(nil)
+		}
+		if v2.Type().Kind() != reflect.Interface {
+			return makeLogableData(v2, nil, numArrays, level)
+		} else {
+			return v2
+		}
+	default:
+		return v
+	}
 }
 
 func getRealIp(request *http.Request) string {

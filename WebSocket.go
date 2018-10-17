@@ -2,20 +2,20 @@ package s
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/base"
-	"log"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/s/base"
 )
 
 type websocketServiceType struct {
 	authLevel         uint
+	path              string
 	pathMatcher       *regexp.Regexp
 	pathArgs          []string
 	updater           *websocket.Upgrader
@@ -69,6 +69,7 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 
 	s := new(websocketServiceType)
 	s.authLevel = authLevel
+	s.path = path
 	if updater == nil {
 		s.updater = new(websocket.Upgrader)
 	} else {
@@ -138,7 +139,14 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				log.Print("RegisterWebsocket	Compile	", err)
+				Error("S", Map{
+					"subLogType": "ws",
+					"type":       "compileFailed",
+					"authLevel":  authLevel,
+					"path":       path,
+					"error":      err.Error(),
+				})
+				//log.Print("RegisterWebsocket	Compile	", err)
 			}
 			regexWebsocketServices[path] = s
 		}
@@ -157,6 +165,7 @@ func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, acti
 	if a.funcType != nil {
 		a.parmsNum = a.funcType.NumIn()
 		a.inIndex = -1
+		a.sessionIndex = -1
 		a.clientIndex = -1
 		a.funcValue = reflect.ValueOf(action)
 		for i := 0; i < a.parmsNum; i++ {
@@ -182,9 +191,9 @@ func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
-	byteArgs, _ := json.Marshal(*args)
-	byteHeaders, _ := json.Marshal(*headers)
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel uint, args *map[string]interface{}, headers *map[string]string, startTime *time.Time) {
+	//byteArgs, _ := json.Marshal(*args)
+	//byteHeaders, _ := json.Marshal(*headers)
 
 	message := "OK"
 	client, err := ws.updater.Upgrade(response.writer, request, nil)
@@ -194,10 +203,13 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	}
 
 	if recordLogs {
-		nowTime := time.Now()
-		usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
-		*startTime = nowTime
-		log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%d	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, response.status, message, string(byteArgs), string(byteHeaders), request.Proto)
+		//nowTime := time.Now()
+		//usedTime := float32(nowTime.UnixNano()-startTime.UnixNano()) / 1e6
+		//*startTime = nowTime
+		writeLog("WSOPEN", nil, 0, request, response, args, headers, startTime, authLevel, Map{
+			"message": message,
+		})
+		//log.Printf("WSOPEN	%s	%s	%s	%s	%.6f	%d	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, response.status, message, string(byteArgs), string(byteHeaders), request.Proto)
 	}
 
 	if err == nil {
@@ -231,94 +243,132 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			if len(outs) > 0 {
 				sessionValue = outs[0]
 			}
+		}
 
-			for {
-				msg := new(interface{})
-				err := client.ReadJSON(msg)
+		for {
+			msg := new(interface{})
+			err := client.ReadJSON(msg)
+			if err != nil {
+				break
+			}
+
+			var actionName string
+			var messageData *map[string]interface{}
+			if ws.decoder != nil {
+				actionName, messageData, err = ws.decoder(*msg)
 				if err != nil {
-					break
+					Error("S", Map{
+						"subLogType": "ws",
+						"type":       "readBadMessage",
+						"message":    base.String(*msg)[0:1024],
+						"ip":         getRealIp(request),
+						"method":     request.Method,
+						"host":       request.Host,
+						"uri":        request.RequestURI,
+						"error":      err.Error(),
+					})
+					//log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
 				}
-
-				var actionName string
-				var messageData *map[string]interface{}
-				if ws.decoder != nil {
-					actionName, messageData, err = ws.decoder(*msg)
-					if err != nil {
-						log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
+			} else {
+				actionName = ""
+				mapMsg, isMap := (*msg).(map[string]interface{})
+				if isMap {
+					messageData = &mapMsg
+					if (*messageData)["action"] != "" {
+						actionName = base.String((*messageData)["action"])
 					}
 				} else {
-					actionName = ""
-					mapMsg, isMap := (*msg).(map[string]interface{})
-					if isMap {
-						messageData = &mapMsg
-					} else {
-						messageData = &map[string]interface{}{"data": *msg}
-					}
+					messageData = &map[string]interface{}{"data": *msg}
 				}
+			}
+			// 异步调用 action 处理
+			action := ws.actions[actionName]
+			if action == nil {
+				action = ws.actions[""]
+			}
+			if action == nil {
+				continue
+			}
 
-				// 异步调用 action 处理
-				action := ws.actions[actionName]
-				if action == nil {
-					action = ws.actions[""]
-				}
-				if action == nil {
+			//printableMsg, _ := json.Marshal(messageData)
+			if webSocketActionAuthChecker != nil {
+				if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
+					if recordLogs {
+						logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+						writeLog("WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
+							"inAction":  actionName,
+							"inMessage": logInMsg,
+						})
+						//log.Printf("WSREJECT	%s	%s	%s	%s	%d", getRealIp(request), request.RequestURI, actionName, string(printableMsg), action.authLevel)
+					}
+					response.WriteHeader(403)
 					continue
 				}
-
-				printableMsg, _ := json.Marshal(messageData)
-				if webSocketActionAuthChecker != nil {
-					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
-						if recordLogs {
-							log.Printf("WSREJECT	%s	%s	%s	%s	%d", getRealIp(request), request.RequestURI, actionName, string(printableMsg), action.authLevel)
-						}
-						response.WriteHeader(403)
-						continue
-					}
-				}
-
-				startTime := time.Now()
-				err = doWebsocketAction(ws, action, client, request, messageData, sessionValue)
-				if recordLogs {
-					usedTime := time.Now().UnixNano() - startTime.UnixNano()
-					if err == nil {
-						log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
-					} else {
-						log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
-					}
-				}
 			}
 
-			// 调用 onClose
-			if ws.closeFuncType != nil {
-				var closeParms = make([]reflect.Value, ws.closeParmsNum)
-				if ws.closeSessionIndex >= 0 {
-					closeParms[ws.closeSessionIndex] = sessionValue
-				}
-				if ws.closeClientIndex >= 0 {
-					closeParms[ws.closeClientIndex] = reflect.ValueOf(client)
-				}
-				if ws.closeRequestIndex >= 0 {
-					closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
-				}
-				ws.closeFuncValue.Call(closeParms)
-			}
-
+			actionStartTime := time.Now()
+			outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue)
 			if recordLogs {
-				usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-				log.Printf("WSCLOSE	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
+				//usedTime := time.Now().UnixNano() - actionStartTime.UnixNano()
+				//usedTime := float32(time.Now().UnixNano()-actionStartTime.UnixNano()) / 1e6
+				if err == nil {
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+					if config.LogWebsocketAction {
+						writeLog("WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+							"inAction":   actionName,
+							"inMessage":  logInMsg,
+							"outAction":  outAction,
+							"outMessage": logOutMsg,
+						})
+					}
+					//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
+				} else {
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+					writeLog("WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+						"inAction":   actionName,
+						"inMessage":  logInMsg,
+						"outAction":  outAction,
+						"outMessage": logOutMsg,
+						"error":      err.Error(),
+					})
+					//log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
+				}
 			}
-
 		}
+
+		// 调用 onClose
+		if ws.closeFuncType != nil {
+			var closeParms = make([]reflect.Value, ws.closeParmsNum)
+			if ws.closeSessionIndex >= 0 {
+				closeParms[ws.closeSessionIndex] = sessionValue
+			}
+			if ws.closeClientIndex >= 0 {
+				closeParms[ws.closeClientIndex] = reflect.ValueOf(client)
+			}
+			if ws.closeRequestIndex >= 0 {
+				closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
+			}
+			ws.closeFuncValue.Call(closeParms)
+		}
+
+		if recordLogs {
+			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
+			writeLog("WSCLOSE", nil, 0, request, response, args, headers, startTime, authLevel, nil)
+			//log.Printf("WSCLOSE	%s	%s	%s	%s	%.6f	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, usedTime, message, string(byteArgs), string(byteHeaders), request.Proto)
+		}
+
 	}
 }
 
-func doWebsocketAction(ws *websocketServiceType, action *websocketActionType, client *websocket.Conn, request *http.Request, data *map[string]interface{}, sess reflect.Value) error {
+func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *http.Request, data *map[string]interface{}, sess reflect.Value) (string, interface{}, int, error) {
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
 		err := mapstructure.WeakDecode(*data, in)
 		if err != nil {
-			return err
+			return "", nil, 0, err
 		}
 		messageParms[action.inIndex] = reflect.ValueOf(in).Elem()
 	}
@@ -352,16 +402,47 @@ func doWebsocketAction(ws *websocketServiceType, action *websocketActionType, cl
 	}
 
 	outs := action.funcValue.Call(messageParms)
-	if ws.decoder != nil && len(outs) == 2 {
-		b, err := json.Marshal(ws.encoder(outs[0].String(), outs[1].Interface()))
-		if err != nil {
-			return err
+	var outAction string
+	var outData interface{}
+	var outLen int
+	if len(outs) > 0 {
+		outAction = actionName
+		if len(outs) > 1 {
+			outAction = outs[0].String()
+			outData = outs[1].Interface()
+		} else {
+			outData = outs[0].Interface()
 		}
-		base.FixUpperCase(b)
-		err = client.WriteMessage(websocket.TextMessage, b)
+
+		var outBytes []byte
+		var err error
+		if ws.encoder != nil {
+			outBytes, err = json.Marshal(ws.encoder(outAction, outData))
+		} else {
+			outDataType := reflect.TypeOf(outData)
+			var outDataMap map[string]interface{}
+			if outDataType.Kind() == reflect.Map && outDataType.Elem().Kind() == reflect.Interface {
+				outDataMap = outData.(map[string]interface{})
+			} else if outDataType.Kind() == reflect.Struct {
+				mapstructure.WeakDecode(outData, &outDataMap)
+			} else {
+				outDataMap = map[string]interface{}{}
+				outDataMap["data"] = outData
+			}
+			outDataMap["action"] = outAction
+			outBytes, err = json.Marshal(outDataMap)
+		}
+		outLen = len(outBytes)
+
 		if err != nil {
-			return err
+			return outAction, outData, outLen, err
+		}
+		base.FixUpperCase(outBytes)
+		err = client.WriteMessage(websocket.TextMessage, outBytes)
+		if err != nil {
+			return outAction, outData, outLen, err
 		}
 	}
-	return nil
+
+	return outAction, outData, outLen, nil
 }

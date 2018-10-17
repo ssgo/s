@@ -1,11 +1,12 @@
 package tests
 
 import (
-	".."
-	"github.com/ssgo/base"
-	"github.com/ssgo/discover"
 	"os"
 	"testing"
+
+	".."
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/discover"
 )
 
 func TestRewrite(tt *testing.T) {

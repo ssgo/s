@@ -1,9 +1,10 @@
 package main
 
 import (
-	".."
 	"os"
 	"testing"
+
+	".."
 )
 
 func BenchmarkForHttpClient1(tb *testing.B) {

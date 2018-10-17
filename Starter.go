@@ -1,13 +1,15 @@
 package s
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/ssgo/httpclient"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ssgo/s/httpclient"
 )
 
 type serviceInfoType struct {
@@ -62,6 +64,7 @@ func (si *serviceInfoType) load() {
 }
 
 var serviceInfo serviceInfoType
+var inDocumentMode = false
 
 func init() {
 	// 不切换方便开发，生产环境注意路径，尽量使用绝对路径
@@ -84,6 +87,8 @@ func init() {
 		case "status", "s":
 			statusProcess()
 			os.Exit(0)
+		case "doc":
+			inDocumentMode = true
 		case "check", "c":
 			checkProcess()
 			os.Exit(0)
@@ -111,6 +116,21 @@ func init() {
 
 //func savePid(app string, pid int) {
 //}
+
+func makeDockment(toFile, fromFile string) {
+	if toFile == "" {
+		data, _ := json.MarshalIndent(MakeDocument(), "", "\t")
+		fmt.Println(string(data))
+	} else if strings.HasSuffix(toFile, ".html") {
+		if fromFile == "" {
+			MakeHtmlDocumentFile("Api", toFile)
+		} else {
+			MakeHtmlDocumentFromFile("Api", toFile, fromFile)
+		}
+	} else {
+		MakeJsonDocumentFile(toFile)
+	}
+}
 
 func startProcess() {
 	if serviceInfo.pid > 0 {
