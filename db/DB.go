@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/ssgo/base"
 	"time"
+
+	"github.com/ssgo/s/base"
 )
 
 type dbInfo struct {

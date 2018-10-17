@@ -5,21 +5,22 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/base"
-	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/s/base"
+	"golang.org/x/net/http2"
 )
 
 type ClientPool struct {
 	pool              *http.Client
 	GlobalHeaders     map[string]string
-	XUniqueId       string
+	XUniqueId         string
 	XRealIpName       string
 	XForwardedForName string
 }
@@ -219,7 +220,7 @@ func (rs *Result) ToAction(result interface{}) string {
 	}
 
 	convertBytesToObject(rs.data[resultStart:resultEnd-resultStart], result)
-	return string(rs.data[actionStart: actionEnd-actionStart])
+	return string(rs.data[actionStart : actionEnd-actionStart])
 }
 
 func (rs *Result) To(result interface{}) error {

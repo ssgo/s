@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
 	"net/http"
 	"os"
 	"testing"
+
+	".."
 )
 
 func TestEchos(tt *testing.T) {

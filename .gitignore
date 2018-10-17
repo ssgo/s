@@ -1,0 +1,12 @@
+.idea
+.vscode
+
+debug
+
+*.bak
+
+
+*.o
+*.out
+*.test
+*.exe

@@ -3,11 +3,12 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ssgo/httpclient"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/ssgo/s/httpclient"
 )
 
 type serviceInfoType struct {

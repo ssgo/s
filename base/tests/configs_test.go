@@ -1,8 +1,9 @@
 package base
 
 import (
-	".."
 	"testing"
+
+	".."
 )
 
 func TestForMap(t *testing.T) {

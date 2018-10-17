@@ -2,9 +2,10 @@ package redis
 
 import (
 	"encoding/json"
-	"github.com/ssgo/base"
 	"reflect"
 	"strconv"
+
+	"github.com/ssgo/s/base"
 )
 
 type Result struct {

@@ -1,9 +1,10 @@
 package base
 
 import (
-	"github.com/ssgo/base"
 	"os"
 	"testing"
+
+	"github.com/ssgo/s/base"
 )
 
 func TestForStructWithBadEnv(t *testing.T) {

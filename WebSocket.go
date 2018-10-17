@@ -2,14 +2,15 @@ package s
 
 import (
 	"encoding/json"
-	"github.com/gorilla/websocket"
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/base"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/s/base"
 )
 
 type websocketServiceType struct {

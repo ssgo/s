@@ -1,10 +1,11 @@
 package base
 
 import (
-	".."
+	"math/rand"
 	"testing"
 	"time"
-	"math/rand"
+
+	".."
 )
 
 func TestAes(t *testing.T) {
@@ -23,7 +24,7 @@ func TestAes(t *testing.T) {
 	i := uint64(time.Now().UnixNano())
 	s := base.EncodeInt(i)
 	r := base.DecodeInt(s)
-	if r != i{
+	if r != i {
 		t.Error("Encode/Decode Int failed", i, s, r)
 	}
 
@@ -31,7 +32,7 @@ func TestAes(t *testing.T) {
 	i = rand.Uint64()
 	s = base.EncodeInt(i)
 	r = base.DecodeInt(s)
-	if r != i{
+	if r != i {
 		t.Error("Encode/Decode Int failed", i, s, r)
 	}
 }

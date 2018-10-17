@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/ssgo/base"
 	"reflect"
 	"strings"
+
+	"github.com/ssgo/s/base"
 )
 
 func basePrepare(db *sql.DB, tx *sql.Tx, requestSql string) *Stmt {

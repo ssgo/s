@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
 	"fmt"
 	"testing"
 	"time"
+
+	".."
 )
 
 type userInfo struct {

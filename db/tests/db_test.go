@@ -1,11 +1,12 @@
 package tests
 
-import _ "github.com/go-sql-driver/mysql"
 import (
-	".."
 	"strings"
 	"testing"
 	"time"
+
+	".."
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type userInfo struct {

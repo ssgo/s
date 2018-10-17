@@ -2,13 +2,14 @@ package discover
 
 import (
 	"fmt"
-	redigo "github.com/garyburd/redigo/redis"
-	"github.com/ssgo/redis"
-	"github.com/ssgo/httpclient"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/ssgo/base"
+
+	redigo "github.com/gomodule/redigo/redis"
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/httpclient"
+	"github.com/ssgo/s/redis"
 )
 
 var serverRedisPool *redis.Redis
@@ -440,7 +441,7 @@ func syncDiscover(initedChan chan bool) {
 					base.Log("DC", map[string]interface{}{
 						"type":             "receiveError",
 						"appSubscribeKeys": appSubscribeKeys,
-						"error": v.Error(),
+						"error":            v.Error(),
 					})
 					//log.Printf("REDIS RECEIVE ERROR	%s", v)
 				}

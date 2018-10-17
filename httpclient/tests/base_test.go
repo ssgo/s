@@ -1,8 +1,9 @@
 package tests
 
 import (
-	".."
 	"testing"
+
+	".."
 )
 
 func Hello() string {

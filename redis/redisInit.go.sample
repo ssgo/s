@@ -1,6 +1,6 @@
 package main
 
-import "github.com/ssgo/redis"
+import "github.com/ssgo/s/redis"
 
 func init() {
 	key := []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")

@@ -2,7 +2,8 @@ package discover
 
 import (
 	"net/http"
-	"github.com/ssgo/base"
+
+	"github.com/ssgo/s/base"
 )
 
 type AppClient struct {

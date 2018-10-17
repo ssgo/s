@@ -1,11 +1,12 @@
 package tests
 
 import (
-	".."
-	"github.com/ssgo/httpclient"
 	"net/http"
 	"os"
 	"testing"
+
+	".."
+	"github.com/ssgo/s/httpclient"
 )
 
 func Welcome(in struct{}) string {

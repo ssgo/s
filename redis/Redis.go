@@ -3,12 +3,13 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
-	"github.com/ssgo/base"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
+	"github.com/ssgo/s/base"
 )
 
 type redisConfig struct {

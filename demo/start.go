@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/ssgo/s"
 	"os"
+
+	"github.com/ssgo/s"
 )
 
 func main() {

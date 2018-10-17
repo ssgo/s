@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
-	"github.com/ssgo/base"
 	"os"
 	"testing"
+
+	".."
+	"github.com/ssgo/s/base"
 )
 
 func List(in struct{}) s.Map {

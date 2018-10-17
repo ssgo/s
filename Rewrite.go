@@ -2,13 +2,14 @@ package s
 
 import (
 	"fmt"
-	"github.com/ssgo/base"
-	"github.com/ssgo/httpclient"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/httpclient"
 )
 
 type rewriteInfo struct {

@@ -1,10 +1,9 @@
 package tests
 
 import (
-	".."
-	//"encoding/json"
-	//"fmt"
 	"testing"
+
+	".."
 )
 
 func TestDoc(tt *testing.T) {

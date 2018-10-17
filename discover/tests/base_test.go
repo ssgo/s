@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
-	"testing"
-	"net/http"
 	"net"
+	"net/http"
+	"testing"
+
+	".."
 )
 
 func TestBase(t *testing.T) {
