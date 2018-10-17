@@ -1,0 +1,9 @@
+{
+  "test": {
+    "type": "mysql",
+    "user": "root",
+    "password": "8wv3Kie3Y4nLArmSWs+hng==",
+    "host": "127.0.0.1:3306",
+    "db": "test"
+  },
+}

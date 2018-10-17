@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
-	"github.com/gorilla/websocket"
 	"os"
 	"testing"
+
+	".."
+	"github.com/gorilla/websocket"
 )
 
 func TestEchoWS(tt *testing.T) {

@@ -1,10 +1,11 @@
 package tests
 
 import (
-	".."
 	"fmt"
-	"github.com/gorilla/websocket"
 	"net/http"
+
+	".."
+	"github.com/gorilla/websocket"
 )
 
 type echo1Args struct {

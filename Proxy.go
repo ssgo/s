@@ -3,10 +3,6 @@ package s
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/ssgo/base"
-	"github.com/ssgo/discover"
-	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -15,6 +11,11 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/discover"
+	"golang.org/x/net/http2"
 )
 
 type proxyInfo struct {

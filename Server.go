@@ -3,10 +3,6 @@ package s
 import (
 	"errors"
 	"fmt"
-	"github.com/ssgo/base"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/httpclient"
-	"golang.org/x/net/http2"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/discover"
+	"github.com/ssgo/s/httpclient"
+	"golang.org/x/net/http2"
 )
 
 type Arr = []interface{}

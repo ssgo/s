@@ -4,14 +4,15 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/ssgo/base"
-	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ssgo/s/base"
+	"golang.org/x/net/websocket"
 )
 
 type Response struct {

@@ -1,16 +1,17 @@
 package main
 
 import (
-	".."
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/ssgo/base"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/redis"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+
+	".."
+	"github.com/gorilla/websocket"
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/discover"
+	"github.com/ssgo/s/redis"
 )
 
 func TestBase(tt *testing.T) {

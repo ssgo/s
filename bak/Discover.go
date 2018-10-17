@@ -2,13 +2,14 @@ package s
 
 import (
 	"fmt"
-	redigo "github.com/garyburd/redigo/redis"
-	"github.com/ssgo/redis"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	redigo "github.com/gomodule/redigo/redis"
+	"github.com/ssgo/s/redis"
 )
 
 var dcRedisService *redis.Redis

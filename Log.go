@@ -1,8 +1,9 @@
 package s
 
 import (
-	"github.com/ssgo/base"
 	"strings"
+
+	"github.com/ssgo/s/base"
 )
 
 type LogLevelType int
