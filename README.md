@@ -1,5 +1,7 @@
 # Go的一个服务框架
 
+[![Build Status](https://travis-ci.org/ssgo/s.svg?branch=master)](https://travis-ci.org/ssgo/s)
+
 核心思想是使用 Struct 传入的参数，根据使用需求注入参数
 
 并且能以非常简单的方式快速部署成为微服务群

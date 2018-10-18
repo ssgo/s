@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	".."
+	"github.com/ssgo/s"
 )
 
 func TestDoc(tt *testing.T) {

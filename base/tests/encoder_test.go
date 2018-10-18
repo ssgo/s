@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	".."
+	"github.com/ssgo/s/base"
 )
 
 func TestAes(t *testing.T) {

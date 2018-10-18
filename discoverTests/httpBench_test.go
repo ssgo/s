@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	".."
+	"github.com/ssgo/s"
 )
 
 func BenchmarkForHttpClient1(tb *testing.B) {
