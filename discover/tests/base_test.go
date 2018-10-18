@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	".."
+	"github.com/ssgo/s/discover"
 )
 
 func TestBase(t *testing.T) {

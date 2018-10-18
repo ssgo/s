@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	".."
+	"github.com/ssgo/s"
 	"github.com/ssgo/s/httpclient"
 )
 

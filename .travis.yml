@@ -1,0 +1,37 @@
+language: go
+
+go:
+- "1.11.x"
+
+os:
+- linux
+- osx
+
+env:
+- GO111MODULE=on
+
+# default install is: go get -t ./...
+install: true
+
+# default script is: go test -v ./...
+script:
+# test base
+- cd base/tests && go test && cd ../..
+
+# test httpclient
+- cd httpclient/tests && go test && cd ../..
+
+# test discover, "base_test.go:37: node is nil"
+# - cd discover/tests && go test && cd ../..
+
+# test db, not mock
+#- cd db/tests && go test && cd ../..
+
+# test redis, not mock
+#- cd redis/tests && go test && cd ../..
+
+# test s
+- cd tests && go test && cd ..
+
+# test all, not support for indenpancy tests directory
+# - go test -v ./...

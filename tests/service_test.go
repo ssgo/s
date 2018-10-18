@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	".."
+	"github.com/ssgo/s"
 )
 
 func TestEchos(tt *testing.T) {

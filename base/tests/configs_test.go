@@ -3,7 +3,7 @@ package base
 import (
 	"testing"
 
-	".."
+	"github.com/ssgo/s/base"
 )
 
 func TestForMap(t *testing.T) {

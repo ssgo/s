@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	".."
 	"github.com/gorilla/websocket"
+	"github.com/ssgo/s"
 	"github.com/ssgo/s/base"
 	"github.com/ssgo/s/discover"
 	"github.com/ssgo/s/redis"

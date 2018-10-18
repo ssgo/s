@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	".."
 	"github.com/gorilla/websocket"
+	"github.com/ssgo/s"
 )
 
 func TestEchoWS(tt *testing.T) {

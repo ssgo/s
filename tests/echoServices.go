@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	".."
 	"github.com/gorilla/websocket"
+	"github.com/ssgo/s"
 )
 
 type echo1Args struct {
