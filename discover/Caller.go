@@ -83,12 +83,26 @@ func (caller *Caller) DoWithNode(method, app, withNode, path string, data interf
 			//log.Printf("DISCOVER	Failed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
 			// 错误处理
 			node.FailedTimes++
-			//if node.FailedTimes >= config.CallRetryTimes {
-			//	log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
-			//	if clientRedisPool.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
-			//		clientRedisPool.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
-			//	}
-			//}
+			if node.FailedTimes >= config.CallRetryTimes {
+				base.TraceLog("DC", map[string]interface{}{
+					"type": "removed",
+					"app":   app,
+					"addr":   node.Addr,
+					"path":   path,
+					"weight":   node.Weight,
+					"usedTimes":   node.UsedTimes,
+					"tryTimes":   appClient.tryTimes,
+					"appNum":   len(appNodes[app]),
+					"failedTimes":   node.FailedTimes,
+					"retryLimit":   config.CallRetryTimes,
+					"statusCode":   statusCode,
+					"error":   r.Error,
+				})
+				//log.Printf("DISCOVER	Removed	%s	%s	%d	%d	%d / %d	%d / %d	%d	%s", node.Addr, path, node.Weight, node.UsedTimes, appClient.tryTimes, len(appNodes[app]), node.FailedTimes, config.CallRetryTimes, statusCode, r.Error)
+				if clientRedisPool.HDEL(config.RegistryPrefix+app, node.Addr) > 0 {
+					clientRedisPool.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", node.Addr, 0))
+				}
+			}
 		} else {
 			// 成功
 			return r, node.Addr
