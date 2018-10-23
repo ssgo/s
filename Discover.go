@@ -321,6 +321,34 @@ func pingRedis() {
 		if !syncerRunning {
 			break
 		}
+		if isServer && !serverRedisPool.HEXISTS(config.RegistryPrefix+config.App, myAddr) {
+			base.Log("DC", map[string]interface{}{
+				"type":   "lost",
+				"app":    config.App,
+				"addr":   myAddr,
+				"weight": config.Weight,
+			})
+			// 注册节点
+			if serverRedisPool.HSET(config.RegistryPrefix+config.App, myAddr, config.Weight) {
+				base.Log("DC", map[string]interface{}{
+					"type":   "registered",
+					"app":    config.App,
+					"addr":   myAddr,
+					"weight": config.Weight,
+				})
+				serverRedisPool.Do("PUBLISH", config.RegistryPrefix+"CH_"+config.App, fmt.Sprintf("%s %d", myAddr, config.Weight))
+			} else {
+				base.TraceLog("DC", map[string]interface{}{
+					"type":   "registerFailed",
+					"app":    config.App,
+					"addr":   myAddr,
+					"weight": config.Weight,
+				})
+			}
+		}
+		if !syncerRunning {
+			break
+		}
 	}
 	if pingStopChan != nil {
 		pingStopChan <- true
@@ -440,7 +468,7 @@ func syncDiscover(initedChan chan bool) {
 					base.Log("DC", map[string]interface{}{
 						"type":             "receiveError",
 						"appSubscribeKeys": appSubscribeKeys,
-						"error": v.Error(),
+						"error":            v.Error(),
 					})
 					//log.Printf("REDIS RECEIVE ERROR	%s", v)
 				}
