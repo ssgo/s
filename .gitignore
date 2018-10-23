@@ -6,3 +6,5 @@
 *.test
 *.exe
 debug
+
+*.json

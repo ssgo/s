@@ -25,8 +25,10 @@ type DB struct {
 	Error error
 }
 
-var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
-var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
+// var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
+// var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
+var settedKey = []byte("?GQ$0K0GgLdO=f+~L68PLm$uhKr4'=tV")
+var settedIv = []byte("VFs7@sK61cj^f?HZ")
 var keysSetted = false
 
 func SetEncryptKeys(key, iv []byte) {
