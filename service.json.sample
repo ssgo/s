@@ -21,6 +21,7 @@
   "certFile": "",
   "keyFile": "",
   "registry": "discover:15",
+  "registryAllowTimeout": "discover:15:-1",
   "registryCalls": "discover:15",
   "registryPrefix": "",
   "app": "",
@@ -31,7 +32,7 @@
     "9ifjjabdsadsa": 2
   },
   "calls": {
-    "user": {}
+    "user": {},
     "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2, "withSSL": false}
   },
   "callRetryTimes": 10

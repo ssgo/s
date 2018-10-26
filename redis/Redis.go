@@ -102,6 +102,8 @@ func GetRedis(name string) *Redis {
 					conf.ReadTimeout = arg2
 					conf.WriteTimeout = arg2
 				}
+			} else if arg2 == -1 {
+				conf.ReadTimeout = -1
 			} else {
 				conf.Password = args[i]
 			}
@@ -129,14 +131,20 @@ func GetRedis(name string) *Redis {
 	if conf.Password != "" {
 		decryptedPassword = base.DecryptAes(conf.Password, settedKey, settedIv)
 	}
+	var redisReadTimeout time.Duration
 	conn := &redis.Pool{
 		MaxIdle:     conf.MaxIdles,
 		MaxActive:   conf.MaxActive,
 		IdleTimeout: time.Millisecond * time.Duration(conf.IdleTimeout),
 		Dial: func() (redis.Conn, error) {
+			if conf.ReadTimeout != -1 {
+				redisReadTimeout = time.Millisecond * time.Duration(conf.WriteTimeout)
+			} else {
+				redisReadTimeout = time.Millisecond * time.Duration(0)
+			}
 			c, err := redis.Dial("tcp", conf.Host,
 				redis.DialConnectTimeout(time.Millisecond*time.Duration(conf.ConnTimeout)),
-				redis.DialReadTimeout(time.Millisecond*time.Duration(conf.ReadTimeout)),
+				redis.DialReadTimeout(redisReadTimeout),
 				redis.DialWriteTimeout(time.Millisecond*time.Duration(conf.WriteTimeout)),
 				redis.DialDatabase(conf.DB),
 				redis.DialPassword(decryptedPassword),

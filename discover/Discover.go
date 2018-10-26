@@ -14,6 +14,7 @@ import (
 
 var serverRedisPool *redis.Redis
 var clientRedisPool *redis.Redis
+var pubsubRedisPool *redis.Redis
 var isServer = false
 var isClient = false
 var syncerRunning = false
@@ -133,6 +134,9 @@ func Restart() bool {
 	if clientRedisPool == nil {
 		clientRedisPool = redis.GetRedis(config.RegistryCalls)
 	}
+	if pubsubRedisPool == nil {
+		pubsubRedisPool = redis.GetRedis(config.RegistryAllowTimeout)
+	}
 
 	if isClient == false {
 		isClient = true
@@ -175,7 +179,7 @@ func Restart() bool {
 		initedChan := make(chan bool)
 		go syncDiscover(initedChan)
 		<-initedChan
-		go pingRedis()
+		//go pingRedis()
 		base.Log("DC", map[string]interface{}{
 			"type":             "startedForRestart",
 			"app":              config.App,
@@ -317,7 +321,7 @@ func pingRedis() {
 			break
 		}
 		if syncConn != nil {
-			syncConn.Ping("1")
+			//syncConn.Ping("1")
 		}
 		if !syncerRunning {
 			break
@@ -393,7 +397,7 @@ func fetchApp(app string) {
 func syncDiscover(initedChan chan bool) {
 	inited := false
 	for {
-		syncConn = &redigo.PubSubConn{Conn: clientRedisPool.GetConnection()}
+		syncConn = &redigo.PubSubConn{Conn: pubsubRedisPool.GetConnection()}
 		err := syncConn.Subscribe(appSubscribeKeys...)
 		if err != nil {
 			base.Log("DC", map[string]interface{}{
@@ -443,7 +447,8 @@ func syncDiscover(initedChan chan bool) {
 		// 开始接收订阅数据
 		for {
 			isErr := false
-			switch v := syncConn.Receive().(type) {
+			receiveObj := syncConn.Receive()
+			switch v := receiveObj.(type) {
 			case redigo.Message:
 				a := strings.Split(string(v.Data), " ")
 				addr := a[0]

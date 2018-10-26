@@ -28,36 +28,37 @@ var inited = false
 var running = false
 
 type configInfo struct {
-	Listen             string
-	HttpVersion        int
-	RwTimeout          int
-	KeepaliveTimeout   int
-	CallTimeout        int
-	LogFile            string
-	LogLevel           string
-	NoLogGets          bool
-	NoLogHeaders       string
-	EncryptLogFields   string
-	NoLogInputFields   bool
-	LogInputArrayNum   int
-	LogOutputFields    string
-	LogOutputArrayNum  int
-	LogWebsocketAction bool
-	Compress           bool
-	XUniqueId          string
-	XForwardedForName  string
-	XRealIpName        string
-	CertFile           string
-	KeyFile            string
-	Registry           string
-	RegistryCalls      string
-	RegistryPrefix     string
-	App                string
-	Weight             uint
-	AccessTokens       map[string]*uint
-	AppAllows          []string
-	Calls              map[string]*Call
-	CallRetryTimes     uint8
+	Listen               string
+	HttpVersion          int
+	RwTimeout            int
+	KeepaliveTimeout     int
+	CallTimeout          int
+	LogFile              string
+	LogLevel             string
+	NoLogGets            bool
+	NoLogHeaders         string
+	EncryptLogFields     string
+	NoLogInputFields     bool
+	LogInputArrayNum     int
+	LogOutputFields      string
+	LogOutputArrayNum    int
+	LogWebsocketAction   bool
+	Compress             bool
+	XUniqueId            string
+	XForwardedForName    string
+	XRealIpName          string
+	CertFile             string
+	KeyFile              string
+	Registry             string
+	RegistryAllowTimeout string
+	RegistryCalls        string
+	RegistryPrefix       string
+	App                  string
+	Weight               uint
+	AccessTokens         map[string]*uint
+	AppAllows            []string
+	Calls                map[string]*Call
+	CallRetryTimes       uint8
 }
 
 var config = configInfo{}
@@ -219,6 +220,9 @@ func Init() {
 	if config.Registry == "" {
 		config.Registry = "discover:15"
 	}
+	if config.RegistryAllowTimeout == "" {
+		config.RegistryAllowTimeout = "discover:15:-1"
+	}
 	if config.RegistryCalls == "" {
 		config.RegistryCalls = "discover:15"
 	}
@@ -376,23 +380,23 @@ func start(httpVersion int, as *AsyncServer) error {
 			// 忽略 Docker 私有网段
 			if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
 				ip = an.IP.To4()
-				break
 			}
 		}
 	}
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
 	dconf := discover.Config{
-		Registry:          config.Registry,
-		RegistryPrefix:    config.RegistryPrefix,
-		RegistryCalls:     config.RegistryCalls,
-		App:               config.App,
-		Weight:            config.Weight,
-		CallRetryTimes:    config.CallRetryTimes,
-		XUniqueId:         config.XUniqueId,
-		XForwardedForName: config.XForwardedForName,
-		XRealIpName:       config.XRealIpName,
-		CallTimeout:       config.CallTimeout,
+		Registry:             config.Registry,
+		RegistryAllowTimeout: config.RegistryAllowTimeout,
+		RegistryPrefix:       config.RegistryPrefix,
+		RegistryCalls:        config.RegistryCalls,
+		App:                  config.App,
+		Weight:               config.Weight,
+		CallRetryTimes:       config.CallRetryTimes,
+		XUniqueId:            config.XUniqueId,
+		XForwardedForName:    config.XForwardedForName,
+		XRealIpName:          config.XRealIpName,
+		CallTimeout:          config.CallTimeout,
 	}
 	calls := map[string]*discover.CallInfo{}
 	if config.Calls == nil {
