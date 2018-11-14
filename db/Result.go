@@ -113,6 +113,7 @@ func (r *QueryResult) StringOnR1C1() string {
 }
 
 func (r *QueryResult) makeResults(results interface{}, rows *sql.Rows) error {
+	defer rows.Close()
 	rowType := reflect.TypeOf(results)
 	resultsValue := reflect.ValueOf(results)
 	if rowType.Kind() != reflect.Ptr {

@@ -52,7 +52,16 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		filePath = filePath[len(filePath)-11:]
 	}
 
-	http.ServeFile(response, request, *rootPath+requestPath)
+	//http.ServeFile(response, request, *rootPath+requestPath)
+
+	accEnc := request.Header.Get("Accept-Encoding")
+	if strings.Contains(accEnc, "gzip"){
+		zipWriter := NewGzipResponseWriter(response)
+		http.ServeFile(zipWriter, request, *rootPath+requestPath)
+		zipWriter.Close()
+	}else{
+		http.ServeFile(response, request, *rootPath+requestPath)
+	}
 
 	writeLog("STATIC", nil, 0, request, response, nil, headers, startTime, 0, nil)
 

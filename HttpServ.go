@@ -569,3 +569,33 @@ func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, le
 func getRealIp(request *http.Request) string {
 	return base.StringIf(request.Header.Get(config.XRealIpName) != "", request.Header.Get(config.XRealIpName), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 }
+
+/* ================================================================================= */
+type GzipResponseWriter struct {
+	*Response
+	zipWriter *gzip.Writer
+}
+
+func (gzw *GzipResponseWriter) Write(b []byte) (int, error) {
+	contentLen, err := gzw.zipWriter.Write(b)
+	gzw.zipWriter.Flush()
+	return contentLen, err
+}
+
+func (gzw *GzipResponseWriter) Close(){
+	gzw.zipWriter.Close()
+}
+
+func NewGzipResponseWriter(w *Response)(*GzipResponseWriter){
+	w.Header().Set("Content-Encoding", "gzip")
+
+	gz := gzip.NewWriter(w)
+
+	gzw := GzipResponseWriter{
+		zipWriter: gz,
+		Response: w,
+	}
+
+	return &gzw
+}
+/* ================================================================================= */
