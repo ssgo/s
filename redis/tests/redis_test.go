@@ -2,10 +2,10 @@ package tests
 
 import (
 	"fmt"
+	"github.com/ssgo/s/base"
+	"github.com/ssgo/s/redis"
 	"testing"
 	"time"
-
-	"github.com/ssgo/s/redis"
 )
 
 type userInfo struct {
@@ -13,6 +13,15 @@ type userInfo struct {
 	Name  string
 	Phone string
 	Time  time.Time
+}
+
+func TestMakePasswd(t *testing.T) {
+
+	testString := "hfjyhfjy"
+	var settedKey = []byte("?GQ$0K0GgLdO=f+~L68PLm$uhKr4'=tV")
+	var settedIv = []byte("VFs7@sK61cj^f?HZ")
+	encrypted := base.EncryptAes(testString, settedKey, settedIv)
+	fmt.Println("Redis encrypted password is:" + encrypted)
 }
 
 func TestBase(t *testing.T) {
