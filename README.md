@@ -292,6 +292,7 @@ func showFullName(in struct{ Name string }) (out struct{ FullName string }) {
 	return
 }
 func main() {
+	//demo演示，实际场景不推荐这样配置
 	os.Setenv("service_listen", ":8301")
 	//http://127.0.0.1:8301/api/echo?aaa=1&bbb=2&ccc=3
 	s.Restful(0, "GET", "/api/echo", restAct)
@@ -362,9 +363,9 @@ func main() {
 }
 
 ```
-### 设置响应状态码
+#### 设置响应状态码
 
-使用go原生库自带的response
+使用go标准库自带的response
 
 ```go
 s.Register(1, "/ssdesign", func(response http.ResponseWriter) string {
@@ -421,7 +422,6 @@ func authTest(in actionFilter) actionFilter {
 }
 
 func main() {
-	os.Setenv("service_listen", ":8304")
 	s.Restful(0, "GET", "/auth_test", authTest)
 	s.Restful(1, "POST", "/auth_test", authTest)
 	s.Restful(2, "PUT", "/auth_test", authTest)
@@ -458,7 +458,6 @@ func main() {
 
 ```go
 func main() {
-	os.Setenv("service_listen", ":8305")
 	s.Register(1, "/show", func(in struct{ S1, S2 string }) string {
 		return in.S1 + " " + in.S2
 	})
@@ -499,7 +498,6 @@ func act(req *http.Request, in actIn) actIn {
 
 func main() {
 	s.ResetAllSets()
-	os.Setenv("service_listen", ":8301")
 	//http://127.0.0.1:8301/api/echo?aaa=1&bbb=2&ccc=3
 	s.Restful(0, "GET", "/act/echo", act)
 	s.Restful(1, "POST", "/act/echo", act)
@@ -577,7 +575,7 @@ func main() {
 	})
 	s.Proxy("/proxy/test", "a1", "/serv/provide")
 	s.Proxy("/proxy/(.+?)", "a1", "/serv/$1")
-
+    //demo演示，实际场景不推荐这样配置
 	os.Setenv("SERVICE_APP", "a1")
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"a1_level1": 1, "al_level2": 2}`)
 	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "al_level2", "httpVersion": 1}}`)
