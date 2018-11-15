@@ -60,13 +60,15 @@ go run start.go
 
 ## redis
 
-ssgo依赖redis，所以使用ssgo之前，先要准备一个redis服务，将redis配置到redis.json中
+ssgo依赖redis，所以使用ssgo之前，先要准备一个redis服务
+
+默认使用127.0.0.1:6379，也可以自定义配置redis.json
 
 redis的密码如果不为空，需要使用aes加密后将密文放在配置文件password字段上，保障密码不泄露
 
 #### 密码AES加密
 
-大家可以在github.com/s/redis/tests/redis_test.go中方法MakePasswd()方法中设置密码，跑单元测试：
+可以在github.com/s/redis/tests/redis_test.go中方法MakePasswd()方法中设置密码，跑单元测试：
 
 ```go
 go test -v -run MakePasswd YourSelfPath/redis_test.go
