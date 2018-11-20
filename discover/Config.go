@@ -4,7 +4,7 @@ var config Config
 
 type Config struct {
 	Registry             string               // "127.0.0.1:6379:15"、"127.0.0.1:6379:15:password"
-	RegistryAllowTimeout string               // "127.0.0.1:6379:15:0"、"127.0.0.1:6379:15:password:0"
+	RegistryAllowTimeout string               // "127.0.0.1:6379:15:0"、"127.0.0.1:6379:15:password:-1"
 	RegistryPrefix       string               // ""
 	RegistryCalls        string               // same with RegistryHost
 	App                  string               // register to a app service

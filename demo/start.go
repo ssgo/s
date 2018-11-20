@@ -1,15 +1,15 @@
 package main
 
 import (
-	"os"
-
 	"github.com/ssgo/s"
 )
 
 func main() {
-	os.Setenv("service_listen", ":8801")
-	s.Register(0, "/", func() string {
+	/**s.Register(0, "/", func() string {
 		return "Hello\n"
+	})**/
+	s.Restful(0, "GET", "/hello", func() string {
+		return "Hello ssgo\n"
 	})
-	s.Start()
+	s.Start1()
 }

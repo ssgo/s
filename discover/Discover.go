@@ -52,10 +52,10 @@ func Start(addr string, conf Config) bool {
 	}
 
 	if config.Registry == "" {
-		config.Registry = "127.0.0.1:6379:15"
+		config.Registry = "discover:15"
 	}
 	if config.RegistryCalls == "" {
-		config.RegistryCalls = "127.0.0.1:6379:15"
+		config.RegistryCalls = "discover:15"
 	}
 	if config.CallRetryTimes <= 0 {
 		config.CallRetryTimes = 10
@@ -194,8 +194,6 @@ func Restart() bool {
 
 func Stop() {
 	if isClient {
-		syncerStopChan = make(chan bool)
-		pingStopChan = make(chan bool)
 		syncerRunning = false
 		if syncConn != nil {
 			base.Log("DC", map[string]interface{}{
@@ -226,6 +224,8 @@ func Stop() {
 					"weight":           config.Weight,
 					"appSubscribeKeys": appSubscribeKeys,
 				})
+				syncerStopChan <- true
+				pingStopChan <- true
 				//log.Print("DISCOVER	closed syncConn")
 			}()
 		}

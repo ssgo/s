@@ -137,8 +137,8 @@ func GetRedis(name string) *Redis {
 		MaxActive:   conf.MaxActive,
 		IdleTimeout: time.Millisecond * time.Duration(conf.IdleTimeout),
 		Dial: func() (redis.Conn, error) {
-			if conf.ReadTimeout != -1 {
-				redisReadTimeout = time.Millisecond * time.Duration(conf.WriteTimeout)
+			if conf.ReadTimeout > 0 {
+				redisReadTimeout = time.Millisecond * time.Duration(conf.ReadTimeout)
 			} else {
 				redisReadTimeout = time.Millisecond * time.Duration(0)
 			}
