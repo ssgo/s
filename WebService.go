@@ -207,8 +207,6 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 				}
 			}
 		}
-		if request.RequestURI == "/echo4" {
-		}
 		outs := service.funcValue.Call(parms)
 		if len(outs) > 0 {
 			result = outs[0].Interface()

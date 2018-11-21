@@ -204,11 +204,15 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// POST JSON
-	if request.Body != nil {
+	if request.Body != nil && request.Header.Get("Content-Type") == "application/json" {
 		bodyBytes, _ := ioutil.ReadAll(request.Body)
 		request.Body.Close()
 		if len(bodyBytes) > 1 && bodyBytes[0] == 123 {
 			json.Unmarshal(bodyBytes, &args)
+		} else {
+			var bodyArg interface{}
+			json.Unmarshal(bodyBytes, &bodyArg)
+			args["body"] = bodyArg
 		}
 	}
 
@@ -252,6 +256,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			return
 		}
+	} else {
+		SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
+			settedAuthLevel := config.AccessTokens[request.Header.Get("Access-Token")]
+			//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)
+			return settedAuthLevel != nil && *settedAuthLevel >= authLevel
+		})
 	}
 
 	// 处理 Proxy
@@ -582,20 +592,21 @@ func (gzw *GzipResponseWriter) Write(b []byte) (int, error) {
 	return contentLen, err
 }
 
-func (gzw *GzipResponseWriter) Close(){
+func (gzw *GzipResponseWriter) Close() {
 	gzw.zipWriter.Close()
 }
 
-func NewGzipResponseWriter(w *Response)(*GzipResponseWriter){
+func NewGzipResponseWriter(w *Response) *GzipResponseWriter {
 	w.Header().Set("Content-Encoding", "gzip")
 
 	gz := gzip.NewWriter(w)
 
 	gzw := GzipResponseWriter{
 		zipWriter: gz,
-		Response: w,
+		Response:  w,
 	}
 
 	return &gzw
 }
+
 /* ================================================================================= */

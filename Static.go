@@ -55,11 +55,11 @@ func processStatic(requestPath string, request *http.Request, response *Response
 	//http.ServeFile(response, request, *rootPath+requestPath)
 
 	accEnc := request.Header.Get("Accept-Encoding")
-	if strings.Contains(accEnc, "gzip"){
+	if strings.Contains(accEnc, "gzip") {
 		zipWriter := NewGzipResponseWriter(response)
 		http.ServeFile(zipWriter, request, *rootPath+requestPath)
 		zipWriter.Close()
-	}else{
+	} else {
 		http.ServeFile(response, request, *rootPath+requestPath)
 	}
 

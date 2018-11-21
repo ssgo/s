@@ -51,6 +51,10 @@ func EnableLogs(enabled bool) {
 	enabledLogs = enabled
 }
 
+func MakePasswd(passwd string) string {
+	return base.EncryptAes(passwd, settedKey, settedIv)
+}
+
 var redisConfigs = make(map[string]*redisConfig)
 var redisInstances = make(map[string]*Redis)
 
