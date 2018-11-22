@@ -215,7 +215,7 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
   "rwTimeout": 5000,
   "keepaliveTimeout": 15000,
   "callTimeout": 10000,
-  "logFile": "",//日志文件
+  "logFile": "",
   "logLevel": "info",
   "noLogGets": false,
   "noLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
@@ -319,7 +319,7 @@ export SERVICE_APP =            // 指定应用名称，存在此选项将运行
 export SERVICE_WEIGHT =         // 服务的权重
 export SERVICE_ACCESSTOKENS =   // 设置允许访问该服务的令牌
 export SERVICE_CALLS =          // 设置将会访问的服务，存在此选项将运行在客户模式
-export REDIS_DISCOVER_HOST=     // 设置redis服务地址
+export REDIS_DISCOVER_HOST=     // 设置服务发现redis服务地址
 ```
 
 配置优先级顺序：
@@ -368,7 +368,7 @@ func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Re
 
 ```
 
-## 框架使用
+## 基本使用
 
 #### Restful使用GET、POST、PUT、HEAD、DELETE和OPTIONS
 ```go
