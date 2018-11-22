@@ -62,19 +62,36 @@ go run start.go
 
 ssgo依赖redis，所以使用ssgo之前，先要准备一个redis服务
 
-默认使用127.0.0.1:6379，也可以自定义配置redis.json
+默认使用127.0.0.1:6379，db默认为15，密码默认为空，也可以自定义配置redis.json
 
-redis的密码如果不为空，需要使用aes加密后将密文放在配置文件password字段上，保障密码不泄露
+如果您的redis的密码如果不为空，需要使用aes加密后将密文放在配置文件password字段上，保障密码不泄露
 
-#### 密码AES加密
+#### 密码使用AES加密
 
-可以在github.com/s/redis/tests/redis_test.go中方法MakePasswd()方法中设置密码，跑单元测试：
+可以在github.com/s/redis/tests/redis_test.go中方法MakePasswd()方法中设置密码，跑单元测试
 
 ```go
 go test -v -run MakePasswd YourSelfPath/redis_test.go
 ```
 
-得到AES加密后的密码
+也可以自己构建应用设置密码：
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/ssgo/s/redis"
+)
+
+func main() {
+	testString := "ssgo-test"
+	encrypted := redis.MakePasswd(testString)
+	fmt.Println("Redis encrypted password is:" + encrypted)
+}
+```
+
+得到AES加密后的密码放入配置文件中
 
 ## 服务发现
 
@@ -161,16 +178,16 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 ## 配置
 
-可在项目根目录放置一个 service.json
+可在应用根目录放置一个 service.json
 
 ```json
 {
-  "listen": ":",
-  "httpVersion": 2,
-  "rwTimeout": 5000,
-  "keepaliveTimeout": 15000,
+  "listen": ":",//监听端口号
+  "httpVersion": 2,//使用的http版本
+  "rwTimeout": 5000,//服务读写超时时间 Millisecond
+  "keepaliveTimeout": 15000,//下一个请求最大时长
   "callTimeout": 10000,
-  "logFile": "",
+  "logFile": "",//日志文件
   "logLevel": "info",
   "noLogGets": false,
   "noLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
@@ -204,6 +221,48 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 }
 ```
 
+#### redis配置
+
+redis的使用配置可以放在应用根目录redis.json中
+
+```json
+{
+  "test": {
+    "host": "127.0.0.1:6379",
+    "password": "",
+    "db": 1,
+    "maxActive": 100,
+    "maxIdles": 30,
+    "idleTimeout": 0,
+    "connTimeout": 3000,
+    "readTimeout": 0,
+    "writeTimeout": 0
+  },
+  "discover": {
+    //……
+  }
+}
+```
+
+#### env配置
+
+可以在应用根目录使用env.json综合配置(redis+service)在开发的项目：
+```json
+{
+  "redis":{
+    "discover":{
+      "host":"127.0.0.1:6379",
+      "password":"udigzs+oTp2Kau3Gs20xXQ==",
+      "db":1
+    }
+  },
+  "service":{
+    "app":"e1",
+    "listen":":8081"
+  }
+}
+```
+
 配置内容也可以同时使用环境变量设置（优先级高于配置文件）
 
 例如：
@@ -221,6 +280,19 @@ set service={"listen": ":80", "app": "s1"}
 set service_listen=10.34.22.19:8001
 set service_calls_news_accesstoken=real_token
 ```
+
+具体配置：
+
+```shell
+export SERVICE_REGISTRY =       // 配置注册服务使用的 Redis 连接配置（redis.json 或 环境变量）
+export SERVICE_REGISTRYPREFIX = // 指定一个存储注册信息前缀
+export SERVICE_APP =            // 指定应用名称，存在此选项将运行在服务模式
+export SERVICE_WEIGHT =         // 服务的权重
+export SERVICE_ACCESSTOKENS =   // 设置允许访问该服务的令牌
+export SERVICE_CALLS =          // 设置将会访问的服务，存在此选项将运行在客户模式
+export REDIS_DISCOVER_HOST=     // 设置redis服务地址
+```
+
 配置优先级顺序：
 
 os.setEnv > cli设置环境变量(set/export) > 配置文件
@@ -267,9 +339,9 @@ func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Re
 
 ```
 
-## API Example
+## S框架使用
 
-#### 使用GET、POST、PUT、HEAD、DELETE和OPTIONS
+#### Restful使用GET、POST、PUT、HEAD、DELETE和OPTIONS
 ```go
 
 package main
@@ -333,7 +405,6 @@ Content-Type: application/json
 #### 请求头和响应头
 
 ```go
-
 package main
 
 import (
@@ -372,11 +443,13 @@ func main() {
 ```go
 s.Register(1, "/ssdesign", func(response http.ResponseWriter) string {
 	response.WriteHeader(504)
-    return "gateway timeout"
+	return "gateway timeout"
 })
 ```
 
 #### 文件上传
+
+文件上传使用标准包自带功能
 
 ```go
 // 处理/upload 逻辑
@@ -401,6 +474,8 @@ func upload(w http.ResponseWriter, r *http.Request) {
 ```
 
 #### 过滤器与身份认证
+
+执行先后顺序为：前置过滤器、身份认证、后置过滤器
 
 ```go
 package main
@@ -427,14 +502,14 @@ func main() {
 	s.Restful(0, "GET", "/auth_test", authTest)
 	s.Restful(1, "POST", "/auth_test", authTest)
 	s.Restful(2, "PUT", "/auth_test", authTest)
-
+    //前置过滤器
 	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
 		(*in)["Filter1"] = "see"
 		(*in)["filter2"] = 100
 		(*response).Header().Set("content-type", "application/json")
 		return nil
 	})
-
+    //身份认证
 	s.SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
 		token := request.Header.Get("Token")
 		switch authLevel {
@@ -445,7 +520,7 @@ func main() {
 		}
 		return false
 	})
-
+    //后置过滤器
 	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(actionFilter)
 		data.Filter2 = data.Filter2 + 100
@@ -457,6 +532,8 @@ func main() {
 ```
 
 #### Rewrite
+
+实现对url的重写
 
 ```go
 func main() {
@@ -523,35 +600,9 @@ func main() {
 
 ```
 
-## 服务发现 Discover
-
-基于 Http Header 传递 SessionId（不推荐使用Cookie）
-
-使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
-
-```shell
-export SERVICE_REGISTRY =       // 配置注册服务使用的 Redis 连接配置（redis.json 或 环境变量）
-export SERVICE_REGISTRYPREFIX = // 指定一个存储注册信息前缀
-export SERVICE_APP =            // 指定应用名称，存在此选项将运行在服务模式
-export SERVICE_WEIGHT =         // 服务的权重
-export SERVICE_ACCESSTOKENS =   // 设置允许访问该服务的令牌
-export SERVICE_CALLS =          // 设置将会访问的服务，存在此选项将运行在客户模式
-```
-
-```go
-
-// 调用已注册的服务，根据权重负载均衡
-func (caller *Caller) Get(app, path string, headers ... string) *Result {}
-func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Put(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Head(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Delete(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Do(app, path string, data interface{}, headers ... string) *Result {}
-```
-
 #### proxy
 
-将服务代理为自定义服务，可自定义应用，支持正则表达式
+将服务代理为自定义服务，支持正则表达式
 
 ```go
 
@@ -576,8 +627,8 @@ func main() {
 		return "http code 208"
 	})
 	s.Proxy("/proxy/test", "a1", "/serv/provide")
-	s.Proxy("/proxy/(.+?)", "a1", "/serv/$1")
-    //demo演示，实际场景不推荐这样配置
+	s.Proxy("/proxy/(.+?)", "a1", "/serv/$1") 
+	//demo演示，实际场景不推荐这样配置
 	os.Setenv("SERVICE_APP", "a1")
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"a1_level1": 1, "al_level2": 2}`)
 	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "al_level2", "httpVersion": 1}}`)
@@ -593,7 +644,21 @@ func main() {
 }
 ```
 
-## Websocket
+#### 静态资源
+
+```go
+s.Static("/", "resource")
+s.Start()
+```
+启动服务可以访问站点resource目录下的静态资源
+
+gateway可以通过proxy来实现多个静态服务的负载代理：
+```go
+s.Proxy("/proxy/(.+?)", "k1", "/$1")
+s.Start1()
+```
+
+#### Websocket
 
 一个以Action为处理单位的 Websocket 封装
 
@@ -628,7 +693,7 @@ err = c.ReadJSON(&r)
 c.Close()
 ```
 
-## cookie
+#### cookie
 
 cookie可以使用go标准包http提供的方法，cookie发送给浏览器,即添加一个cookie
 
@@ -680,7 +745,7 @@ func readCookie(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-## SessionKey和SessionInject
+#### SessionKey和SessionInject
 
 ```go
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
@@ -708,7 +773,7 @@ func showFullName(in struct{ Name string },req *http.Request) (out struct{ FullN
 }
 ```
 
-#### session对象注入
+##### session对象注入
 
 使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
 
@@ -718,7 +783,7 @@ s.SetSessionInject(req, aiValue)
 ai := s.GetSessionInject(req, reflect.TypeOf(actionIn{})).(actionIn)
 ```
 
-## 注入
+#### 对象注入
 
 ```go
 // 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
@@ -747,6 +812,27 @@ func main() {
 	s.SetInject(aiValue)
 	//……
 }
+```
+
+#### session会话
+
+基于 Http Header 传递 SessionId（不推荐使用Cookie）
+
+使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
+
+#### 服务调用
+
+服务调用客户端模式
+
+```go
+
+// 调用已注册的服务，根据权重负载均衡
+func (caller *Caller) Get(app, path string, headers ... string) *Result {}
+func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Put(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Head(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Delete(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Do(app, path string, data interface{}, headers ... string) *Result {}
 ```
 
 ## 负载均衡算法
