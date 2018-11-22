@@ -802,9 +802,9 @@ func showFullName(in struct{ Name string },req *http.Request) (out struct{ FullN
 }
 ```
 
-##### session对象注入
-
 使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
+
+session对象注入
 
 ```go
 aiValue := actionIn{2, "so", "cool"}
@@ -842,12 +842,6 @@ func main() {
 	//……
 }
 ```
-
-#### session会话
-
-基于 Http Header 传递 SessionId（不推荐使用Cookie）
-
-使用 SetSession 设置的对象可以在服务方法中直接使用相同类型获得对象，一般是在 AuthChecker 或者 InFilter 中设置
 
 #### 服务调用
 
