@@ -56,11 +56,22 @@ set service_listen=:8080
 go run start.go
 ```
 
-服务默认使用随机端口启动，若要指定端口可设置环境变量，或使用配置文件 /service.json
+服务默认使用随机端口启动，若要指定端口可设置环境变量，或start.go目录下配置文件service.json
+
+```json
+{
+  "app": "s1",
+  "listen":":8081"
+}
+```
+开发时可以使用配置文件
+
+<font color="#FF0000">部署推荐使用容器技术设置环境变量</font>
+
 
 ## redis
 
-ssgo依赖redis，所以使用ssgo之前，先要准备一个redis服务
+框架服务发现机制基于redis实现，所以使用discover之前，先要准备一个redis服务
 
 默认使用127.0.0.1:6379，db默认为15，密码默认为空，也可以自定义配置redis.json
 
@@ -68,11 +79,18 @@ ssgo依赖redis，所以使用ssgo之前，先要准备一个redis服务
 
 #### 密码使用AES加密
 
-可以在github.com/s/redis/tests/redis_test.go中方法MakePasswd()方法中设置密码，跑单元测试
+可以使用github.com/s/redis/tests/redis_test.go中MakePasswd()方法，跑单元测试
 
-```go
-go test -v -run MakePasswd YourSelfPath/redis_test.go
+假设密码为：ssgo-test
+
+```shell
+go test  -v -run MakePasswd YourPath/redis_test.go -args passwd "ssgo-test"
 ```
+
+得到结果：
+
+Redis encrypted `ssgo-test` is:upvNALgTxwS/xUp2Cie4tg==
+
 
 也可以自己构建应用设置密码：
 
@@ -91,7 +109,17 @@ func main() {
 }
 ```
 
-得到AES加密后的密码放入配置文件中
+得到AES加密后的密码放入redis.json中
+
+```json
+{
+  "discover":{
+  "host":"127.0.0.1:6379",
+  "password":"upvNALgTxwS/xUp2Cie4tg==",
+  "db":1
+  }
+}
+```
 
 ## 服务发现
 
@@ -182,10 +210,10 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 ```json
 {
-  "listen": ":",//监听端口号
-  "httpVersion": 2,//使用的http版本
-  "rwTimeout": 5000,//服务读写超时时间 Millisecond
-  "keepaliveTimeout": 15000,//下一个请求最大时长
+  "listen": ":8081",
+  "httpVersion": 2,
+  "rwTimeout": 5000,
+  "keepaliveTimeout": 15000,
   "callTimeout": 10000,
   "logFile": "",//日志文件
   "logLevel": "info",
@@ -239,7 +267,7 @@ redis的使用配置可以放在应用根目录redis.json中
     "writeTimeout": 0
   },
   "discover": {
-    //……
+    "…":"…"
   }
 }
 ```
@@ -247,12 +275,13 @@ redis的使用配置可以放在应用根目录redis.json中
 #### env配置
 
 可以在应用根目录使用env.json综合配置(redis+service)在开发的项目：
+
 ```json
 {
   "redis":{
     "discover":{
       "host":"127.0.0.1:6379",
-      "password":"udigzs+oTp2Kau3Gs20xXQ==",
+      "password":"upvNALgTxwS/xUp2Cie4tg==",
       "db":1
     }
   },
@@ -297,7 +326,7 @@ export REDIS_DISCOVER_HOST=     // 设置redis服务地址
 
 os.setEnv > cli设置环境变量(set/export) > 配置文件
 
-## API
+## 框架常用API
 
 ```go
 // 注册服务
@@ -339,7 +368,7 @@ func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Re
 
 ```
 
-## S框架使用
+## 框架使用
 
 #### Restful使用GET、POST、PUT、HEAD、DELETE和OPTIONS
 ```go

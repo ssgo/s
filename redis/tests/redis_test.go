@@ -2,8 +2,8 @@ package tests
 
 import (
 	"fmt"
-	"github.com/ssgo/s/base"
 	"github.com/ssgo/s/redis"
+	"os"
 	"testing"
 	"time"
 )
@@ -16,12 +16,21 @@ type userInfo struct {
 }
 
 func TestMakePasswd(t *testing.T) {
-
-	testString := "hfjyhfjy"
-	var settedKey = []byte("?GQ$0K0GgLdO=f+~L68PLm$uhKr4'=tV")
-	var settedIv = []byte("VFs7@sK61cj^f?HZ")
-	encrypted := base.EncryptAes(testString, settedKey, settedIv)
-	fmt.Println("Redis encrypted password is:" + encrypted)
+	password := ""
+	encrypted := ""
+	args := os.Args
+	fmt.Println("passwd", args, "length", len(args))
+	for i, arg := range args {
+		if arg == "passwd" {
+			j := i + 1
+			if len(args) > j {
+				password = args[j]
+				encrypted = redis.MakePasswd(password)
+			}
+			break
+		}
+	}
+	fmt.Println("Redis encrypted `" + password + "` is:" + encrypted)
 }
 
 func TestBase(t *testing.T) {
