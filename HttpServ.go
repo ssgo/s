@@ -256,7 +256,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			return
 		}
-	} else {
+	} else if authLevel > 0 {
 		SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
 			settedAuthLevel := config.AccessTokens[request.Header.Get("Access-Token")]
 			//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)

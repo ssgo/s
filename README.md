@@ -104,6 +104,10 @@ import (
 
 func main() {
 	testString := "ssgo-test"
+	// 应用自身自定义key iv
+	// var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
+	// var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
+	// redis.SetEncryptKeys(settedKey, settedIv)
 	encrypted := redis.MakePasswd(testString)
 	fmt.Println("Redis encrypted password is:" + encrypted)
 }
@@ -399,12 +403,12 @@ func main() {
 	os.Setenv("service_listen", ":8301")
 	//http://127.0.0.1:8301/api/echo?aaa=1&bbb=2&ccc=3
 	s.Restful(0, "GET", "/api/echo", restAct)
-	s.Restful(1, "POST", "/api/echo", restAct)
-	s.Restful(2, "PUT", "/api/echo", restAct)
+	s.Restful(0, "POST", "/api/echo", restAct)
+	s.Restful(0, "PUT", "/api/echo", restAct)
 	//HEAD和GET本质一样，区别在于HEAD不含呈现数据，仅仅是HTTP头信息
-	s.Restful(2, "HEAD", "/api/echo", restAct)
-	s.Restful(2, "DELETE", "/api/echo", restAct)
-	s.Restful(2, "OPTIONS", "/api/echo", restAct)
+	s.Restful(0, "HEAD", "/api/echo", restAct)
+	s.Restful(0, "DELETE", "/api/echo", restAct)
+	s.Restful(0, "OPTIONS", "/api/echo", restAct)
 	//传参
 	//http://127.0.0.1:8301/full_name/david
 	s.Restful(0, "GET", "/full_name/{name}", showFullName)
