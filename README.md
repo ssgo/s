@@ -566,10 +566,10 @@ func main() {
 
 ```go
 func main() {
-	s.Register(1, "/show", func(in struct{ S1, S2 string }) string {
+	s.Register(0, "/show", func(in struct{ S1, S2 string }) string {
 		return in.S1 + " " + in.S2
 	})
-	s.Register(1, "/show/{s1}", func(in struct{ S1, S2 string }) string {
+	s.Register(0, "/show/{s1}", func(in struct{ S1, S2 string }) string {
 		return in.S1 + " " + in.S2
 	})
 	s.Rewrite("/r1", "/show")
