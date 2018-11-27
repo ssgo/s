@@ -39,7 +39,7 @@ script:
 - cd httpclient/tests && go test && cd ../..
 
 # test discover, "base_test.go:37: node is nil"
-# - cd discover/tests && go test && cd ../..
+- cd discover/tests && go test && cd ../..
 
 # test db, use travis mysql service
 - cd db/tests && go test && cd ../..
