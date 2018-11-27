@@ -6,7 +6,7 @@ ssgo能以非常简单的方式快速部署成为微服务群
 
 ## 开始使用
 
-如果go version >= 1.11，使用以下命令新建一个项目:
+如果go version >= 1.11，使用以下命令初始化依赖:
 
 ```shell
 go mod init sshow
@@ -278,7 +278,7 @@ redis的使用配置可以放在应用根目录redis.json中
 
 #### env配置
 
-可以在应用根目录使用env.json综合配置(redis+service)在开发的项目：
+可以在应用根目录使用env.json综合配置(redis+service+proxy+db)在开发的项目：
 
 ```json
 {
@@ -330,7 +330,7 @@ export REDIS_DISCOVER_HOST=     // 设置服务发现redis服务地址
 
 os.setEnv > cli设置环境变量(set/export) > 配置文件
 
-## 框架常用API
+## 框架常用方法
 
 ```go
 // 注册服务
@@ -347,6 +347,9 @@ func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request,
 
 // 注册身份认证模块
 func SetAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}) bool) {}
+
+// 设置panic错误处理方法
+func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{})
 
 // 启动HTTP/1.1服务
 func Start1() {}
@@ -638,44 +641,47 @@ func main() {
 将服务代理为自定义服务，支持正则表达式
 
 ```go
-
 func main() {
-	s.Register(2, "/serv/provide", func() (out struct{ Name string }) {
+	s.Register(1, "/serv/provide", func() (out struct{ Name string }) {
 		out.Name = "server here"
 		return
 	})
 	//调用注册的服务
-	s.Register(1, "/serv/gate_get", func(c *discover.Caller) string {
+	s.Register(2, "/serv/gate_get", func(c *discover.Caller) string {
 		r := struct{ Name string }{}
-		c.Get("a1", "/serv/provide").To(&r)
+		c.Get("e1", "/serv/provide").To(&r)
 		return "gate get " + r.Name
 	})
-	s.Register(1, "/serv/gate_put", func(c *discover.Caller) string {
-		r := struct{ Name string }{}
-		c.Put("a1", "/serv/provide", "").To(&r)
-		return "gate put " + r.Name
-	})
-	s.Register(2, "/serv/code", func(response http.ResponseWriter) string {
-		response.WriteHeader(208)
-		return "http code 208"
-	})
-	s.Proxy("/proxy/test", "a1", "/serv/provide")
-	s.Proxy("/proxy/(.+?)", "a1", "/serv/$1") 
-	//demo演示，实际场景不推荐这样配置
-	os.Setenv("SERVICE_APP", "a1")
-	os.Setenv("SERVICE_ACCESSTOKENS", `{"a1_level1": 1, "al_level2": 2}`)
-	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "al_level2", "httpVersion": 1}}`)
+	s.Proxy("/proxy/(.+?)", "e1", "/serv/$1")
+
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	os.Setenv("SERVICE_ACCESSTOKENS", `{"e1_level1": 1, "e1_level2": 2, "e1_level3":3}`)
+	os.Setenv("SERVICE_CALLS", `{"e1": {"accessToken": "e1_level3", "httpVersion": 1}}`)
 	base.ResetConfigEnv()
 	as := s.AsyncStart1()
+	fmt.Println("/serv/provide:")
+	fmt.Println(as.Get("/serv/provide", "Access-Token", "e1_level1"))
+	fmt.Println("/serv/gate_get:")
+	fmt.Println(as.Get("/serv/gate_get", "Access-Token", "e1_level2"))
+	fmt.Println("/proxy/provide:")
+	fmt.Println(as.Get("/proxy/provide", "Access-Token", "e1_level2"))
+	fmt.Println("/proxy/gate_get:")
+	fmt.Println(as.Get("/proxy/gate_get", "Access-Token", "e1_level2"))
 	defer as.Stop()
-
-	fmt.Println("/serv/provide", as.Get("/serv/provide", "Access-Token", "accessToken"))
-	fmt.Println("/serv/gate_get", as.Get("/serv/gate_get", "Access-Token", "accessToken"))
-	fmt.Println("/proxy/test", as.Get("/proxy/test", "Access-Token", "accessToken"))
-	fmt.Println("/proxy/gate_put", as.Get("/proxy/gate_put", "Access-Token", "accessToken"))
-	fmt.Println("/proxy/code", as.Get("/proxy/code", "Access-Token", "accessToken"))
 }
 ```
+
+#### 授权等级
+
+注册服务指定authLevel为0，启动的服务被调用时不需要鉴权，可以直接访问
+
+可以为一个服务指定多个授权等级(1,2,3,4,5,6……)，calls调用方使用服务具备正确的高等级的访问token，可以访问以低授权等级启动的服务
+
+例如：
+
+调用方具备6等级accessToken，对于应用下注册启动的1,2,3,4,5服务默认具备访问权限。具体可查看上面proxy的代码实例
+
+对于不同等级区分鉴权方式，可以查看`setAuthChecker`的代码示例
 
 #### 静态资源
 
@@ -847,7 +853,37 @@ func main() {
 }
 ```
 
-#### 服务调用
+#### panic处理
+
+接受服务方法主动panic的处理，可自定义SetErrorHandle
+
+如果没有自定义errorHandle，可以走框架默认的处理方式，建议自定义SetErrorHandle，设置自身的服务方法的统一panic处理
+
+```go
+func panicFunc() {
+	panic(errors.New("s panic test"))
+}
+
+func main() {
+    s.ResetAllSets()
+    s.Register(0, "/panic_test", panicFunc)
+    
+    s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *http.ResponseWriter) interface{} {
+        return s.Map{"msg": "defined", "code": "30889", "panic": fmt.Sprintf("%s", err)}
+    })
+    as := s.AsyncStart()
+    defer as.Stop()
+    
+    os.Setenv("SERVICE_LOGFILE", os.DevNull)
+    
+    r := as.Get("/panic_test")
+    panicArr := r.Map()
+    
+    fmt.Println(panicArr)	
+}
+```
+
+## 服务调用
 
 服务调用客户端模式
 
@@ -917,7 +953,24 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {}
 
 ```
 
-## Document 使用命令行创建文档（假设编译好的文件为 ./server）
+针对注册好的服务，可轻松实现文档的生成
+
+```go
+s.Register(0, "/show1", show1)
+s.Register(0, "/show2", show2)
+s.Register(0, "/show3", show3)
+s.Register(0, "/show4", show4)
+
+s.MakeHtmlDocumentFile("测试文档", "doc.html")
+```
+
+生成html文档默认使用s框架根目录下的DocTpl.html作为模板，内部采用`{{ }}`标识语法
+
+DocTpl.html可以作为新建模板的参考
+
+#### 使用命令行创建文档
+
+假设编译好的文件为 ./server
 
 ```shell
 // 直接输出 json 格式文档

@@ -36,7 +36,7 @@ var regexWebServices = make([]*webServiceType, 0)
 
 var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
-
+var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
 var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
 var sessionKey string
 var sessionCreator func() string
@@ -158,63 +158,83 @@ func SetAuthChecker(authChecker func(authLevel uint, url *string, in *map[string
 	webAuthChecker = authChecker
 }
 
-func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{}, headers *map[string]string, result interface{}, startTime *time.Time) interface{} {
+func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{}) {
+	errorHandle = myErrorHandle
+}
+
+func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{},
+	headers *map[string]string, result interface{}, startTime *time.Time) (webResult interface{}) {
 	// 反射调用
-	if result == nil {
-		// 生成参数
-		var parms = make([]reflect.Value, service.parmsNum)
-		if service.inType != nil {
-			if service.inType.Kind() == reflect.Map && service.inType.Elem().Kind() == reflect.Interface {
-				parms[service.inIndex] = reflect.ValueOf(args).Elem()
+	if result != nil {
+		return result
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			if errorHandle != nil {
+				webResult = errorHandle(err, request, response)
 			} else {
-				in := reflect.New(service.inType).Interface()
-				mapstructure.WeakDecode(*args, in)
-				parms[service.inIndex] = reflect.ValueOf(in).Elem()
-			}
-		}
-		if service.headersIndex >= 0 {
-			parms[service.headersIndex] = reflect.ValueOf(&request.Header)
-		}
-		if service.requestIndex >= 0 {
-			parms[service.requestIndex] = reflect.ValueOf(request)
-		}
-		if service.responseIndex >= 0 {
-			parms[service.responseIndex] = reflect.ValueOf(*response)
-		}
-		if service.callerIndex >= 0 {
-			caller := &discover.Caller{Request: request}
-			parms[service.callerIndex] = reflect.ValueOf(caller)
-		}
-		for i, parm := range parms {
-			if parm.Kind() == reflect.Invalid {
-				st := service.funcType.In(i)
-				isset := false
-				if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
-					sessObj := GetSessionInject(request, st)
-					if sessObj != nil {
-						parms[i] = reflect.ValueOf(sessObj)
-						isset = true
-					} else {
-						injectObj := GetInject(st)
-						if injectObj != nil {
-							parms[i] = reflect.ValueOf(injectObj)
-							isset = true
-						}
-					}
-				}
-				if isset == false {
-					parms[i] = reflect.New(st).Elem()
+				webResult = Map{
+					"type":   "webServicePanic",
+					"method": request.Method,
+					"panic":  fmt.Sprintf("%s", err),
+					"error":  "errorHandle is undefined.Please use SetErrorHandle.",
 				}
 			}
 		}
-		outs := service.funcValue.Call(parms)
-		if len(outs) > 0 {
-			result = outs[0].Interface()
+	}()
+	// 生成参数
+	var parms = make([]reflect.Value, service.parmsNum)
+	if service.inType != nil {
+		if service.inType.Kind() == reflect.Map && service.inType.Elem().Kind() == reflect.Interface {
+			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
-			result = ""
+			in := reflect.New(service.inType).Interface()
+			mapstructure.WeakDecode(*args, in)
+			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}
-	return result
+	if service.headersIndex >= 0 {
+		parms[service.headersIndex] = reflect.ValueOf(&request.Header)
+	}
+	if service.requestIndex >= 0 {
+		parms[service.requestIndex] = reflect.ValueOf(request)
+	}
+	if service.responseIndex >= 0 {
+		parms[service.responseIndex] = reflect.ValueOf(*response)
+	}
+	if service.callerIndex >= 0 {
+		caller := &discover.Caller{Request: request}
+		parms[service.callerIndex] = reflect.ValueOf(caller)
+	}
+	for i, parm := range parms {
+		if parm.Kind() == reflect.Invalid {
+			st := service.funcType.In(i)
+			isset := false
+			if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+				sessObj := GetSessionInject(request, st)
+				if sessObj != nil {
+					parms[i] = reflect.ValueOf(sessObj)
+					isset = true
+				} else {
+					injectObj := GetInject(st)
+					if injectObj != nil {
+						parms[i] = reflect.ValueOf(injectObj)
+						isset = true
+					}
+				}
+			}
+			if isset == false {
+				parms[i] = reflect.New(st).Elem()
+			}
+		}
+	}
+	outs := service.funcValue.Call(parms)
+	if len(outs) > 0 {
+		webResult = outs[0].Interface()
+	} else {
+		webResult = ""
+	}
+	return
 }
 
 //func makePrintable(data []byte) {

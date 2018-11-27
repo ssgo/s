@@ -33,7 +33,7 @@ func TestBase(tt *testing.T) {
 
 	i := 0
 	s.Register(2, "/dc/s2", func(response http.ResponseWriter) string {
-		i++
+		//i++
 		if i%2 == 1 {
 			response.WriteHeader(502)
 			return ""

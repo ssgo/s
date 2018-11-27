@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -148,6 +150,40 @@ func TestAuth(tt *testing.T) {
 
 	r = as.Get("/echo2", "Token", "bbb")
 	t.Test(r.Response.StatusCode == 200, "Test1", r.Response.StatusCode)
+}
+
+func panicFunc() {
+	panic(errors.New("s panic test"))
+}
+
+func TestPanic(tt *testing.T) {
+	t := s.T(tt)
+	s.ResetAllSets()
+	s.Register(0, "/panic_test", panicFunc)
+	as := s.AsyncStart()
+	defer as.Stop()
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	r := as.Get("/panic_test")
+	panicArr := r.Map()
+	t.Test(r.Response.StatusCode == 200, "Response status code test")
+	t.Test(panicArr["panic"] == "s panic test", "responsePanic test")
+}
+
+func TestSetErrorHandle(tt *testing.T) {
+	t := s.T(tt)
+	s.ResetAllSets()
+	s.Register(0, "/panic_test", panicFunc)
+	s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *http.ResponseWriter) interface{} {
+		return s.Map{"msg": "defined", "code": "30889", "panic": fmt.Sprintf("%s", err)}
+	})
+	as := s.AsyncStart()
+	defer as.Stop()
+	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	r := as.Get("/panic_test")
+	panicArr := r.Map()
+	fmt.Println(panicArr)
+	t.Test(r.Response.StatusCode == 200, "Response status code test")
+	t.Test(panicArr["msg"] == "defined" && panicArr["panic"] == "s panic test" && panicArr["code"] == "30889", "response test")
 }
 
 func BenchmarkEchosForStructWithLog(tb *testing.B) {

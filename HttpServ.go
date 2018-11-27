@@ -210,12 +210,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if len(bodyBytes) > 1 && bodyBytes[0] == 123 {
 			json.Unmarshal(bodyBytes, &args)
 		} else {
-			var bodyArg interface{}
-			json.Unmarshal(bodyBytes, &bodyArg)
-			args["body"] = bodyArg
+			args["body"] = string(bodyBytes)
 		}
 	}
-
 	// SessionId
 	if sessionKey != "" {
 		if request.Header.Get(sessionKey) == "" {
@@ -241,13 +238,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	// 身份认证
 	var authLevel uint = 0
-	if webAuthChecker != nil {
-		if ws != nil {
-			authLevel = ws.authLevel
-		} else if s != nil {
-			authLevel = s.authLevel
+	if ws != nil {
+		authLevel = ws.authLevel
+	} else if s != nil {
+		authLevel = s.authLevel
+	}
+	if authLevel > 0 {
+		if webAuthChecker == nil {
+			SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
+				settedAuthLevel := config.AccessTokens[request.Header.Get("Access-Token")]
+				//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)
+				return settedAuthLevel != nil && *settedAuthLevel >= authLevel
+			})
 		}
-		if authLevel > 0 && webAuthChecker(authLevel, &request.RequestURI, &args, request) == false {
+		if webAuthChecker(authLevel, &request.RequestURI, &args, request) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
@@ -256,12 +260,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			writeLog("REJECT", result, 0, request, myResponse, &args, &logHeaders, &startTime, authLevel, nil)
 			return
 		}
-	} else if authLevel > 0 {
-		SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
-			settedAuthLevel := config.AccessTokens[request.Header.Get("Access-Token")]
-			//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)
-			return settedAuthLevel != nil && *settedAuthLevel >= authLevel
-		})
 	}
 
 	// 处理 Proxy
@@ -298,9 +296,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				break
 			}
 		}
-
 		// 返回结果
 		outType := reflect.TypeOf(result)
+		if outType == nil {
+			return
+		}
 		for outType.Kind() == reflect.Ptr {
 			outType = outType.Elem()
 		}
@@ -533,7 +533,7 @@ func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, le
 		for _, mk := range v.MapKeys() {
 			k := mk.String()
 			if allows != nil && (*allows)[strings.ToLower(k)] == false {
-				fmt.Println("	>>", mk, "over")
+				//fmt.Println("	>>", mk, "over")
 				continue
 			}
 			if requireEncryptField(k) {
@@ -608,5 +608,3 @@ func NewGzipResponseWriter(w *Response) *GzipResponseWriter {
 
 	return &gzw
 }
-
-/* ================================================================================= */

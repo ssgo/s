@@ -203,8 +203,10 @@ func Stop() {
 				"weight":           config.Weight,
 				"appSubscribeKeys": appSubscribeKeys,
 			})
+			tmpConn := syncConn
+			syncConn = nil
 			//log.Print("DISCOVER	unsubscribing	", appSubscribeKeys)
-			syncConn.Unsubscribe(appSubscribeKeys)
+			tmpConn.Unsubscribe(appSubscribeKeys)
 			base.Log("DC", map[string]interface{}{
 				"type":             "closingSyncConn",
 				"app":              config.App,
@@ -213,8 +215,6 @@ func Stop() {
 				"appSubscribeKeys": appSubscribeKeys,
 			})
 			//log.Print("DISCOVER	closing syncConn")
-			tmpConn := syncConn
-			syncConn = nil
 			go func() {
 				tmpConn.Close()
 				base.Log("DC", map[string]interface{}{
@@ -499,8 +499,11 @@ func syncDiscover(initedChan chan bool) {
 
 	if syncConn != nil {
 		syncConn.Unsubscribe(appSubscribeKeys)
-		syncConn.Close()
-		syncConn = nil
+		//考虑goroutine的并发性，再做一次判断
+		if syncConn != nil {
+			syncConn.Close()
+			syncConn = nil
+		}
 	}
 
 	if syncerStopChan != nil {
