@@ -10,8 +10,20 @@ os:
 env:
 - GO111MODULE=on
 
+services:
+- mysql
+
 # default install is: go get -t ./...
-install: true
+install: 
+- if [[ $TRAVIS_OS_NAME == "osx" ]]; then
+    brew update > /dev/null;
+    brew install mysql@5.7;
+    export PATH="/usr/local/opt/mysql@5.7/bin:$PATH";
+    mysql.server start;
+  fi
+
+before_script:
+- mysql -u root -e 'CREATE DATABASE test;'
 
 # default script is: go test -v ./...
 script:
@@ -24,8 +36,8 @@ script:
 # test discover, "base_test.go:37: node is nil"
 # - cd discover/tests && go test && cd ../..
 
-# test db, not mock
-#- cd db/tests && go test && cd ../..
+# test db, use travis mysql service
+- cd db/tests && go test && cd ../..
 
 # test redis, not mock
 #- cd redis/tests && go test && cd ../..

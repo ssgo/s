@@ -69,13 +69,15 @@ func GetDB(name string) *DB {
 		conf.Type = "mysql"
 	}
 	if conf.User == "" {
-		conf.User = "test"
+		conf.User = "root"
 	}
 	if conf.DB == "" {
 		conf.DB = "test"
 	}
-	if conf.Password == "" {
-		conf.Password = "34RVCy0rQBSQmLX64xjoyg=="
+	if conf.Password != "" {
+		conf.Password = base.DecryptAes(conf.Password, settedKey, settedIv)
+	} else {
+		logWarn("password is empty", nil)
 	}
 
 	connectType := "tcp"
@@ -83,7 +85,7 @@ func GetDB(name string) *DB {
 		connectType = "unix"
 	}
 
-	conn, err := sql.Open(conf.Type, fmt.Sprintf("%s:%s@%s(%s)/%s", conf.User, base.DecryptAes(conf.Password, settedKey, settedIv), connectType, conf.Host, conf.DB))
+	conn, err := sql.Open(conf.Type, fmt.Sprintf("%s:%s@%s(%s)/%s", conf.User, conf.Password, connectType, conf.Host, conf.DB))
 	if err != nil {
 		info := fmt.Sprintf("%s:%s***@%s(%s)/%s", conf.User, conf.Password[0:5], connectType, conf.Host, conf.DB)
 		logError(err, &info, nil)

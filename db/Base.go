@@ -143,3 +143,12 @@ func logError(err error, info *string, args []interface{}) {
 		}, "/ssgo/db/")
 	}
 }
+
+func logWarn(info string, args []interface{}) {
+	if enabledLogs {
+		base.TraceLog("DB", map[string]interface{}{
+			"warn": info,
+			"args": args,
+		})
+	}
+}
