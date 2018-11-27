@@ -12,14 +12,19 @@ env:
 
 services:
 - mysql
+- redis-server
 
 # default install is: go get -t ./...
 install: 
 - if [[ $TRAVIS_OS_NAME == "osx" ]]; then
     brew update > /dev/null;
+
     brew install mysql@5.7;
     export PATH="/usr/local/opt/mysql@5.7/bin:$PATH";
     mysql.server start;
+
+    brew install redis;
+    brew services start redis;
   fi
 
 before_script:
@@ -39,11 +44,8 @@ script:
 # test db, use travis mysql service
 - cd db/tests && go test && cd ../..
 
-# test redis, not mock
-#- cd redis/tests && go test && cd ../..
+# test redis, use travis redis service
+- cd redis/tests && go test && cd ../..
 
 # test s
 - cd tests && go test && cd ..
-
-# test all, not support for indenpancy tests directory
-# - go test -v ./...
