@@ -1,6 +1,7 @@
 # Go的一个服务框架
 
 [![Build Status](https://travis-ci.org/ssgo/s.svg?branch=master)](https://travis-ci.org/ssgo/s)
+[![codecov](https://codecov.io/gh/ssgo/s/branch/master/graph/badge.svg)](https://codecov.io/gh/ssgo/s)
 
 ssgo能以非常简单的方式快速部署成为微服务群
 
