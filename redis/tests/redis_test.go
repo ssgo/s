@@ -2,10 +2,11 @@ package tests
 
 import (
 	"fmt"
-	"github.com/ssgo/s/redis"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/ssgo/s/redis"
 )
 
 type userInfo struct {
