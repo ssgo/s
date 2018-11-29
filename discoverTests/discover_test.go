@@ -67,6 +67,12 @@ func TestBase(tt *testing.T) {
 	r0 := as.Get("/dc/s1", "Access-Token", "aabbcc222")
 	t.Test(r0.Error == nil && r0.String() == "{\"name\":\"s1\"}", "Service", r0.Error, r0.String())
 
+	r0 = as.Get("/dc/s1", "Access-Token", "testtest")
+	fmt.Println(r0.Response.StatusCode == 403, "ErrorToken test")
+
+	r0 = as.Get("/dc/s1", "Access-Token", "aabbcc")
+	fmt.Println(r0.Response.StatusCode == 403, "Low authLevel token test")
+
 	r0 = as.Get("/dc/c1", "Access-Token", "aabbcc")
 	t.Test(r0.Error == nil && r0.String() == "s1", "DC", r0.Error, r0.String())
 
