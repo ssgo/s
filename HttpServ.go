@@ -4,15 +4,15 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"github.com/ssgo/s/base"
+	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/ssgo/s/base"
-	"golang.org/x/net/websocket"
 )
 
 type Response struct {
@@ -192,7 +192,22 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 		return
 	}
-
+	//判定是rewrite
+	// rewrite问号后的参数不能被request.Form解析 解析问号后的参数
+	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
+		requestUrl, reqErr := url.Parse(request.RequestURI)
+		if reqErr == nil {
+			queryStringArr, reqErr := url.ParseQuery(requestUrl.RawQuery)
+			if reqErr == nil && len(queryStringArr) > 0 {
+				for paramName, paramValue := range queryStringArr {
+					if len(paramValue) < 1 {
+						continue
+					}
+					args[paramName] = paramValue[0]
+				}
+			}
+		}
+	}
 	// GET POST
 	request.ParseForm()
 	for k, v := range request.Form {

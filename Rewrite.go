@@ -180,7 +180,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				//log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
 			}
 			request.RequestURI = *rewriteToPath
-			if queryString != "" {
+			if queryString != "" && !strings.Contains(request.RequestURI, "?") {
 				request.RequestURI += queryString
 			}
 		}
