@@ -42,14 +42,15 @@ func LoadConfig(name string, conf interface{}) error {
 
 	var file *os.File
 	var err error
-	file, err = os.Open(name + ".json")
-	if err != nil {
-		file, err = os.Open("../" + name + ".json")
+	lenOsArgs := len(os.Args)
+	if lenOsArgs >= 1 {
+		execPath := os.Args[0][0:strings.LastIndex(os.Args[0], string(os.PathSeparator))]
+		file, err = os.Open(execPath + "/" + name + ".json")
+	}
+	if err != nil || lenOsArgs < 1 {
+		file, err = os.Open(name + ".json")
 		if err != nil {
-			if len(os.Args) > 1 {
-				execPath := os.Args[0][0:strings.LastIndex(os.Args[0], string(os.PathSeparator))]
-				file, err = os.Open(execPath + "/" + name + ".json")
-			}
+			file, err = os.Open("../" + name + ".json")
 			if err != nil {
 				u, _ := user.Current()
 				if u != nil {
