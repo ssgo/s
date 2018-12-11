@@ -7,7 +7,7 @@ ssgo能以非常简单的方式快速部署成为微服务群
 
 ## 开始使用
 
-如果go version >= 1.11，使用以下命令初始化依赖:
+如果您的电脑go version >= 1.11，使用以下命令初始化依赖:
 
 ```shell
 go mod init sshow
@@ -67,7 +67,7 @@ go run start.go
 ```
 开发时可以使用配置文件
 
-<font color="#FF0000">部署推荐使用容器技术设置环境变量</font>
+部署推荐使用容器技术设置环境变量
 
 
 ## redis
@@ -197,7 +197,7 @@ windows下使用：
 ```cmd
 set service_app=g1
 set service_listen=:8091
-set service_calls={"s1": {"accessToken": "sltoken"}}
+set service_calls={"s1": {"accessToken": "s1token"}}
 go run gateway.go
 ```
 
@@ -209,127 +209,6 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 所有调用 s1 服务的请求都会自动带上 "sltoken" 这个令牌以获得相应等级的访问权限
 
-## 配置
-
-可在应用根目录放置一个 service.json
-
-```json
-{
-  "listen": ":8081",
-  "httpVersion": 2,
-  "rwTimeout": 5000,
-  "keepaliveTimeout": 15000,
-  "callTimeout": 10000,
-  "logFile": "",
-  "logLevel": "info",
-  "noLogGets": false,
-  "noLogHeaders": "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
-  "encryptLogFields": "password,secure,token,accessToken",
-  "noLogInputFields": false,
-  "logInputArrayNum": 0,
-  "logOutputFields": "code,message",
-  "logOutputArrayNum": 2,
-  "logWebsocketAction": false,
-  "compress": true,
-  "xUniqueId": "X-Unique-Id",
-  "xForwardedForName": "X-Forwarded-For",
-  "xRealIpName": "X-Real-Ip",
-  "certFile": "",
-  "keyFile": "",
-  "registry": "discover:15",
-  "registryCalls": "discover:15",
-  "registryPrefix": "",
-  "app": "",
-  "weight": 1,
-  "accessTokens": {
-    "hasfjlkdlasfsa": 1,
-    "fdasfsadfdsa": 2,
-    "9ifjjabdsadsa": 2
-  },
-  "calls": {
-    "user": {},
-    "news": {"accessToken": "hasfjlkdlasfsa", "timeout": 5000, "httpVersion": 2, "withSSL": false}
-  },
-  "callRetryTimes": 10
-}
-```
-
-#### redis配置
-
-redis的使用配置可以放在应用根目录redis.json中
-
-```json
-{
-  "test": {
-    "host": "127.0.0.1:6379",
-    "password": "",
-    "db": 1,
-    "maxActive": 100,
-    "maxIdles": 30,
-    "idleTimeout": 0,
-    "connTimeout": 3000,
-    "readTimeout": 0,
-    "writeTimeout": 0
-  },
-  "discover": {
-    "…":"…"
-  }
-}
-```
-
-#### env配置
-
-可以在应用根目录使用env.json综合配置(redis+service+proxy+db)在开发的项目：
-
-```json
-{
-  "redis":{
-    "discover":{
-      "host":"127.0.0.1:6379",
-      "password":"upvNALgTxwS/xUp2Cie4tg==",
-      "db":1
-    }
-  },
-  "service":{
-    "app":"e1",
-    "listen":":8081"
-  }
-}
-```
-
-配置内容也可以同时使用环境变量设置（优先级高于配置文件）
-
-例如：
-
-```shell
-export SERVICE='{"listen": ":80", "app": "s1"}'
-export SERVICE_LISTEN=10.34.22.19:8001
-export SERVICE_CALLS_NEWS_ACCESSTOKEN=real_token
-```
-
-windows:
-
-```cmd
-set service={"listen": ":80", "app": "s1"}
-set service_listen=10.34.22.19:8001
-set service_calls_news_accesstoken=real_token
-```
-
-具体配置：
-
-```shell
-export SERVICE_REGISTRY =       // 配置注册服务使用的 Redis 连接配置（redis.json 或 环境变量）
-export SERVICE_REGISTRYPREFIX = // 指定一个存储注册信息前缀
-export SERVICE_APP =            // 指定应用名称，存在此选项将运行在服务模式
-export SERVICE_WEIGHT =         // 服务的权重
-export SERVICE_ACCESSTOKENS =   // 设置允许访问该服务的令牌
-export SERVICE_CALLS =          // 设置将会访问的服务，存在此选项将运行在客户模式
-export REDIS_DISCOVER_HOST=     // 设置服务发现redis服务地址
-```
-
-配置优先级顺序：
-
-os.setEnv > cli设置环境变量(set/export) > 配置文件
 
 ## 框架常用方法
 
@@ -421,7 +300,9 @@ func main() {
 	s.Start1()
 }
 ```
+
 请求例子
+
 ```
 POST http://127.0.0.1:8301/api/echo HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
@@ -439,6 +320,34 @@ Content-Type: application/json
     "ccc": "world"
 }
 ```
+
+#### https
+
+配置https服务需要配置两个环境变量
+
+```shell
+export SERVICE_CERTFILE="your cert file path"
+export SERVICE_KEYFILE="your key file path"
+```
+
+windows下：
+
+```shell
+set service_certfile=D:/server/ssl/xue.hfjy.com.pem
+set service_keyfile=D:/server/ssl/xue.hfjy.com.key
+```
+
+对于上面的restful实例，如果设置为https服务：
+
+请求例子
+
+```
+POST https://127.0.0.1:8301/api/echo HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+aaa=12&bbb=hello&ccc=world
+```
+
 #### 请求头和响应头
 
 ```go
@@ -875,14 +784,258 @@ func main() {
     as := s.AsyncStart()
     defer as.Stop()
     
-    os.Setenv("SERVICE_LOGFILE", os.DevNull)
-    
     r := as.Get("/panic_test")
     panicArr := r.Map()
     
     fmt.Println(panicArr)	
 }
 ```
+
+## 配置
+
+#### 服务配置
+
+可在应用根目录放置一个 service.json
+
+```json
+{
+  "listen": ":8081",
+  "httpVersion": 2,
+  "rwTimeout": 5000,
+  "keepaliveTimeout": 15000,
+  "callTimeout": 10000,
+  "logFile": "",
+  "logLevel": "info",
+  "noLogGets": false,
+  "noLogHeaders": "Accept,Accept-Encoding,Cache-Control,Pragma,Connection",
+  "encryptLogFields": "password,secure,token,accessToken",
+  "noLogInputFields": false,
+  "logInputArrayNum": 0,
+  "logOutputFields": "code,message",
+  "logOutputArrayNum": 2,
+  "logWebsocketAction": false,
+  "compress": true,
+  "xUniqueId": "X-Unique-Id",
+  "xForwardedForName": "X-Forwarded-For",
+  "xRealIpName": "X-Real-Ip",
+  "certFile": "",
+  "keyFile": "",
+  "registry": "discover:15",
+  "registryCalls": "discover:15",
+  "registryPrefix": "",
+  "app": "",
+  "weight": 1,
+  "accessTokens": {
+    "hasfjlkdlasfsa": 1,
+    "fdasfsadfdsa": 2,
+    "9ifjjabdsadsa": 2
+  },
+  "calls": {
+    "user": {},
+    "news": {
+      "accessToken": "hasfjlkdlasfsa",
+      "timeout": 5000,
+      "httpVersion": 2,
+      "withSSL": false
+    }
+  },
+  "callRetryTimes": 10
+}
+```
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
+| listen | string | :8081 | 服务绑定的端口号 |
+| httpVersion | int | 2 | 服务的http版本 |
+| rwTimeout | int<br>毫秒 | 10000 | 服务读写超时时间 |
+| keepaliveTimeout | int<br>毫秒 | 10000 | keepalived激活时连接允许空闲的最大时间<br>如果未设置，默认为15秒 |
+| callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
+| logFile | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
+| logLevel | string | info | 指定的日志输出级别<br />Debug,Info,Warning,Error |
+| httpVersion | int | 2 | 服务的http版本 |
+| noLogGets | bool | false | 为true时屏蔽Get网络请求日志 |
+| noLogHeaders | string | Accept,Accept-Encoding | 日志请求头和响应头屏蔽header头指定字段输出<br />可设置为false |
+| encryptLogFields | string | accessToken | 以***号显示header头敏感信息 <br>默认字段：password,secure,token,accessToken |
+| noLogInputFields | string | accessToken | 日志过滤输入的字段，目前未启用<br>为false代表所有字段都日志打印 |
+| logInputArrayNum | int | 2 | 输入字段子元素（数组）日志打印个数限制<br>默认为0， s.Arr{1, 2, 3}会输出为float64 (3)|
+| logOutputFields | string | code,message | 日志输出的字段白名单<br>默认为false，代表不限制 |
+| logOutputArrayNum | int | 3 | 输出字段子元素（数组）日志打印个数限制<br>默认为0 |
+| logWebsocketAction | bool | false | 是否展示websocket的WSACTION请求日志 |
+| compress | bool | false | 是否开启响应压缩 |
+| xUniqueId | string | X-Unique-Id | 请求id |
+| xForwardedForName | string | X-Forwarded-For | 请求header头中的X-Forwarded-For HTTP请求端真实IP |
+| xRealIpName | string |  X-Real-Ip | http请求机器ip |
+| certFile | string |  | https签名证书文件路径 |
+| keyFile | string |  | https私钥证书文件路径 |
+| registry | string | discover:15 | 服务发现redis的host、密码、数据库、超时时间配置<br>用于服务注册与注销 |
+| registryAllowTimeout | string | discover:15:-1 | 服务发现redis允许超时的访问配置<br />用于服务订阅与取消订阅 |
+| registryCalls | string | discover:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
+| registryPrefix | string | user- | 服务应用名前缀 |
+| app | string | s1 | 可被发现的服务应用名 |
+| weight | int | 2 | 负载均衡服务权重 |
+| accessTokens | map | {"ad2dc32cde9" : 1} | 服务访问通行码，可以根据不同的授权等级设置多个 |
+| appAllows | string |  | 允许访问的服务应用，暂未启用 |
+| calls | map |  | 客户端访问服务的配置<br>"s1":{"accessToken": "hasfjlkdlasfsa","timeout": 5000, "httpVersion": 2,"withSSL": false} |
+| callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
+
+#### redis配置
+
+可在应用根目录放置一个 redis.json
+
+服务发现使用的都是discover模块下的配置
+
+```json
+{
+  "discover": {
+    "host": "127.0.0.1:6379",
+    "password": "",
+    "db": 1,
+    "maxActive": 100,
+    "maxIdles": 30,
+    "idleTimeout": 0,
+    "connTimeout": 3000,
+    "readTimeout": 0,
+    "writeTimeout": 0
+  },
+  "test": {
+    "…":"…"
+  }
+}
+```
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
+| host | string | 127.0.0.1:6379 | host配置 |
+| password | string | 127.0.0.1:6379 | AES加密后的密码 |
+| db | int | 1 | 选择的数据库 |
+| maxActive | int | 1 | 最大连接数<br>默认为0,代表不限制 |
+| maxIdles | int | 10 | 最大空闲连接数，默认为0表示不限制 |
+| idleTimeout | int<br>毫秒 | 10000 | keepalived激活时连接允许空闲的最大时间<br>默认为0，代表不限制 |
+| connTimeout | int<br>毫秒 | 10000 | 连接超时时间，默认为10s |
+| readTimeout | int<br>毫秒 | 10000 | 读超时时间，默认为10s |
+| writeTimeout | int<br>毫秒 | 10000 | 写超时时间，默认为10s |
+
+#### 数据库配置
+
+mysql数据库的配置
+
+```json
+{
+  "test": {
+    "type": "mysql",
+    "user": "test",
+    "password": "34RVCy0rQBSQmLX64xjoyg==",	
+    "host": "/tmp/mysql.sock",
+    "db": "test",
+    "maxOpens": 100,	
+    "maxIdles": 30,
+    "maxLiftTime": 0
+  }
+}
+```
+
+| 配置项| 类型 | 样例数据 | 说明 |
+| ------ | ------ | ------ | ------ | 
+|type|string|mysql|数据库类型|
+|user|string|test|数据库名|
+|password|string|  |经过AES加密的数据库密码|
+|host|string|  |可为sock文件路径或者mysql的地址、端口号|
+|db|string|test|数据库名|
+|maxOpens|int| 100 |最大连接数，0表示不限制|
+|maxIdles|int| 30 |最大空闲连接，0表示不限制|
+|maxLiftTime|int| 0 |每个连接的存活时间，0表示永远|
+
+#### 网关代理配置
+
+```json
+{
+  "checkInterval": 1,
+  "proxies": {
+    "/abc": "k1",
+    "/def":"g1",
+    "/cce":"g1"
+  }
+}
+```
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
+|checkInterval|int<br />|10|每隔配置的秒数到redis中获取最新数据<br>最小配置值为3|
+|proxies|map|{"/abc": "k1"}|路由到应用名的映射|
+
+##### proxies
+
+proxies可以从环境变量、配置文件、redis中来获取。其中redis配置是动态配置，获取redis中`_proxies`的值，动态更新到gateway应用上。
+
+#### env配置
+
+可以在应用根目录使用env.json综合配置(redis+service+proxy+db)服务：
+
+```json
+{
+  "redis":{
+    "discover":{
+      "host":"127.0.0.1:6379",
+      "password":"upvNALgTxwS/xUp2Cie4tg==",
+      "db":1
+    }
+  },
+  "service":{
+    "app":"e1",
+    "listen":":8081"
+  },
+  "db":{
+    "test": {
+      "type": "mysql",
+      "user": "root",
+      "password": "8wv3Kie3Y4nLArmSWs+hng==",
+      "host": "127.0.0.1:3306",
+      "db": "test"
+     }
+  }
+}
+```
+
+env.json的优先级高于其他配置文件。
+
+如果同级目录下同时出现env和server配置文件，env的配置会对server配置进行覆盖。
+
+#### 环境变量
+
+以下是服务配置
+
+```shell
+export SERVICE='{"listen": ":80", "app": "s1"}'
+export SERVICE_LISTEN=10.34.22.19:8001
+export SERVICE_CALLS_NEWS_ACCESSTOKEN=real_token
+```
+
+windows下：
+
+```cmd
+set service={"listen": ":80", "app": "s1"}
+set service_listen=10.34.22.19:8001
+set service_calls_news_accesstoken=real_token
+```
+
+以下是服务发现的配置
+
+```shell
+export REDIS='{"discover":{"host":"127.0.0.1:6379","db":1}}'
+export REDIS_DISCOVER_HOST=127.0.0.1:6379
+export REDIS_DISCOVER_PASSWORD='upvNALgTxwS/xUp2Cie4tg=='
+```
+windows下：
+
+```shell
+set redis={"discover":{"host":"127.0.0.1:6379","db":1}}
+set redis_discover_host=127.0.0.1:6379
+set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
+```
+
+配置优先级顺序：
+
+cli设置环境变量(set/export) > 配置文件
 
 ## 服务调用
 
