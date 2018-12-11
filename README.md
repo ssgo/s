@@ -44,7 +44,6 @@ func main() {
 即可快速构建出一个可运行的服务
 
 ```shell
-export SERVICE_APP=z1
 export SERVICE_LISTEN=:8080
 go run start.go
 ```
@@ -52,7 +51,6 @@ go run start.go
 windows下环境变量不区分大小写，windows下使用：
 
 ```cmd
-set service_app=z1
 set service_listen=:8080
 go run start.go
 ```
@@ -61,7 +59,6 @@ go run start.go
 
 ```json
 {
-  "app": "s1",
   "listen":":8081"
 }
 ```
@@ -106,9 +103,9 @@ import (
 func main() {
 	testString := "ssgo-test"
 	// 应用自身自定义key iv
-	// var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
-	// var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
-	// redis.SetEncryptKeys(settedKey, settedIv)
+	var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
+	var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
+	redis.SetEncryptKeys(settedKey, settedIv)
 	encrypted := redis.MakePasswd(testString)
 	fmt.Println("Redis encrypted password is:" + encrypted)
 }
@@ -125,6 +122,12 @@ func main() {
   }
 }
 ```
+
+#### 自定义加密（强烈推荐）
+
+修改AES的秘钥 key 和偏移量 iv 的内容，长度超过32字节
+
+也可以以其他方式只要在 init 函数中调用 redis.SetEncryptKeys 设置匹配的 key和iv即可
 
 ## 服务发现
 
@@ -851,7 +854,7 @@ func main() {
 | keepaliveTimeout | int<br>毫秒 | 10000 | keepalived激活时连接允许空闲的最大时间<br>如果未设置，默认为15秒 |
 | callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
 | logFile | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
-| logLevel | string | info | 指定的日志输出级别<br />Debug,Info,Warning,Error |
+| logLevel | string | info | 指定的日志输出级别<br />debug,info,warning,error |
 | httpVersion | int | 2 | 服务的http版本 |
 | noLogGets | bool | false | 为true时屏蔽Get网络请求日志 |
 | noLogHeaders | string | Accept,Accept-Encoding | 日志请求头和响应头屏蔽header头指定字段输出<br />可设置为false |
@@ -906,7 +909,7 @@ func main() {
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
 | host | string | 127.0.0.1:6379 | host配置 |
-| password | string | 127.0.0.1:6379 | AES加密后的密码 |
+| password | string |  | AES加密后的密码 |
 | db | int | 1 | 选择的数据库 |
 | maxActive | int | 1 | 最大连接数<br>默认为0,代表不限制 |
 | maxIdles | int | 10 | 最大空闲连接数，默认为0表示不限制 |
@@ -944,6 +947,10 @@ mysql数据库的配置
 |maxOpens|int| 100 |最大连接数，0表示不限制|
 |maxIdles|int| 30 |最大空闲连接，0表示不限制|
 |maxLiftTime|int| 0 |每个连接的存活时间，0表示永远|
+
+数据库密码加密可以保障不泄露，和redis加密方法完全相同
+
+也可以以其他方式只要在 init 函数中调用 db.SetEncryptKeys 设置匹配的 key和iv即可
 
 #### 网关代理配置
 
@@ -1033,7 +1040,16 @@ set redis_discover_host=127.0.0.1:6379
 set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
 ```
 
-配置优先级顺序：
+环境变量单项配置优先级大于总体配置
+
+```shell
+export SERVICE_CALLS='{"k1": {"accessToken": "s1token"}}''
+export SERVICE_CALLS_k1_ACCESSTOKENS=s1-token
+```
+
+SERVICE_CALLS_k1_ACCESSTOKENS的配置会覆盖SERVICE_CALLS对k1服务accessToken的使用
+
+#### 配置优先级顺序
 
 cli设置环境变量(set/export) > 配置文件
 
