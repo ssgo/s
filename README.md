@@ -71,7 +71,7 @@ go run start.go
 
 框架服务发现机制基于redis实现，所以使用discover之前，先要准备一个redis服务
 
-默认使用127.0.0.1:6379，db默认为15，密码默认为空，也可以自定义配置redis.json
+默认使用127.0.0.1:6379，db默认为15，密码默认为空，也可以在项目根目录自定义配置redis.json
 
 如果您的redis的密码如果不为空，需要使用aes加密后将密文放在配置文件password字段上，保障密码不泄露
 
@@ -162,9 +162,9 @@ set service_accesstokens={"s1token":1}
 go run service.go
 ```
 
-该服务工作在认证级别1上，派发了一个令牌 “s1token”，不带该令牌的请求将被拒绝
+Register第一个参数值为1表示该服务工作在认证级别1上，派发了一个令牌 “s1token”，不带该令牌的请求将被拒绝
 
-s.Start() 将会工作在 HTTP/2.0 No SSL 协议上（服务间通讯默认都使用 HTTP/2.0 No SSL 协议）
+s.Start()将会工作在 HTTP/2.0 No SSL 协议上（服务间通讯默认都使用 HTTP/2.0 No SSL 协议）
 
 并且自动连接本机默认的redis服务，并注册一个叫 s1 的服务（如需使用其他可以参考redis的配置）
 
@@ -326,7 +326,7 @@ Content-Type: application/json
 
 #### https
 
-配置https服务需要配置两个环境变量
+配置https服务需要在原来配置基础上增加两个环境变量
 
 ```shell
 export SERVICE_CERTFILE="your cert file path"
@@ -480,6 +480,8 @@ func main() {
 }
 ```
 
+SetAuthChecker方法return false时，请求会返回403状态码，禁止访问
+
 #### Rewrite
 
 实现对url的重写
@@ -588,13 +590,18 @@ func main() {
 
 注册服务指定authLevel为0，启动的服务被调用时不需要鉴权，可以直接访问
 
-可以为一个服务指定多个授权等级(1,2,3,4,5,6……)，calls调用方使用服务具备正确的高等级的访问token，可以访问以低授权等级启动的服务
+可以为一个服务指定多个授权等级(1,2,3,4,5,6……)，具备对应授权等级的accessToken的客户端，有权限访问服务
+
+calls客户端使用服务具备的高等级的访问token，可以访问以低授权等级启动的服务
+
+如果accessToken错误，或者具备小于服务启动授权等级的token，访问服务会被拒绝，返回403
 
 例如：
 
-调用方具备6等级accessToken，对于应用下注册启动的1,2,3,4,5服务默认具备访问权限。具体可查看上面proxy的代码实例
+客户端具备6等级accessToken，对于应用下注册启动的1,2,3,4,5,6服务默认具备访问权限
 
-对于不同等级区分鉴权方式，可以查看`setAuthChecker`的代码示例
+客户端仅具备1等级accessToken，对于应用下注册启动的2,3,4,5,6服务的访问会被拒绝
+
 
 #### 静态资源
 
@@ -920,7 +927,7 @@ func main() {
 
 #### 数据库配置
 
-mysql数据库的配置
+可以在项目根目录放置一个db.json来做mysql数据库的配置
 
 ```json
 {
@@ -953,6 +960,8 @@ mysql数据库的配置
 也可以以其他方式只要在 init 函数中调用 db.SetEncryptKeys 设置匹配的 key和iv即可
 
 #### 网关代理配置
+
+可以在项目根目录放置一个proxy.json来做网关代理配置
 
 ```json
 {
@@ -1043,11 +1052,11 @@ set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
 环境变量单项配置优先级大于总体配置
 
 ```shell
-export SERVICE_CALLS='{"k1": {"accessToken": "s1token"}}''
+export SERVICE_CALLS='{"k1": {"accessToken": "s1token"}}'
 export SERVICE_CALLS_k1_ACCESSTOKENS=s1-token
 ```
 
-SERVICE_CALLS_k1_ACCESSTOKENS的配置会覆盖SERVICE_CALLS对k1服务accessToken的使用
+SERVICE_CALLS_k1_ACCESSTOKENS的配置会覆盖SERVICE_CALLS对k1服务accessToken的配置
 
 #### 配置优先级顺序
 
