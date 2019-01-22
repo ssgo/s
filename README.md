@@ -14,6 +14,8 @@ go mod init sshow
 go mod tidy
 ```
 
+sshow是新建的项目名称
+
 1、项目建立之后，下载并安装s
 
 ```shell
@@ -62,6 +64,7 @@ go run start.go
   "listen":":8081"
 }
 ```
+
 开发时可以使用配置文件
 
 部署推荐使用容器技术设置环境变量
@@ -336,8 +339,8 @@ export SERVICE_KEYFILE="your key file path"
 windows下：
 
 ```shell
-set service_certfile=D:/server/ssl/xue.hfjy.com.pem
-set service_keyfile=D:/server/ssl/xue.hfjy.com.key
+set service_certfile=D:/server/ssl/your.pem
+set service_keyfile=D:/server/ssl/your.key
 ```
 
 对于上面的restful实例，如果设置为https服务：
