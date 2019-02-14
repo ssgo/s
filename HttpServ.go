@@ -203,14 +203,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 					if len(paramValue) < 1 {
 						continue
 					}
-					args[paramName] = paramValue[0]
+					if len(paramValue) > 1 {
+						args[paramName] = paramValue
+					} else {
+						args[paramName] = paramValue[0]
+					}
+
 				}
 			}
 		}
 	}
 	// GET POST
 	request.ParseForm()
-	for k, v := range request.Form {
+	reqForm := request.Form
+	for k, v := range reqForm {
 		if len(v) > 1 {
 			args[k] = v
 		} else {
@@ -219,13 +225,23 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// POST JSON
-	if request.Body != nil && request.Header.Get("Content-Type") == "application/json" {
+	if request.Body != nil {
 		bodyBytes, _ := ioutil.ReadAll(request.Body)
 		request.Body.Close()
-		if len(bodyBytes) > 1 && bodyBytes[0] == 123 {
+		contentType := request.Header.Get("Content-Type")
+		if len(bodyBytes) > 1 && bodyBytes[0] == 123 && contentType == "application/json" {
 			json.Unmarshal(bodyBytes, &args)
-		} else {
-			args["body"] = string(bodyBytes)
+		} else if contentType == "application/x-www-form-urlencoded" {
+			argsBody, err := url.ParseQuery(string(bodyBytes))
+			if err == nil && len(argsBody) > 0 {
+				for aKey, aBody := range argsBody {
+					if len(aBody) > 1 {
+						args[aKey] = aBody
+					} else {
+						args[aKey] = aBody[0]
+					}
+				}
+			}
 		}
 	}
 	// SessionId
