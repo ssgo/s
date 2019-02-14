@@ -942,7 +942,7 @@ func main() {
     "db": "test",
     "maxOpens": 100,	
     "maxIdles": 30,
-    "maxLiftTime": 0
+    "maxLifeTime": 0
   }
 }
 ```
@@ -956,7 +956,7 @@ func main() {
 |db|string|test|数据库名|
 |maxOpens|int| 100 |最大连接数，0表示不限制|
 |maxIdles|int| 30 |最大空闲连接，0表示不限制|
-|maxLiftTime|int| 0 |每个连接的存活时间，0表示永远|
+|maxLifeTime|int| 0 |每个连接的存活时间，0表示永远|
 
 数据库密码加密可以保障不泄露，和redis加密方法完全相同
 
