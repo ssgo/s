@@ -2,14 +2,15 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/log"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/ssgo/s/base"
-	"github.com/ssgo/s/httpclient"
+	"github.com/ssgo/httpclient"
+	"github.com/ssgo/utility"
 )
 
 type rewriteInfo struct {
@@ -33,7 +34,7 @@ func setRewrite(path string, toPath string, httpVersion int) {
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			Error("S", Map{
+			log.Error("S", Map{
 				"subLogType":  "rewrite",
 				"type":        "compileFailed",
 				"fromPath":    path,
@@ -121,10 +122,10 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				request.Body.Close()
 			}
 			if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
-				clientForRewrite1 = httpclient.GetClient(time.Duration(config.CallTimeout) * time.Millisecond)
+				clientForRewrite1 = httpclient.GetClient(time.Duration(conf.CallTimeout) * time.Millisecond)
 			}
 			if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
-				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(config.CallTimeout) * time.Millisecond)
+				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(conf.CallTimeout) * time.Millisecond)
 			}
 			requestHeaders := make([]string, 0)
 			if rewriteHeaders != nil {
@@ -132,7 +133,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 					requestHeaders = append(requestHeaders, k, v)
 				}
 			}
-			c := base.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
+			c := utility.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
 			r := c.DoByRequest(request, request.Method, *rewriteToPath, bodyBytes, requestHeaders...)
 
 			var statusCode int
@@ -165,7 +166,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 		} else {
 			// 直接修改内部跳转地址
 			if recordLogs {
-				Info("S", Map{
+				log.Info("S", Map{
 					"subLogType":     "rewrite",
 					"type":           "compileFailed",
 					"fromPath":       request.RequestURI,

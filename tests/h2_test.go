@@ -3,8 +3,8 @@ package tests
 import (
 	"testing"
 
+	"github.com/ssgo/httpclient"
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/httpclient"
 )
 
 func Hello() string {

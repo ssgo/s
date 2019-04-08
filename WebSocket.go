@@ -2,6 +2,7 @@ package s
 
 import (
 	"encoding/json"
+	"github.com/ssgo/log"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/s/base"
+	"github.com/ssgo/utility"
 )
 
 type websocketServiceType struct {
@@ -139,7 +140,7 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				Error("S", Map{
+				log.Error("S", Map{
 					"subLogType": "ws",
 					"type":       "compileFailed",
 					"authLevel":  authLevel,
@@ -257,10 +258,10 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			if ws.decoder != nil {
 				actionName, messageData, err = ws.decoder(*msg)
 				if err != nil {
-					Error("S", Map{
+					log.Error("S", Map{
 						"subLogType": "ws",
 						"type":       "readBadMessage",
-						"message":    base.String(*msg)[0:1024],
+						"message":    utility.String(*msg)[0:1024],
 						"ip":         getRealIp(request),
 						"method":     request.Method,
 						"host":       request.Host,
@@ -275,7 +276,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if isMap {
 					messageData = &mapMsg
 					if (*messageData)["action"] != "" {
-						actionName = base.String((*messageData)["action"])
+						actionName = utility.String((*messageData)["action"])
 					}
 				} else {
 					messageData = &map[string]interface{}{"data": *msg}
@@ -294,7 +295,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			if webSocketActionAuthChecker != nil {
 				if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
 					if recordLogs {
-						logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+						logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
 						writeLog("WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
 							"inAction":  actionName,
 							"inMessage": logInMsg,
@@ -312,9 +313,9 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				//usedTime := time.Now().UnixNano() - actionStartTime.UnixNano()
 				//usedTime := float32(time.Now().UnixNano()-actionStartTime.UnixNano()) / 1e6
 				if err == nil {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
-					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
-					if config.LogWebsocketAction {
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
+					if conf.LogWebsocketAction {
 						writeLog("WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
 							"inAction":   actionName,
 							"inMessage":  logInMsg,
@@ -324,8 +325,8 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 					}
 					//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
 				} else {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
-					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
 					writeLog("WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
 						"inAction":   actionName,
 						"inMessage":  logInMsg,
@@ -437,7 +438,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 		if err != nil {
 			return outAction, outData, outLen, err
 		}
-		base.FixUpperCase(outBytes)
+		utility.FixUpperCase(outBytes)
 		err = client.WriteMessage(websocket.TextMessage, outBytes)
 		if err != nil {
 			return outAction, outData, outLen, err

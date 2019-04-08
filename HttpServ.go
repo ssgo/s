@@ -4,7 +4,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/ssgo/s/base"
+	"github.com/ssgo/log"
+	"github.com/ssgo/utility"
 	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"net/http"
@@ -91,11 +92,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
-	if request.Header.Get(config.XUniqueId) == "" {
-		request.Header.Set(config.XUniqueId, base.UniqueId())
+	if request.Header.Get(conf.XUniqueId) == "" {
+		request.Header.Set(conf.XUniqueId, utility.UniqueId())
 		// 在没有 X-Unique-Id 的情况下忽略 X-Real-Ip
-		if request.Header.Get(config.XRealIpName) != "" {
-			request.Header.Del(config.XRealIpName)
+		if request.Header.Get(conf.XRealIpName) != "" {
+			request.Header.Del(conf.XRealIpName)
 		}
 	}
 
@@ -249,7 +250,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if request.Header.Get(sessionKey) == "" {
 			var newSessionid string
 			if sessionCreator == nil {
-				newSessionid = base.UniqueId()
+				newSessionid = utility.UniqueId()
 			} else {
 				newSessionid = sessionCreator()
 			}
@@ -277,8 +278,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if authLevel > 0 {
 		if webAuthChecker == nil {
 			SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
-				settedAuthLevel := config.AccessTokens[request.Header.Get("Access-Token")]
-				//log.Println(" ***** ", request.Header.Get("Access-Token"), config.AccessTokens[request.Header.Get("Access-Token")], authLevel)
+				settedAuthLevel := conf.AccessTokens[request.Header.Get("Access-Token")]
+				//log.Println(" ***** ", request.Header.Get("Access-Token"), conf.AccessTokens[request.Header.Get("Access-Token")], authLevel)
 				return settedAuthLevel != nil && *settedAuthLevel >= authLevel
 			})
 		}
@@ -345,7 +346,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		isZipOuted := false
-		if config.Compress && len(outBytes) > 1024 && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+		if conf.Compress && len(outBytes) > 1024 && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 			zipWriter, err := gzip.NewWriterLevel(response, 1)
 			if err == nil {
 				response.Header().Set("Content-Encoding", "gzip")
@@ -389,7 +390,7 @@ func requireEncryptField(k string) bool {
 }
 
 func encryptField(value interface{}) string {
-	v := base.String(value)
+	v := utility.String(value)
 	if len(v) > 12 {
 		return v[0:3] + "***" + v[len(v)-3:]
 	} else if len(v) > 8 {
@@ -402,7 +403,7 @@ func encryptField(value interface{}) string {
 }
 
 func writeLog(logName string, result interface{}, outLen int, request *http.Request, response *Response, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, authLevel uint, extraInfo Map) {
-	if config.NoLogGets && request.Method == "GET" {
+	if conf.NoLogGets && request.Method == "GET" {
 		return
 	}
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
@@ -440,7 +441,7 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	}
 
 	//var args2 interface{}
-	//if config.NoLogInputFields == false {
+	//if conf.NoLogInputFields == false {
 	//	for k, v := range *args {
 	//		if requireEncryptField(k) {
 	//			(*args)[k] = encryptField(v)
@@ -451,12 +452,12 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	//			t = t.Elem()
 	//		}
 	//		if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
-	//			if config.LogInputArrayNum == 0 {
+	//			if conf.LogInputArrayNum == 0 {
 	//				(*args)[k] = fmt.Sprintln(reflect.ValueOf(v).Len(), t.String())
 	//			}
 	//		}
 	//	}
-	//	args2 = makeLogableData(reflect.ValueOf(args), config.LogInputArrayNum).Interface()
+	//	args2 = makeLogableData(reflect.ValueOf(args), conf.LogInputArrayNum).Interface()
 	//}
 
 	//ov := reflect.ValueOf(result)
@@ -476,7 +477,7 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	//			t = t.Elem()
 	//		}
 	//		if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
-	//			if config.LogInputArrayNum == 0 {
+	//			if conf.LogInputArrayNum == 0 {
 	//				(*args)[k] = fmt.Sprintln(reflect.ValueOf(v).Len(), t.String())
 	//			}
 	//		}
@@ -484,20 +485,20 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	//
 	//	for k, v := range *args {
 	//	}
-	//	args2 = makeLogableData(reflect.ValueOf(args), config.LogInputArrayNum).Interface()
+	//	args2 = makeLogableData(reflect.ValueOf(args), conf.LogInputArrayNum).Interface()
 	//}
 
 	////byteOutHeaders, _ := json.Marshal(outHeaders)
-	//if outLen > config.LogResponseSize && result != nil {
-	//	//outBytes = outBytes[0:config.LogResponseSize]
+	//if outLen > conf.LogResponseSize && result != nil {
+	//	//outBytes = outBytes[0:conf.LogResponseSize]
 	//	t := reflect.TypeOf(result)
 	//	for t.Kind() == reflect.Ptr {
 	//		t = t.Elem()
 	//	}
 	//	if t.Kind() == reflect.String {
-	//		result = result.(string)[0:config.LogResponseSize]
+	//		result = result.(string)[0:conf.LogResponseSize]
 	//	} else if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
-	//		result = result.([]byte)[0:config.LogResponseSize]
+	//		result = result.([]byte)[0:conf.LogResponseSize]
 	//	} else {
 	//		result = makeLogableData(reflect.ValueOf(result)).Interface()
 	//	}
@@ -505,10 +506,10 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 
 	var args2 interface{}
 	if args != nil {
-		args2 = makeLogableData(reflect.ValueOf(args), nil, config.LogInputArrayNum, 1).Interface()
+		args2 = makeLogableData(reflect.ValueOf(args), nil, conf.LogInputArrayNum, 1).Interface()
 	}
 	if result != nil {
-		result = makeLogableData(reflect.ValueOf(result), &logOutputFields, config.LogOutputArrayNum, 1).Interface()
+		result = makeLogableData(reflect.ValueOf(result), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
 	}
 
 	if extraInfo == nil {
@@ -516,7 +517,7 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	}
 	extraInfo["type"] = logName
 	extraInfo["ip"] = getRealIp(request)
-	extraInfo["app"] = config.App
+	extraInfo["app"] = conf.App
 	extraInfo["host"] = request.Host
 	extraInfo["server"] = serverAddr
 	extraInfo["method"] = request.Method
@@ -530,8 +531,8 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	extraInfo["out"] = result
 	extraInfo["outHeaders"] = outHeaders
 	extraInfo["proto"] = request.Proto[5:]
-	base.Log("S", extraInfo)
-	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), base.StringIf(config.App != "", config.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+	log.Info("S", extraInfo)
+	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), utility.StringIf(conf.App != "", conf.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
 }
 
 func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, level int) reflect.Value {
@@ -608,7 +609,7 @@ func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, le
 }
 
 func getRealIp(request *http.Request) string {
-	return base.StringIf(request.Header.Get(config.XRealIpName) != "", request.Header.Get(config.XRealIpName), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	return utility.StringIf(request.Header.Get(conf.XRealIpName) != "", request.Header.Get(conf.XRealIpName), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 }
 
 /* ================================================================================= */

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/ssgo/s/httpclient"
+	"github.com/ssgo/httpclient"
 )
 
 func BenchmarkForDiscover(tb *testing.B) {

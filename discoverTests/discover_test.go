@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
+	"github.com/ssgo/config"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/redis"
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/base"
-	"github.com/ssgo/s/discover"
-	"github.com/ssgo/s/redis"
 )
 
 func TestBase(tt *testing.T) {
@@ -55,7 +55,7 @@ func TestBase(tt *testing.T) {
 	os.Setenv("SERVICE_WEIGHT", "100")
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
 	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "aabbcc222", "httpVersion": 1}}`)
-	base.ResetConfigEnv()
+	config.ResetConfigEnv()
 	as := s.AsyncStart1()
 
 	addr2 := "127.0.0.1:" + strings.Split(as.Addr, ":")[1]

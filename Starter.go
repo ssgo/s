@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ssgo/s/httpclient"
+	"github.com/ssgo/httpclient"
 )
 
 type serviceInfoType struct {

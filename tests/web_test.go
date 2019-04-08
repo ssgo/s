@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ssgo/httpclient"
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/httpclient"
 )
 
 func Welcome(in struct{}) string {

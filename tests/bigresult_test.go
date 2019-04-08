@@ -1,11 +1,11 @@
 package tests
 
 import (
+	"github.com/ssgo/utility"
 	"os"
 	"testing"
 
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/base"
 )
 
 func List(in struct{}) s.Map {
@@ -34,7 +34,7 @@ func makeItemA() ItemA {
 }
 func makeItemB() ItemB {
 	return ItemB{
-		Password: base.Rander.Int(),
+		Password: utility.GlobalRand1.Int(),
 	}
 }
 

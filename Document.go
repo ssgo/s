@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ssgo/log"
 	"html/template"
 	"os"
 	"os/user"
 	"reflect"
 	"strings"
 
-	"github.com/ssgo/s/base"
+	"github.com/ssgo/utility"
 )
 
 type Api struct {
@@ -64,8 +65,8 @@ func MakeDocument() []Api {
 			Path:      a.path,
 			AuthLevel: a.authLevel,
 			Method:    a.method,
-			In:        base.If(a.inType != nil, getType(a.inType), ""),
-			Out:       base.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        utility.If(a.inType != nil, getType(a.inType), ""),
+			Out:       utility.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
 		}
 		out = append(out, api)
 	}
@@ -76,8 +77,8 @@ func MakeDocument() []Api {
 			Path:      a.path,
 			AuthLevel: a.authLevel,
 			Method:    a.method,
-			In:        base.If(a.inType != nil, getType(a.inType), ""),
-			Out:       base.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        utility.If(a.inType != nil, getType(a.inType), ""),
+			Out:       utility.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
 		}
 		out = append(out, api)
 	}
@@ -94,18 +95,18 @@ func MakeDocument() []Api {
 			Type:      "WebSocket",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
-			In:        base.If(a.openInType != nil, getType(a.openInType), ""),
-			Out:       base.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
+			In:        utility.If(a.openInType != nil, getType(a.openInType), ""),
+			Out:       utility.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
 		}
 		out = append(out, api)
 
 		for actionName, action := range a.actions {
 			api := Api{
 				Type:      "Action",
-				Path:      base.StringIf(actionName != "", actionName, "*"),
+				Path:      utility.StringIf(actionName != "", actionName, "*"),
 				AuthLevel: action.authLevel,
-				In:        base.If(action.inType != nil, getType(action.inType), ""),
-				Out:       base.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
+				In:        utility.If(action.inType != nil, getType(action.inType), ""),
+				Out:       utility.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
 			}
 			out = append(out, api)
 		}
@@ -121,10 +122,16 @@ func MakeJsonDocumentFile(file string) {
 		data, err = json.MarshalIndent(MakeDocument(), "", "\t")
 	}
 	if err == nil {
-		fp.Write(data)
-		fp.Close()
+		_, err = fp.Write(data)
+		if err != nil {
+			log.Error("error", err)
+		}
+		err = fp.Close()
+		if err != nil {
+			log.Error("error", err)
+		}
 	} else {
-		fmt.Println(err)
+		log.Error("error", err)
 	}
 }
 
@@ -150,9 +157,9 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 					if gopath == "" {
 						gopath = u.HomeDir + "/go/"
 					}
-					realFromFile = gopath + "/src/github.com/ssgo/s/" + fromFile
+					realFromFile = gopath + "/src/github.com/ssgo/" + fromFile
 					if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-						Error("S", Map{
+						log.Error("S", Map{
 							"subLogType": "document",
 							"message":    "template file is bad",
 							"error":      err.Error(),
@@ -167,7 +174,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
 	_, err := t.ParseFiles(realFromFile)
 	if err != nil {
-		Error("S", Map{
+		log.Error("S", Map{
 			"subLogType": "document",
 			"message":    "template file is bad",
 			"error":      err.Error(),
@@ -177,21 +184,31 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 
 	if toFile == "" {
 		buf := bytes.NewBuffer(make([]byte, 0))
-		t.Execute(buf, data)
+		err = t.Execute(buf, data)
+		if err != nil {
+			log.Error("error", err)
+		}
 		return buf.String()
 	} else {
 		fp, err := os.OpenFile(toFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			Error("S", Map{
+			log.Error("S", Map{
 				"subLogType": "document",
 				"message":    "dst file is bad",
 				"error":      err.Error(),
 			})
 			return ""
 		}
-		defer fp.Close()
 
-		t.ExecuteTemplate(fp, fromFile, data)
+		err = t.ExecuteTemplate(fp, fromFile, data)
+		if err != nil {
+			log.Error("error", err)
+		}
+
+		err = fp.Close()
+		if err != nil {
+			log.Error("error", err)
+		}
 		return ""
 	}
 }

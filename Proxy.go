@@ -3,6 +3,7 @@ package s
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/ssgo/log"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -13,8 +14,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/ssgo/s/base"
-	"github.com/ssgo/s/discover"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/utility"
 	"golang.org/x/net/http2"
 )
 
@@ -41,7 +42,7 @@ func Proxy(path string, toApp, toPath string) {
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			Error("S", Map{
+			log.Error("S", Map{
 				"type":    "Proxy",
 				"message": "compile field",
 				"error":   err.Error(),
@@ -105,9 +106,9 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	//}
 
 	// 注册新的Call，并重启订阅
-	if config.Calls[*proxyToApp] == nil {
+	if conf.Calls[*proxyToApp] == nil {
 		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
-		Info("S", Map{
+		log.Info("S", Map{
 			"subLogType": "proxy",
 			"type":       "addApp",
 			"app":        proxyToApp,
@@ -116,12 +117,12 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 			"method":     request.Method,
 			"uri":        request.RequestURI,
 		})
-		config.Calls[*proxyToApp] = &Call{HttpVersion: 2}
+		conf.Calls[*proxyToApp] = &Call{HttpVersion: 2}
 		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
 		discover.Restart()
 	}
 
-	appConf := config.Calls[*proxyToApp]
+	appConf := conf.Calls[*proxyToApp]
 	requestHeaders := make([]string, 0)
 	if proxyHeaders != nil {
 		for k, v := range *proxyHeaders {
@@ -132,12 +133,12 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	if appConf != nil && appConf.AccessToken != "" {
 		requestHeaders = append(requestHeaders, "Access-Token", appConf.AccessToken)
 	}
-	uniqueId := request.Header.Get(config.XUniqueId)
-	if request.Header.Get(config.XUniqueId) != "" {
-		requestHeaders = append(requestHeaders, config.XUniqueId, uniqueId)
+	uniqueId := request.Header.Get(conf.XUniqueId)
+	if request.Header.Get(conf.XUniqueId) != "" {
+		requestHeaders = append(requestHeaders, conf.XUniqueId, uniqueId)
 	}
-	requestHeaders = append(requestHeaders, config.XRealIpName, getRealIp(request))
-	requestHeaders = append(requestHeaders, config.XForwardedForName, request.Header.Get(config.XForwardedForName)+base.StringIf(request.Header.Get(config.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	requestHeaders = append(requestHeaders, conf.XRealIpName, getRealIp(request))
+	requestHeaders = append(requestHeaders, conf.XForwardedForName, request.Header.Get(conf.XForwardedForName)+utility.StringIf(request.Header.Get(conf.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 
 	outLen := 0
 	var outBytes []byte
@@ -193,7 +194,7 @@ var updater = websocket.Upgrader{}
 func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf *Call) int {
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
-		Error("S", Map{
+		log.Error("S", Map{
 			"subLogType": "proxy",
 			"type":       "upgradeFailed",
 			"app":        app,
@@ -226,7 +227,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		}
 		u, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
 		if err != nil {
-			Error("S", Map{
+			log.Error("S", Map{
 				"subLogType": "proxy",
 				"type":       "parsingFailed",
 				"app":        app,
@@ -266,7 +267,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		dialer := websocket.Dialer{}
 		dstConn, dstResponse, err := dialer.Dial(u.String(), sendHeader)
 		if err != nil {
-			Error("S", Map{
+			log.Error("S", Map{
 				"subLogType": "proxy",
 				"type":       "connectFailed",
 				"app":        app,
@@ -294,7 +295,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				mt, message, err := dstConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						Error("S", Map{
+						log.Error("S", Map{
 							"subLogType": "proxy",
 							"type":       "readingFailed",
 							"app":        app,
@@ -313,7 +314,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				totalOutLen += len(message)
 				err = srcConn.WriteMessage(mt, message)
 				if err != nil {
-					Error("S", Map{
+					log.Error("S", Map{
 						"subLogType": "proxy",
 						"type":       "writingFailed",
 						"app":        app,
@@ -338,7 +339,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				mt, message, err := srcConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						Error("S", Map{
+						log.Error("S", Map{
 							"subLogType": "proxy",
 							"type":       "closingFailed",
 							"app":        app,
@@ -356,7 +357,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				}
 				err = dstConn.WriteMessage(mt, message)
 				if err != nil {
-					Error("S", Map{
+					log.Error("S", Map{
 						"subLogType": "proxy",
 						"type":       "writingFailed",
 						"app":        app,
@@ -395,7 +396,7 @@ func proxyWebRequestReverse(app, path string, request *http.Request, response *R
 		node.UsedTimes++
 
 		rp := &httputil.ReverseProxy{Director: func(req *http.Request) {
-			req.URL.Scheme = base.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
+			req.URL.Scheme = utility.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
 			if request.TLS != nil {
 				req.URL.Scheme += "s"
 			}

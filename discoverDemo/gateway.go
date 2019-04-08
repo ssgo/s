@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/ssgo/discover"
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/discover"
 )
 
 func getInfo(in struct{ Name string }, c *discover.Caller) (out struct{ FullName string }) {

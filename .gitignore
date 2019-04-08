@@ -1,10 +1,2 @@
-.idea
-.vscode
-
-*.o
-*.out
-*.test
-*.exe
-debug
-
-*.json
+.*
+go.sum

@@ -3,6 +3,7 @@ package s
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ssgo/log"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -10,8 +11,8 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/s/base"
-	"github.com/ssgo/s/discover"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/utility"
 )
 
 type webServiceType struct {
@@ -100,7 +101,7 @@ func Register(authLevel uint, path string, serviceFunc interface{}) {
 func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		Error("S", Map{
+		log.Error("S", Map{
 			"subLogType": "web",
 			"type":       "registerFailed",
 			"authLevel":  authLevel,
@@ -126,7 +127,7 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				Error("S", Map{
+				log.Error("S", Map{
 					"subLogType": "web",
 					"type":       "compileFailed",
 					"authLevel":  authLevel,
@@ -299,6 +300,6 @@ func makeBytesResult(data interface{}) []byte {
 			bytesResult = []byte("{}")
 		}
 	}
-	base.FixUpperCase(bytesResult)
+	utility.FixUpperCase(bytesResult)
 	return bytesResult
 }

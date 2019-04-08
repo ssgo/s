@@ -1,12 +1,12 @@
 package tests
 
 import (
+	"github.com/ssgo/config"
 	"os"
 	"testing"
 
+	"github.com/ssgo/discover"
 	"github.com/ssgo/s"
-	"github.com/ssgo/s/base"
-	"github.com/ssgo/s/discover"
 )
 
 func TestRewrite(tt *testing.T) {
@@ -32,7 +32,7 @@ func TestRewrite(tt *testing.T) {
 	s.Rewrite("/r6/(.+?)/(.+?)", "/show/$1/$2")
 
 	os.Setenv("SERVICE_LISTEN", ":18811")
-	base.ResetConfigEnv()
+	config.ResetConfigEnv()
 	s.Init()
 	as := s.AsyncStart()
 	defer as.Stop()
