@@ -3,6 +3,7 @@ package tests
 import (
 	"errors"
 	"fmt"
+	"github.com/ssgo/u"
 	"net/http"
 	"os"
 	"testing"
@@ -164,9 +165,7 @@ func TestPanic(tt *testing.T) {
 	defer as.Stop()
 	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	r := as.Get("/panic_test")
-	panicArr := r.Map()
-	t.Test(r.Response.StatusCode == 200, "Response status code test")
-	t.Test(panicArr["panic"] == "s panic test", "responsePanic test")
+	t.Test(r.Response.StatusCode == s.ResponseCodePanicError, "Response status code test")
 }
 
 func TestSetErrorHandle(tt *testing.T) {
@@ -174,16 +173,18 @@ func TestSetErrorHandle(tt *testing.T) {
 	s.ResetAllSets()
 	s.Register(0, "/panic_test", panicFunc)
 	s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *http.ResponseWriter) interface{} {
-		return s.Map{"msg": "defined", "code": "30889", "panic": fmt.Sprintf("%s", err)}
+		out := s.Map{"message": "defined", "code": 30889, "panic": fmt.Sprintf("%s", err)}
+		(*rsp).Write([]byte(u.String(out)))
+		return out
 	})
 	as := s.AsyncStart()
 	defer as.Stop()
 	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	r := as.Get("/panic_test")
 	panicArr := r.Map()
-	fmt.Println(panicArr)
+	//fmt.Println(panicArr)
 	t.Test(r.Response.StatusCode == 200, "Response status code test")
-	t.Test(panicArr["msg"] == "defined" && panicArr["panic"] == "s panic test" && panicArr["code"] == "30889", "response test")
+	t.Test(panicArr["message"] == "defined" && panicArr["panic"] == "s panic test" && u.Int(panicArr["code"]) == 30889, "response test")
 }
 
 func BenchmarkEchosForStructWithLog(tb *testing.B) {

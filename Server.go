@@ -85,7 +85,7 @@ func SetChecker(ck func(request *http.Request) bool) {
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	if request.Header.Get("Pid") != strconv.Itoa(serviceInfo.pid) {
-		response.WriteHeader(591)
+		response.WriteHeader(ResponseCodeHeartbeatPidError)
 		return
 	}
 
@@ -97,12 +97,12 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	}
 
 	if ok {
-		response.WriteHeader(299)
+		response.WriteHeader(ResponseCodeHeartbeatSucceed)
 	} else {
 		if !running {
-			response.WriteHeader(592)
+			response.WriteHeader(ResponseCodeServiceNotRunning)
 		} else {
-			response.WriteHeader(593)
+			response.WriteHeader(ResponseCodeHeartbeatFailed)
 		}
 	}
 }

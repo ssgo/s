@@ -41,7 +41,7 @@ func makeItemB() ItemB {
 func TestList(tt *testing.T) {
 	t := s.T(tt)
 
-	os.Setenv("service_logOutputFields", "code,list")
+	os.Setenv("service_logOutputFields", "code,message,list")
 	s.ResetAllSets()
 	s.Register(0, "/list", List)
 	as := s.AsyncStart()

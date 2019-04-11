@@ -165,20 +165,6 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	if result != nil {
 		return result
 	}
-	defer func() {
-		if err := recover(); err != nil {
-			if errorHandle != nil {
-				webResult = errorHandle(err, request, response)
-			} else {
-				webResult = Map{
-					"type":   "webServicePanic",
-					"method": request.Method,
-					"panic":  fmt.Sprintf("%s", err),
-					"error":  "errorHandle is undefined.Please use SetErrorHandle.",
-				}
-			}
-		}
-	}()
 	// 生成参数
 	var parms = make([]reflect.Value, service.parmsNum)
 	if service.inType != nil {

@@ -263,6 +263,29 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
+	// 身份认证
+	var authLevel uint = 0
+	if ws != nil {
+		authLevel = ws.authLevel
+	} else if s != nil {
+		authLevel = s.authLevel
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			var out interface{}
+			if errorHandle != nil {
+				out = errorHandle(err, request, &response)
+			} else {
+				response.WriteHeader(ResponseCodePanicError)
+				out = ""
+			}
+			writeLog("PANIC", out, myResponse.outLen, request, myResponse, &args, &logHeaders, &startTime, authLevel, Map{
+				"error": err,
+			})
+		}
+	}()
+
 	// 前置过滤器
 	var result interface{} = nil
 	for _, filter := range inFilters {
@@ -270,14 +293,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if result != nil {
 			break
 		}
-	}
-
-	// 身份认证
-	var authLevel uint = 0
-	if ws != nil {
-		authLevel = ws.authLevel
-	} else if s != nil {
-		authLevel = s.authLevel
 	}
 	if authLevel > 0 {
 		if webAuthChecker == nil {
@@ -526,7 +541,7 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	if extraInfo == nil {
 		extraInfo = Map{}
 	}
-	//extraInfo["type"] = logName
+	extraInfo["type"] = logName
 	//extraInfo["ip"] = getRealIp(request)
 	//extraInfo["app"] = conf.App
 	//extraInfo["host"] = request.Host
@@ -579,7 +594,6 @@ func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, le
 		for _, mk := range v.MapKeys() {
 			k := mk.String()
 			if allows != nil && (*allows)[strings.ToLower(k)] == false {
-				//fmt.Println("	>>", mk, "over")
 				continue
 			}
 			if requireEncryptField(k) {
