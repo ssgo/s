@@ -11,7 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/utility"
+	"github.com/ssgo/u"
 )
 
 type websocketServiceType struct {
@@ -141,11 +141,9 @@ func RegisterWebsocket(authLevel uint, path string, updater *websocket.Upgrader,
 			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
 			if err != nil {
 				log.Error("S", Map{
-					"subLogType": "ws",
-					"type":       "compileFailed",
-					"authLevel":  authLevel,
-					"path":       path,
-					"error":      err.Error(),
+					"authLevel": authLevel,
+					"path":      path,
+					"error":     "websocket compile failed: " + err.Error(),
 				})
 				//log.Print("RegisterWebsocket	Compile	", err)
 			}
@@ -259,14 +257,12 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				actionName, messageData, err = ws.decoder(*msg)
 				if err != nil {
 					log.Error("S", Map{
-						"subLogType": "ws",
-						"type":       "readBadMessage",
-						"message":    utility.String(*msg)[0:1024],
-						"ip":         getRealIp(request),
-						"method":     request.Method,
-						"host":       request.Host,
-						"uri":        request.RequestURI,
-						"error":      err.Error(),
+						"message": u.String(*msg)[0:1024],
+						"ip":      getRealIp(request),
+						"method":  request.Method,
+						"host":    request.Host,
+						"uri":     request.RequestURI,
+						"error":   "websocket read message: " + err.Error(),
 					})
 					//log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
 				}
@@ -276,7 +272,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if isMap {
 					messageData = &mapMsg
 					if (*messageData)["action"] != "" {
-						actionName = utility.String((*messageData)["action"])
+						actionName = u.String((*messageData)["action"])
 					}
 				} else {
 					messageData = &map[string]interface{}{"data": *msg}
@@ -438,7 +434,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 		if err != nil {
 			return outAction, outData, outLen, err
 		}
-		utility.FixUpperCase(outBytes)
+		u.FixUpperCase(outBytes)
 		err = client.WriteMessage(websocket.TextMessage, outBytes)
 		if err != nil {
 			return outAction, outData, outLen, err

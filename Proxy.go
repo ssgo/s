@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/ssgo/log"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -15,7 +17,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
-	"github.com/ssgo/utility"
 	"golang.org/x/net/http2"
 )
 
@@ -43,9 +44,8 @@ func Proxy(path string, toApp, toPath string) {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
 			log.Error("S", Map{
-				"type":    "Proxy",
-				"message": "compile field",
-				"error":   err.Error(),
+				"error": "proxy compile field: " + err.Error(),
+				"expr":  "^" + path + "$",
 			})
 		} else {
 			p.matcher = matcher
@@ -109,13 +109,12 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	if conf.Calls[*proxyToApp] == nil {
 		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
 		log.Info("S", Map{
-			"subLogType": "proxy",
-			"type":       "addApp",
-			"app":        proxyToApp,
-			"ip":         getRealIp(request),
-			"host":       request.Host,
-			"method":     request.Method,
-			"uri":        request.RequestURI,
+			"info":   "add app on proxy",
+			"app":    proxyToApp,
+			"ip":     getRealIp(request),
+			"host":   request.Host,
+			"method": request.Method,
+			"uri":    request.RequestURI,
 		})
 		conf.Calls[*proxyToApp] = &Call{HttpVersion: 2}
 		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
@@ -129,16 +128,50 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 			requestHeaders = append(requestHeaders, k, v)
 		}
 	}
-	requestHeaders = append(requestHeaders, "Host", request.Host)
+
 	if appConf != nil && appConf.AccessToken != "" {
 		requestHeaders = append(requestHeaders, "Access-Token", appConf.AccessToken)
 	}
-	uniqueId := request.Header.Get(conf.XUniqueId)
-	if request.Header.Get(conf.XUniqueId) != "" {
-		requestHeaders = append(requestHeaders, conf.XUniqueId, uniqueId)
+
+	//requestHeaders = append(requestHeaders, "Host", request.Host)
+	//uniqueId := request.Header.Get(standard.DiscoverHeaderRequestId)
+	//if request.Header.Get(standard.DiscoverHeaderRequestId) != "" {
+	//	requestHeaders = append(requestHeaders, standard.DiscoverHeaderRequestId, uniqueId)
+	//}
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderForwardedFor, request.Header.Get(standard.DiscoverHeaderForwardedFor)+u.StringIf(request.Header.Get(standard.DiscoverHeaderForwardedFor) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+
+	// 真实的用户IP，通过 X-Real-IP 续传
+	requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
+
+	// 客户端IP列表，通过 X-Forwarded-For 接力续传
+	requestHeaders = append(requestHeaders, standard.DiscoverHeaderForwardedFor, request.Header.Get(standard.DiscoverHeaderForwardedFor)+u.StringIf(request.Header.Get(standard.DiscoverHeaderForwardedFor) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+
+	// 客户唯一编号，通过 X-Client-ID 续传
+	if request.Header.Get(standard.DiscoverHeaderClientId) != "" {
+		requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientId, request.Header.Get(standard.DiscoverHeaderClientId))
 	}
-	requestHeaders = append(requestHeaders, conf.XRealIpName, getRealIp(request))
-	requestHeaders = append(requestHeaders, conf.XForwardedForName, request.Header.Get(conf.XForwardedForName)+utility.StringIf(request.Header.Get(conf.XForwardedForName) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+
+	// 会话唯一编号，通过 X-Session-ID 续传
+	if request.Header.Get(standard.DiscoverHeaderSessionId) != "" {
+		requestHeaders = append(requestHeaders, standard.DiscoverHeaderSessionId, request.Header.Get(standard.DiscoverHeaderSessionId))
+	}
+
+	// 请求唯一编号，通过 X-Request-ID 续传
+	requestId := request.Header.Get(standard.DiscoverHeaderRequestId)
+	if requestId == "" {
+		requestId = u.UniqueId()
+		request.Header.Set(standard.DiscoverHeaderRequestId, requestId)
+	}
+	requestHeaders = append(requestHeaders, standard.DiscoverHeaderRequestId, requestId)
+
+	// 真实用户请求的Host，通过 X-Host 续传
+	host := request.Header.Get(standard.DiscoverHeaderHost)
+	if host == "" {
+		host = request.Host
+		request.Header.Set(standard.DiscoverHeaderHost, host)
+	}
+	requestHeaders = append(requestHeaders, standard.DiscoverHeaderHost, host)
 
 	outLen := 0
 	var outBytes []byte
@@ -195,15 +228,13 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
 		log.Error("S", Map{
-			"subLogType": "proxy",
-			"type":       "upgradeFailed",
-			"app":        app,
-			"path":       path,
-			"ip":         getRealIp(request),
-			"method":     request.Method,
-			"host":       request.Host,
-			"uri":        request.RequestURI,
-			"error":      err.Error(),
+			"error":  "upgrade failed on proxy: " + err.Error(),
+			"app":    app,
+			"path":   path,
+			"ip":     getRealIp(request),
+			"method": request.Method,
+			"host":   request.Host,
+			"uri":    request.RequestURI,
 		})
 		//log.Printf("PROXY	Upgrade	%s", err.Error())
 		return 0
@@ -228,16 +259,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		u, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
 		if err != nil {
 			log.Error("S", Map{
-				"subLogType": "proxy",
-				"type":       "parsingFailed",
-				"app":        app,
-				"path":       path,
-				"ip":         getRealIp(request),
-				"method":     request.Method,
-				"host":       request.Host,
-				"uri":        request.RequestURI,
-				"url":        u.String(),
-				"error":      err.Error(),
+				"error":  "proxy parsing failed:" + err.Error(),
+				"app":    app,
+				"path":   path,
+				"ip":     getRealIp(request),
+				"method": request.Method,
+				"host":   request.Host,
+				"uri":    request.RequestURI,
+				"url":    u.String(),
 			})
 			//log.Printf("PROXY	parsing websocket address	%s", err.Error())
 			return 0
@@ -268,16 +297,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		dstConn, dstResponse, err := dialer.Dial(u.String(), sendHeader)
 		if err != nil {
 			log.Error("S", Map{
-				"subLogType": "proxy",
-				"type":       "connectFailed",
-				"app":        app,
-				"path":       path,
-				"ip":         getRealIp(request),
-				"method":     request.Method,
-				"host":       request.Host,
-				"uri":        request.RequestURI,
-				"url":        u.String(),
-				"error":      err.Error(),
+				"app":    app,
+				"path":   path,
+				"ip":     getRealIp(request),
+				"method": request.Method,
+				"host":   request.Host,
+				"uri":    request.RequestURI,
+				"url":    u.String(),
+				"error":  "connect failed on proxy: " + err.Error(),
 			})
 			//log.Printf("PROXY	opening client websocket connection	%s", err.Error())
 			continue
@@ -296,16 +323,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
 						log.Error("S", Map{
-							"subLogType": "proxy",
-							"type":       "readingFailed",
-							"app":        app,
-							"path":       path,
-							"ip":         getRealIp(request),
-							"method":     request.Method,
-							"host":       request.Host,
-							"uri":        request.RequestURI,
-							"url":        u.String(),
-							"error":      err.Error(),
+							"app":    app,
+							"path":   path,
+							"ip":     getRealIp(request),
+							"method": request.Method,
+							"host":   request.Host,
+							"uri":    request.RequestURI,
+							"url":    u.String(),
+							"error":  "proxy reading failed: " + err.Error(),
 						})
 						//log.Print("PROXY	WS Error	reading message from the client websocket	", err)
 					}
@@ -315,16 +340,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				err = srcConn.WriteMessage(mt, message)
 				if err != nil {
 					log.Error("S", Map{
-						"subLogType": "proxy",
-						"type":       "writingFailed",
-						"app":        app,
-						"path":       path,
-						"ip":         getRealIp(request),
-						"method":     request.Method,
-						"host":       request.Host,
-						"uri":        request.RequestURI,
-						"url":        u.String(),
-						"error":      err.Error(),
+						"app":    app,
+						"path":   path,
+						"ip":     getRealIp(request),
+						"method": request.Method,
+						"host":   request.Host,
+						"uri":    request.RequestURI,
+						"url":    u.String(),
+						"error":  "proxy writing failed:" + err.Error(),
 					})
 					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
@@ -340,16 +363,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
 						log.Error("S", Map{
-							"subLogType": "proxy",
-							"type":       "closingFailed",
-							"app":        app,
-							"path":       path,
-							"ip":         getRealIp(request),
-							"method":     request.Method,
-							"host":       request.Host,
-							"uri":        request.RequestURI,
-							"url":        u.String(),
-							"error":      err.Error(),
+							"app":    app,
+							"path":   path,
+							"ip":     getRealIp(request),
+							"method": request.Method,
+							"host":   request.Host,
+							"uri":    request.RequestURI,
+							"url":    u.String(),
+							"error":  "proxy closing failed: " + err.Error(),
 						})
 						//log.Print("PROXY	WS Error	reading message from the server websocket	", err)
 					}
@@ -358,16 +379,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				err = dstConn.WriteMessage(mt, message)
 				if err != nil {
 					log.Error("S", Map{
-						"subLogType": "proxy",
-						"type":       "writingFailed",
-						"app":        app,
-						"path":       path,
-						"ip":         getRealIp(request),
-						"method":     request.Method,
-						"host":       request.Host,
-						"uri":        request.RequestURI,
-						"url":        u.String(),
-						"error":      err.Error(),
+						"app":    app,
+						"path":   path,
+						"ip":     getRealIp(request),
+						"method": request.Method,
+						"host":   request.Host,
+						"uri":    request.RequestURI,
+						"url":    u.String(),
+						"error":  "proxy writing failed: " + err.Error(),
 					})
 					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
@@ -396,7 +415,7 @@ func proxyWebRequestReverse(app, path string, request *http.Request, response *R
 		node.UsedTimes++
 
 		rp := &httputil.ReverseProxy{Director: func(req *http.Request) {
-			req.URL.Scheme = utility.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
+			req.URL.Scheme = u.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
 			if request.TLS != nil {
 				req.URL.Scheme += "s"
 			}

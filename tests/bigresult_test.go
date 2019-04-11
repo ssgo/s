@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"github.com/ssgo/utility"
+	"github.com/ssgo/u"
 	"os"
 	"testing"
 
@@ -34,7 +34,7 @@ func makeItemA() ItemA {
 }
 func makeItemB() ItemB {
 	return ItemB{
-		Password: utility.GlobalRand1.Int(),
+		Password: u.GlobalRand1.Int(),
 	}
 }
 

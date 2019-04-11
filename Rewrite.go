@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ssgo/httpclient"
-	"github.com/ssgo/utility"
+	"github.com/ssgo/u"
 )
 
 type rewriteInfo struct {
@@ -35,12 +35,10 @@ func setRewrite(path string, toPath string, httpVersion int) {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
 			log.Error("S", Map{
-				"subLogType":  "rewrite",
-				"type":        "compileFailed",
 				"fromPath":    path,
 				"toPath":      toPath,
 				"httpVersion": httpVersion,
-				"error":       err.Error(),
+				"error":       "rewrite compile failed: " + err.Error(),
 			})
 			//log.Print("Rewrite Error	Compile	", err)
 		} else {
@@ -133,7 +131,7 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 					requestHeaders = append(requestHeaders, k, v)
 				}
 			}
-			c := utility.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
+			c := u.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
 			r := c.DoByRequest(request, request.Method, *rewriteToPath, bodyBytes, requestHeaders...)
 
 			var statusCode int
@@ -166,9 +164,8 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 		} else {
 			// 直接修改内部跳转地址
 			if recordLogs {
-				log.Info("S", Map{
-					"subLogType":     "rewrite",
-					"type":           "compileFailed",
+				log.Error("S", Map{
+					"error":          "rewrite compile failed: ",
 					"fromPath":       request.RequestURI,
 					"toPath":         rewriteToPath,
 					"httpVersion":    rewriteHttpVersion,

@@ -17,7 +17,7 @@ import (
 	"github.com/ssgo/discover"
 	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
-	"github.com/ssgo/utility"
+	"github.com/ssgo/u"
 	"golang.org/x/net/http2"
 )
 
@@ -30,37 +30,34 @@ var inited = false
 var running = false
 
 type configInfo struct {
-	Listen               string
-	HttpVersion          int
-	RwTimeout            int
-	KeepaliveTimeout     int
-	CallTimeout          int
-	LogFile              string
-	LogLevel             string
-	NoLogGets            bool
-	NoLogHeaders         string
-	EncryptLogFields     string
-	NoLogInputFields     bool
-	LogInputArrayNum     int
-	LogOutputFields      string
-	LogOutputArrayNum    int
-	LogWebsocketAction   bool
-	Compress             bool
-	XUniqueId            string
-	XForwardedForName    string
-	XRealIpName          string
-	CertFile             string
-	KeyFile              string
-	Registry             string
-	RegistryAllowTimeout string
-	RegistryCalls        string
-	RegistryPrefix       string
-	App                  string
-	Weight               uint
-	AccessTokens         map[string]*uint
-	AppAllows            []string
-	Calls                map[string]*Call
-	CallRetryTimes       uint8
+	Listen                        string
+	HttpVersion                   int
+	RwTimeout                     int
+	KeepaliveTimeout              int
+	CallTimeout                   int
+	LogFile                       string
+	LogLevel                      string
+	NoLogGets                     bool
+	NoLogHeaders                  string
+	EncryptLogFields              string
+	NoLogInputFields              bool
+	LogInputArrayNum              int
+	LogOutputFields               string
+	LogOutputArrayNum             int
+	LogWebsocketAction            bool
+	Compress                      bool
+	CertFile                      string
+	KeyFile                       string
+	Registry                      string
+	RegistryCalls                 string
+	RegistryPrefix                string
+	App                           string
+	Weight                        uint
+	AccessTokens                  map[string]*uint
+	AppAllows                     []string
+	Calls                         map[string]*Call
+	CallRetryTimes                uint8
+	AcceptXRealIpWithoutRequestId bool
 }
 
 var conf = configInfo{}
@@ -158,7 +155,7 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 	return as.Do("HEAD", path, data, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
-	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", utility.StringIf(conf.CertFile != "" && conf.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(conf.CertFile != "" && conf.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
 		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
 	}
@@ -232,9 +229,6 @@ func Init() {
 	if conf.Registry == "" {
 		conf.Registry = "discover:15"
 	}
-	if conf.RegistryAllowTimeout == "" {
-		conf.RegistryAllowTimeout = "discover:15:-1"
-	}
 	if conf.RegistryCalls == "" {
 		conf.RegistryCalls = "discover:15"
 	}
@@ -244,9 +238,8 @@ func Init() {
 
 	if conf.App != "" && conf.App[0] == '_' {
 		log.Warning("S", Map{
-			"subLogType": "server",
-			"type":       "invalidAppName",
-			"app":        conf.App,
+			"warning": "bad app name",
+			"app":     conf.App,
 		})
 		//log.Print("ERROR	", conf.App, " is a not available name")
 		conf.App = ""
@@ -254,18 +247,6 @@ func Init() {
 
 	if conf.Weight <= 0 {
 		conf.Weight = 1
-	}
-
-	if conf.XUniqueId == "" {
-		conf.XUniqueId = "X-Unique-Id"
-	}
-
-	if conf.XForwardedForName == "" {
-		conf.XForwardedForName = "X-Forwarded-For"
-	}
-
-	if conf.XRealIpName == "" {
-		conf.XRealIpName = "X-Real-Ip"
 	}
 
 	if conf.NoLogHeaders == "" {
@@ -334,9 +315,8 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 
 	log.Info("S", Map{
-		"subLogType": "server",
-		"type":       "starting",
-		"listen":     conf.Listen,
+		"info":   "starting",
+		"listen": conf.Listen,
 	})
 	//log.Printf("SERVER	[%s]	Starting...", conf.Listen)
 
@@ -362,10 +342,8 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	if err != nil {
 		log.Error("S", Map{
-			"subLogType": "server",
-			"type":       "listenFailed",
-			"listen":     conf.Listen,
-			"error":      err.Error(),
+			"listen": conf.Listen,
+			"error":  "listen failed: " + err.Error(),
 		})
 		//log.Print("SERVER	", err)
 		if as != nil {
@@ -398,17 +376,13 @@ func start(httpVersion int, as *AsyncServer) error {
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
 	dconf := discover.Config{
-		Registry:             conf.Registry,
-		RegistryAllowTimeout: conf.RegistryAllowTimeout,
-		RegistryPrefix:       conf.RegistryPrefix,
-		RegistryCalls:        conf.RegistryCalls,
-		App:                  conf.App,
-		Weight:               conf.Weight,
-		CallRetryTimes:       conf.CallRetryTimes,
-		XUniqueId:            conf.XUniqueId,
-		XForwardedForName:    conf.XForwardedForName,
-		XRealIpName:          conf.XRealIpName,
-		CallTimeout:          conf.CallTimeout,
+		Registry:       conf.Registry,
+		RegistryPrefix: conf.RegistryPrefix,
+		RegistryCalls:  conf.RegistryCalls,
+		App:            conf.App,
+		Weight:         conf.Weight,
+		CallRetryTimes: conf.CallRetryTimes,
+		CallTimeout:    conf.CallTimeout,
 	}
 	calls := map[string]*discover.CallInfo{}
 	if conf.Calls == nil {
@@ -432,10 +406,8 @@ func start(httpVersion int, as *AsyncServer) error {
 	dconf.Calls = calls
 	if discover.Start(serverAddr, dconf) == false {
 		log.Error("S", Map{
-			"subLogType": "server",
-			"type":       "startDiscoverFailed",
 			"serverAddr": serverAddr,
-			"error":      err.Error(),
+			"error":      "discover start failed: " + err.Error(),
 		})
 		//log.Printf("SERVER	failed to start discover")
 		listener.Close()
@@ -455,8 +427,7 @@ func start(httpVersion int, as *AsyncServer) error {
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
 	log.Info("S", Map{
-		"subLogType": "server",
-		"type":       "started",
+		"info":       "started",
 		"listen":     conf.Listen,
 		"serverAddr": serverAddr,
 	})
@@ -472,11 +443,9 @@ func start(httpVersion int, as *AsyncServer) error {
 		err := http2.ConfigureServer(srv, s2)
 		if err != nil {
 			log.Error("S", Map{
-				"subLogType": "server",
-				"type":       "startFailed",
 				"listen":     conf.Listen,
 				"serverAddr": serverAddr,
-				"error":      err.Error(),
+				"error":      "start failed:" + err.Error(),
 			})
 			//log.Print("SERVER	", err)
 			return err
@@ -492,11 +461,9 @@ func start(httpVersion int, as *AsyncServer) error {
 						break
 					}
 					log.Error("S", Map{
-						"subLogType": "server",
-						"type":       "listenFailed",
 						"listen":     conf.Listen,
 						"serverAddr": serverAddr,
-						"error":      err.Error(),
+						"error":      "listen failed: " + err.Error(),
 					})
 					//log.Print("SERVER	", err)
 					continue
@@ -515,8 +482,7 @@ func start(httpVersion int, as *AsyncServer) error {
 
 	if discover.IsClient() || discover.IsServer() {
 		log.Info("S", Map{
-			"subLogType": "server",
-			"type":       "stoppingDiscover",
+			"info":       "stopping discover",
 			"listen":     conf.Listen,
 			"serverAddr": serverAddr,
 			"isClient":   discover.IsClient(),
@@ -526,8 +492,7 @@ func start(httpVersion int, as *AsyncServer) error {
 		discover.Stop()
 	}
 	log.Info("S", Map{
-		"subLogType": "server",
-		"type":       "stoppingRouter",
+		"info":       "stopping router",
 		"listen":     conf.Listen,
 		"serverAddr": serverAddr,
 	})
@@ -535,28 +500,23 @@ func start(httpVersion int, as *AsyncServer) error {
 	rh.Stop()
 
 	log.Info("S", Map{
-		"subLogType": "server",
-		"type":       "waitingRouter",
+		"info":       "waiting router",
 		"listen":     conf.Listen,
 		"serverAddr": serverAddr,
 	})
 	//log.Printf("SERVER	%s	Waiting Router", serverAddr)
 	rh.Wait()
-	if discover.IsClient() {
-		log.Info("S", Map{
-			"subLogType": "server",
-			"type":       "waitingDiscover",
-			"listen":     conf.Listen,
-			"serverAddr": serverAddr,
-		})
-		//log.Printf("SERVER	%s	Waiting Discover", serverAddr)
-		discover.Wait()
-	}
+	log.Info("S", Map{
+		"info":       "waiting discover",
+		"listen":     conf.Listen,
+		"serverAddr": serverAddr,
+	})
+	//log.Printf("SERVER	%s	Waiting Discover", serverAddr)
+	discover.Wait()
 	serviceInfo.remove()
 
 	log.Info("S", Map{
-		"subLogType": "server",
-		"type":       "stopped",
+		"info":       "stopped",
 		"listen":     conf.Listen,
 		"serverAddr": serverAddr,
 	})

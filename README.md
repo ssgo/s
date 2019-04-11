@@ -575,7 +575,7 @@ func main() {
 	os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"e1_level1": 1, "e1_level2": 2, "e1_level3":3}`)
 	os.Setenv("SERVICE_CALLS", `{"e1": {"accessToken": "e1_level3", "httpVersion": 1}}`)
-	utility.ResetConfigEnv()
+	config.ResetConfigEnv()
 	as := s.AsyncStart1()
 	fmt.Println("/serv/provide:")
 	fmt.Println(as.Get("/serv/provide", "Access-Token", "e1_level1"))

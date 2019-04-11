@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ssgo/log"
-	"github.com/ssgo/utility"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
 	"golang.org/x/net/websocket"
 	"io/ioutil"
 	"net/http"
@@ -92,11 +93,14 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
-	if request.Header.Get(conf.XUniqueId) == "" {
-		request.Header.Set(conf.XUniqueId, utility.UniqueId())
-		// 在没有 X-Unique-Id 的情况下忽略 X-Real-Ip
-		if request.Header.Get(conf.XRealIpName) != "" {
-			request.Header.Del(conf.XRealIpName)
+	// 产生 X-Request-ID
+	if request.Header.Get(standard.DiscoverHeaderRequestId) == "" {
+		request.Header.Set(standard.DiscoverHeaderRequestId, u.UniqueId())
+		if !conf.AcceptXRealIpWithoutRequestId {
+			// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
+			if request.Header.Get(standard.DiscoverHeaderClientIp) != "" {
+				request.Header.Del(standard.DiscoverHeaderClientIp)
+			}
 		}
 	}
 
@@ -250,7 +254,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if request.Header.Get(sessionKey) == "" {
 			var newSessionid string
 			if sessionCreator == nil {
-				newSessionid = utility.UniqueId()
+				newSessionid = u.UniqueId()
 			} else {
 				newSessionid = sessionCreator()
 			}
@@ -390,7 +394,7 @@ func requireEncryptField(k string) bool {
 }
 
 func encryptField(value interface{}) string {
-	v := utility.String(value)
+	v := u.String(value)
 	if len(v) > 12 {
 		return v[0:3] + "***" + v[len(v)-3:]
 	} else if len(v) > 8 {
@@ -504,9 +508,16 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	//	}
 	//}
 
-	var args2 interface{}
+	var args2 map[string]interface{}
 	if args != nil {
-		args2 = makeLogableData(reflect.ValueOf(args), nil, conf.LogInputArrayNum, 1).Interface()
+		fixedArgs := makeLogableData(reflect.ValueOf(args), nil, conf.LogInputArrayNum, 1).Interface()
+		if v, ok := fixedArgs.(map[string]interface{}); ok {
+			args2 = v
+		} else {
+			args2 = map[string]interface{}{"data": args}
+		}
+	} else {
+		args2 = map[string]interface{}{}
 	}
 	if result != nil {
 		result = makeLogableData(reflect.ValueOf(result), &logOutputFields, conf.LogOutputArrayNum, 1).Interface()
@@ -515,24 +526,27 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	if extraInfo == nil {
 		extraInfo = Map{}
 	}
-	extraInfo["type"] = logName
-	extraInfo["ip"] = getRealIp(request)
-	extraInfo["app"] = conf.App
-	extraInfo["host"] = request.Host
-	extraInfo["server"] = serverAddr
-	extraInfo["method"] = request.Method
-	extraInfo["uri"] = request.RequestURI
-	extraInfo["authLevel"] = authLevel
-	extraInfo["usedTime"] = usedTime
-	extraInfo["status"] = response.status
-	extraInfo["outLen"] = outLen
-	extraInfo["in"] = args2
-	extraInfo["inHeaders"] = headers
-	extraInfo["out"] = result
-	extraInfo["outHeaders"] = outHeaders
+	//extraInfo["type"] = logName
+	//extraInfo["ip"] = getRealIp(request)
+	//extraInfo["app"] = conf.App
+	//extraInfo["host"] = request.Host
+	//extraInfo["server"] = serverAddr
+	//extraInfo["method"] = request.Method
+	//extraInfo["uri"] = request.RequestURI
+	//extraInfo["authLevel"] = authLevel
+	//extraInfo["usedTime"] = usedTime
+	//extraInfo["status"] = response.status
+	//extraInfo["outLen"] = outLen
+	//extraInfo["in"] = args2
+	//extraInfo["inHeaders"] = headers
+	//extraInfo["out"] = result
+	//extraInfo["outHeaders"] = outHeaders
 	extraInfo["proto"] = request.Proto[5:]
-	log.Info("S", extraInfo)
-	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), utility.StringIf(conf.App != "", conf.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
+
+	log.LogRequest(conf.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), request.Header.Get(standard.DiscoverHeaderHost), int(authLevel), 0, request.Method, request.RequestURI, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
+
+	//log.Info("S", extraInfo)
+	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), u.StringIf(conf.App != "", conf.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])
 }
 
 func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, level int) reflect.Value {
@@ -609,7 +623,7 @@ func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, le
 }
 
 func getRealIp(request *http.Request) string {
-	return utility.StringIf(request.Header.Get(conf.XRealIpName) != "", request.Header.Get(conf.XRealIpName), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	return u.StringIf(request.Header.Get(standard.DiscoverHeaderClientIp) != "", request.Header.Get(standard.DiscoverHeaderClientIp), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 }
 
 /* ================================================================================= */

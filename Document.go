@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ssgo/utility"
+	"github.com/ssgo/u"
 )
 
 type Api struct {
@@ -65,8 +65,8 @@ func MakeDocument() []Api {
 			Path:      a.path,
 			AuthLevel: a.authLevel,
 			Method:    a.method,
-			In:        utility.If(a.inType != nil, getType(a.inType), ""),
-			Out:       utility.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        u.If(a.inType != nil, getType(a.inType), ""),
+			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
 		}
 		out = append(out, api)
 	}
@@ -77,8 +77,8 @@ func MakeDocument() []Api {
 			Path:      a.path,
 			AuthLevel: a.authLevel,
 			Method:    a.method,
-			In:        utility.If(a.inType != nil, getType(a.inType), ""),
-			Out:       utility.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        u.If(a.inType != nil, getType(a.inType), ""),
+			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
 		}
 		out = append(out, api)
 	}
@@ -95,18 +95,18 @@ func MakeDocument() []Api {
 			Type:      "WebSocket",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
-			In:        utility.If(a.openInType != nil, getType(a.openInType), ""),
-			Out:       utility.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
+			In:        u.If(a.openInType != nil, getType(a.openInType), ""),
+			Out:       u.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
 		}
 		out = append(out, api)
 
 		for actionName, action := range a.actions {
 			api := Api{
 				Type:      "Action",
-				Path:      utility.StringIf(actionName != "", actionName, "*"),
+				Path:      u.StringIf(actionName != "", actionName, "*"),
 				AuthLevel: action.authLevel,
-				In:        utility.If(action.inType != nil, getType(action.inType), ""),
-				Out:       utility.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
+				In:        u.If(action.inType != nil, getType(action.inType), ""),
+				Out:       u.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
 			}
 			out = append(out, api)
 		}
@@ -124,14 +124,14 @@ func MakeJsonDocumentFile(file string) {
 	if err == nil {
 		_, err = fp.Write(data)
 		if err != nil {
-			log.Error("error", err)
+			log.Error("S", "error", err)
 		}
 		err = fp.Close()
 		if err != nil {
-			log.Error("error", err)
+			log.Error("S", "error", err)
 		}
 	} else {
-		log.Error("error", err)
+		log.Error("S", "error", err)
 	}
 }
 
@@ -159,11 +159,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 					}
 					realFromFile = gopath + "/src/github.com/ssgo/" + fromFile
 					if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-						log.Error("S", Map{
-							"subLogType": "document",
-							"message":    "template file is bad",
-							"error":      err.Error(),
-						})
+						log.Error("S", "error", "template file is bad: "+err.Error())
 						return ""
 					}
 				}
@@ -174,11 +170,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
 	_, err := t.ParseFiles(realFromFile)
 	if err != nil {
-		log.Error("S", Map{
-			"subLogType": "document",
-			"message":    "template file is bad",
-			"error":      err.Error(),
-		})
+		log.Error("S", "error", "template file is bad: "+err.Error())
 		return ""
 	}
 
@@ -186,28 +178,24 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 		buf := bytes.NewBuffer(make([]byte, 0))
 		err = t.Execute(buf, data)
 		if err != nil {
-			log.Error("error", err)
+			log.Error("S", "error", err)
 		}
 		return buf.String()
 	} else {
 		fp, err := os.OpenFile(toFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Error("S", Map{
-				"subLogType": "document",
-				"message":    "dst file is bad",
-				"error":      err.Error(),
-			})
+			log.Error("S", "error", "dst file is bad: "+err.Error())
 			return ""
 		}
 
 		err = t.ExecuteTemplate(fp, fromFile, data)
 		if err != nil {
-			log.Error("error", err)
+			log.Error("S", "error", err)
 		}
 
 		err = fp.Close()
 		if err != nil {
-			log.Error("error", err)
+			log.Error("S", "error", err)
 		}
 		return ""
 	}
