@@ -261,6 +261,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			request.Header.Set(sessionKey, newSessionid)
 			response.Header().Set(sessionKey, newSessionid)
 		}
+		// 为了在服务间调用时续传 SessionId
+		request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(sessionKey))
+	}
+
+	if clientKey != "" {
+		// 为了在服务间调用时续传 ClientId
+		request.Header.Set(standard.DiscoverHeaderClientId, request.Header.Get(clientKey))
 	}
 
 	// 身份认证
@@ -558,7 +565,12 @@ func writeLog(logName string, result interface{}, outLen int, request *http.Requ
 	//extraInfo["outHeaders"] = outHeaders
 	extraInfo["proto"] = request.Proto[5:]
 
-	log.LogRequest(conf.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), request.Header.Get(standard.DiscoverHeaderHost), int(authLevel), 0, request.Method, request.RequestURI, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
+	host := request.Header.Get(standard.DiscoverHeaderHost)
+	if host == "" {
+		host = request.Host
+	}
+
+	log.LogRequest(conf.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, int(authLevel), 0, request.Method, request.RequestURI, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
 
 	//log.Info("S", extraInfo)
 	//log.Printf("%s	%s	%s	%s	%s	%s	%d	%.6f	%d	%d	%s	%s	%s	%s	%s", logName, getRealIp(request), u.StringIf(conf.App != "", conf.App, request.Host), serverAddr, request.Method, request.RequestURI, authLevel, usedTime, response.status, outLen, string(byteArgs), string(byteHeaders), string(outBytes), string(byteOutHeaders), request.Proto[5:])

@@ -3,6 +3,7 @@ package s
 import (
 	"errors"
 	"fmt"
+	"github.com/ssgo/standard"
 	golog "log"
 	"net"
 	"net/http"
@@ -81,6 +82,10 @@ var checker func(request *http.Request) bool
 
 func SetChecker(ck func(request *http.Request) bool) {
 	checker = ck
+}
+
+func GetServerAddr() string {
+	return serverAddr
 }
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
@@ -250,7 +255,16 @@ func Init() {
 	}
 
 	if conf.NoLogHeaders == "" {
-		conf.NoLogHeaders = "Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests"
+		conf.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
+			",", standard.DiscoverHeaderClientIp,
+			",", standard.DiscoverHeaderForwardedFor,
+			",", standard.DiscoverHeaderClientId,
+			",", standard.DiscoverHeaderSessionId,
+			",", standard.DiscoverHeaderRequestId,
+			",", standard.DiscoverHeaderHost,
+			",", standard.DiscoverHeaderFromApp,
+			",", standard.DiscoverHeaderFromNode,
+		)
 	}
 	for _, k := range strings.Split(strings.ToLower(conf.NoLogHeaders), ",") {
 		noLogHeaders[strings.TrimSpace(k)] = true

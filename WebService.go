@@ -40,6 +40,7 @@ var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.Respo
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
 var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
 var sessionKey string
+var clientKey string
 var sessionCreator func() string
 var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
@@ -48,6 +49,12 @@ var injectObjects = map[reflect.Type]interface{}{}
 func SetSessionKey(inSessionKey string) {
 	if sessionKey == "" {
 		sessionKey = inSessionKey
+	}
+}
+
+func SetClientKey(inClientKey string) {
+	if clientKey == "" {
+		clientKey = inClientKey
 	}
 }
 
