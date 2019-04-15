@@ -8,8 +8,14 @@ export SERVICE_ACCESSTOKENS='{"aabbcc":1}'
 go run service.go &
 go run service.go &
 
+export SERVICE_APP=c1
+export SERVICE_ACCESSTOKENS='{"aabbcc":1}'
+export SERVICE_CALLS='{"s1": {"accessToken": "aabbcc"}}'
+go run controller.go &
+go run controller.go &
+
 unset SERVICE_APP
 unset SERVICE_ACCESSTOKENS
 export SERVICE_LISTEN=:8080
-export SERVICE_CALLS='{"s1": {"accessToken": "aabbcc"}}'
+export SERVICE_CALLS='{"c1": {"accessToken": "aabbcc"}}'
 go run gateway.go

@@ -262,6 +262,7 @@ func Init() {
 			",", standard.DiscoverHeaderSessionId,
 			",", standard.DiscoverHeaderRequestId,
 			",", standard.DiscoverHeaderHost,
+			",", standard.DiscoverHeaderScheme,
 			",", standard.DiscoverHeaderFromApp,
 			",", standard.DiscoverHeaderFromNode,
 		)
