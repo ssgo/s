@@ -29,6 +29,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		for p1, p2 := range statics {
 			if strings.HasPrefix(requestPath, p1) {
 				rootPath = p2
+				requestPath = requestPath[len(p1):]
 				break
 			}
 		}
@@ -43,7 +44,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		filePath += "index.html"
 	}
 
-	_, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return false
 	}
@@ -54,8 +55,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 
 	//http.ServeFile(response, request, *rootPath+requestPath)
 
-	accEnc := request.Header.Get("Accept-Encoding")
-	if strings.Contains(accEnc, "gzip") {
+	if conf.Compress && int(fileInfo.Size()) >= conf.CompressMinSize && int(fileInfo.Size()) <= conf.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 		zipWriter := NewGzipResponseWriter(response)
 		http.ServeFile(zipWriter, request, *rootPath+requestPath)
 		zipWriter.Close()
@@ -63,7 +63,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		http.ServeFile(response, request, *rootPath+requestPath)
 	}
 
-	writeLog("STATIC", nil, 0, request, response, nil, headers, startTime, 0, nil)
+	writeLog("STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
 
 	return true
 }

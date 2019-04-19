@@ -6,7 +6,7 @@ import (
 	"github.com/ssgo/log"
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -174,14 +174,13 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	requestHeaders = append(requestHeaders, standard.DiscoverHeaderHost, host)
 
 	outLen := 0
-	var outBytes []byte
+	//var outBytes []byte
 
 	// 处理短连接 Proxy
 	if request.Header.Get("Upgrade") == "websocket" {
 		outLen = proxyWebsocketRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf)
 	} else {
-		outBytes = proxyWebRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders)
-		outLen = len(outBytes)
+		proxyWebRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders)
 		//outLen = proxyWebRequestReverse(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
 	}
 
@@ -195,31 +194,41 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	return true
 }
 
-func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string) []byte {
-	var bodyBytes []byte = nil
-	if request.Body != nil {
-		bodyBytes, _ = ioutil.ReadAll(request.Body)
-		request.Body.Close()
-	}
-	caller := &discover.Caller{Request: request}
-	r := caller.Do(request.Method, app, path, bodyBytes, requestHeaders...)
+func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string) {
+	//var bodyBytes []byte = nil
+	//if request.Body != nil {
+	//	bodyBytes, _ = ioutil.ReadAll(request.Body)
+	//	request.Body.Close()
+	//}
+	caller := &discover.Caller{Request: request, NoBody: true}
+	r := caller.Do(request.Method, app, path, request.Body, requestHeaders...)
 
-	var statusCode int
-	var outBytes []byte
+	//var statusCode int
+	//var outBytes []byte
 	if r.Error == nil && r.Response != nil {
-		statusCode = r.Response.StatusCode
-		outBytes = r.Bytes()
+		//statusCode = r.Response.StatusCode
+		//outBytes = r.Bytes()
 		for k, v := range r.Response.Header {
 			response.Header().Set(k, v[0])
 		}
+		response.WriteHeader(r.Response.StatusCode)
+		outLen, err := io.Copy(response.writer, r.Response.Body)
+		if err != nil {
+			response.WriteHeader(500)
+			response.Write([]byte(err.Error()))
+			response.outLen = int(len(err.Error()))
+			//statusCode = 500
+			//outBytes = []byte(r.Error.Error())
+		} else {
+			response.outLen = int(outLen)
+		}
 	} else {
-		statusCode = 500
-		outBytes = []byte(r.Error.Error())
+		//statusCode = 500
+		//outBytes = []byte(r.Error.Error())
+		response.WriteHeader(500)
+		response.Write([]byte(r.Error.Error()))
+		response.outLen = int(len(r.Error.Error()))
 	}
-
-	response.WriteHeader(statusCode)
-	response.Write(outBytes)
-	return outBytes
 }
 
 var updater = websocket.Upgrader{}

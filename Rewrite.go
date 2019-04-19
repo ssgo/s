@@ -3,7 +3,7 @@ package s
 import (
 	"fmt"
 	"github.com/ssgo/log"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -114,16 +114,18 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 			//}
 
 			// 转发到外部地址
-			var bodyBytes []byte = nil
-			if request.Body != nil {
-				bodyBytes, _ = ioutil.ReadAll(request.Body)
-				request.Body.Close()
-			}
+			//var bodyBytes []byte = nil
+			//if request.Body != nil {
+			//	bodyBytes, _ = ioutil.ReadAll(request.Body)
+			//	request.Body.Close()
+			//}
 			if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
 				clientForRewrite1 = httpclient.GetClient(time.Duration(conf.CallTimeout) * time.Millisecond)
+				clientForRewrite1.NoBody = true
 			}
 			if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
 				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(conf.CallTimeout) * time.Millisecond)
+				clientForRewrite2.NoBody = true
 			}
 			requestHeaders := make([]string, 0)
 			if rewriteHeaders != nil {
@@ -132,29 +134,43 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				}
 			}
 			c := u.If(rewriteHttpVersion == 2, clientForRewrite2, clientForRewrite1).(*httpclient.ClientPool)
-			r := c.DoByRequest(request, request.Method, *rewriteToPath, bodyBytes, requestHeaders...)
+			r := c.DoByRequest(request, request.Method, *rewriteToPath, request.Body, requestHeaders...)
 
-			var statusCode int
-			var outBytes []byte
+			//var statusCode int
+			//outLen := 0
+			//var outBytes []byte
 			if r.Error == nil && r.Response != nil {
-				statusCode = r.Response.StatusCode
-				outBytes = r.Bytes()
+				//statusCode = r.Response.StatusCode
+				//outBytes = r.Bytes()
 				for k, v := range r.Response.Header {
 					response.Header().Set(k, v[0])
 				}
+				response.WriteHeader(r.Response.StatusCode)
+				//copiedLen, err := io.Copy(response.writer, r.Response.Body)
+				copiedLen, err := io.Copy(response.writer, r.Response.Body)
+				if err != nil {
+					response.WriteHeader(500)
+					response.Write([]byte(err.Error()))
+					response.outLen = int(len(err.Error()))
+				} else {
+					response.outLen = int(copiedLen)
+				}
+
 			} else {
-				statusCode = 500
-				outBytes = []byte(r.Error.Error())
+				//statusCode = 500
+				//outBytes = []byte(r.Error.Error())
+				response.WriteHeader(500)
+				response.Write([]byte(r.Error.Error()))
+				response.outLen = int(len(r.Error.Error()))
 			}
 
-			response.WriteHeader(statusCode)
-			response.Write(outBytes)
+			//response.WriteHeader(statusCode)
+			//response.Write(outBytes)
 			if recordLogs {
-				outLen := 0
-				if outBytes != nil {
-					outLen = len(outBytes)
-				}
-				writeLog("REWRITE", nil, outLen, request, response, nil, headers, startTime, 0, Map{
+				//if outBytes != nil {
+				//	outLen = len(outBytes)
+				//}
+				writeLog("REWRITE", nil, response.outLen, request, response, nil, headers, startTime, 0, Map{
 					"toPath":         rewriteToPath,
 					"rewriteHeaders": rewriteHeaders,
 					"httpVersion":    rewriteHttpVersion,

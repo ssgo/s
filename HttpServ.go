@@ -397,7 +397,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		isZipOuted := false
-		if conf.Compress && len(outBytes) > 1024 && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+		if conf.Compress && len(outBytes) >= conf.CompressMinSize && len(outBytes) <= conf.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 			zipWriter, err := gzip.NewWriterLevel(response, 1)
 			if err == nil {
 				response.Header().Set("Content-Encoding", "gzip")

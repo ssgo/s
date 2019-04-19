@@ -47,6 +47,8 @@ type configInfo struct {
 	LogOutputArrayNum             int
 	LogWebsocketAction            bool
 	Compress                      bool
+	CompressMinSize               int
+	CompressMaxSize               int
 	CertFile                      string
 	KeyFile                       string
 	Registry                      string
@@ -252,6 +254,14 @@ func Init() {
 
 	if conf.Weight <= 0 {
 		conf.Weight = 1
+	}
+
+	if conf.CompressMinSize <= 0 {
+		conf.CompressMinSize = 1024
+	}
+
+	if conf.CompressMaxSize <= 0 {
+		conf.CompressMaxSize = 4096000
 	}
 
 	if conf.NoLogHeaders == "" {
