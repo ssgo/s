@@ -33,19 +33,19 @@ before_script:
 # default script is: go test -v ./...
 script:
 # test base
-- cd base/tests && go test && cd ../..
+- cd ../u/tests && go test && cd ../..
 
 # test httpclient
-- cd httpclient/tests && go test && cd ../..
+- cd ../httpclient/tests && go test && cd ../..
 
 # test discover, "base_test.go:37: node is nil"
-- cd discover/tests && go test && cd ../..
+- cd ../discover/tests && go test && cd ../..
 
 # test db, use travis mysql service
-- cd db/tests && go test && cd ../..
+- cd ../db/tests && go test && cd ../..
 
 # test redis, use travis redis service
-- cd redis/tests && go test && cd ../..
+- cd ../redis/tests && go test && cd ../..
 
 # test s
 - cd tests && go test -race -coverprofile=coverage.txt -covermode=atomic && cd ..
