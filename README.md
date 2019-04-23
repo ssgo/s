@@ -7,28 +7,28 @@ ssgo能以非常简单的方式快速部署成为微服务群
 
 ## 开始使用
 
-如果您的电脑go version >= 1.11，使用以下命令初始化依赖:
+如果您的电脑go version >= 1.11，使用以下命令初始化依赖自定义sshow:
 
 ```shell
 go mod init sshow
 go mod tidy
 ```
 
-sshow是新建的项目名称
-
-1、项目建立之后，下载并安装s
+1、下载并安装s
 
 ```shell
 go get -u github.com/ssgo/s
 ```
 
-2、在代码中导入它
+2、在项目代码中导入它
 
 ```shell
 import "github.com/ssgo/s"
 ```
 
 ## 快速构建一个服务
+
+start.go:
 
 ```go
 package main
@@ -43,7 +43,7 @@ func main() {
 }
 ```
 
-即可快速构建出一个可运行的服务
+即可快速构建出一个8080端口可访问的服务:
 
 ```shell
 export SERVICE_LISTEN=:8080
@@ -76,44 +76,18 @@ go run start.go
 
 默认使用127.0.0.1:6379，db默认为15，密码默认为空，也可以在项目根目录自定义配置redis.json
 
-如果您的redis的密码如果不为空，需要使用aes加密后将密文放在配置文件password字段上，保障密码不泄露
+如果您的redis的密码如果不为空，需要使用AES加密后将密文放在配置文件password字段上，保障密码不泄露
 
 #### 密码使用AES加密
-
-可以使用github.com/s/redis/tests/redis_test.go中MakePasswd()方法，跑单元测试
-
-假设密码为：ssgo-test
+使用github.com/ssgo/tool中的sskey来生成密码：
 
 ```shell
-go test  -v -run MakePasswd YourPath/redis_test.go -args passwd "ssgo-test"
+cd ssgo/tool/sskey
+# 如果以前没有编译过
+go build sskey.go
+# 123456是原始密码
+sskey -e 123456
 ```
-
-得到结果：
-
-Redis encrypted `ssgo-test` is:upvNALgTxwS/xUp2Cie4tg==
-
-
-也可以自己构建应用设置密码：
-
-```go
-package main
-
-import (
-	"fmt"
-	"github.com/ssgo/redis"
-)
-
-func main() {
-	testString := "ssgo-test"
-	// 应用自身自定义key iv
-	var settedKey = []byte("vpL54DlR2KG{JSAaAX7Tu;*#&DnG`M0o")
-	var settedIv = []byte("@z]zv@10-K.5Al0Dm`@foq9k\"VRfJ^~j")
-	redis.SetEncryptKeys(settedKey, settedIv)
-	encrypted := redis.MakePasswd(testString)
-	fmt.Println("Redis encrypted password is:" + encrypted)
-}
-```
-
 得到AES加密后的密码放入redis.json中
 
 ```json
@@ -125,12 +99,6 @@ func main() {
   }
 }
 ```
-
-#### 自定义加密（强烈推荐）
-
-修改AES的秘钥 key 和偏移量 iv 的内容，长度超过32字节
-
-也可以以其他方式只要在 init 函数中调用 redis.SetEncryptKeys 设置匹配的 key和iv即可
 
 ## 服务发现
 
