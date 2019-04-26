@@ -277,7 +277,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// POST
 	if request.Body != nil {
 		contentType := request.Header.Get("Content-Type")
-		if contentType == "application/json" {
+		//if contentType == "application/json" {
+		if strings.HasPrefix(contentType, "application/json") {
 			bodyBytes, _ := ioutil.ReadAll(request.Body)
 			_ = request.Body.Close()
 			if len(bodyBytes) > 0 {
