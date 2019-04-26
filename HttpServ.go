@@ -274,14 +274,30 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
-	// POST JSON
+	// POST
 	if request.Body != nil {
-		bodyBytes, _ := ioutil.ReadAll(request.Body)
-		request.Body.Close()
 		contentType := request.Header.Get("Content-Type")
-		if len(bodyBytes) > 1 && bodyBytes[0] == 123 && contentType == "application/json" {
-			json.Unmarshal(bodyBytes, &args)
+		if contentType == "application/json" {
+			bodyBytes, _ := ioutil.ReadAll(request.Body)
+			_ = request.Body.Close()
+			if len(bodyBytes) > 0 {
+				var err error
+				if bodyBytes[0] == 123 {
+					err = json.Unmarshal(bodyBytes, &args)
+				} else {
+					arg := new(interface{})
+					err = json.Unmarshal(bodyBytes, arg)
+					args["request"] = arg
+				}
+				if err != nil {
+					response.WriteHeader(400)
+					writeLog("FAIL", nil, 0, request, myResponse, &args, &logHeaders, &startTime, 0, nil)
+					return
+				}
+			}
 		} else if contentType == "application/x-www-form-urlencoded" {
+			bodyBytes, _ := ioutil.ReadAll(request.Body)
+			_ = request.Body.Close()
 			argsBody, err := url.ParseQuery(string(bodyBytes))
 			if err == nil && len(argsBody) > 0 {
 				for aKey, aBody := range argsBody {
