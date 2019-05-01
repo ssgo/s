@@ -1,6 +1,7 @@
 package s
 
 import (
+	"github.com/ssgo/log"
 	"net/http"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ func Static(path, rootPath string) {
 	statics[path] = &rootPath
 }
 
-func processStatic(requestPath string, request *http.Request, response *Response, headers *map[string]string, startTime *time.Time) bool {
+func processStatic(requestPath string, request *http.Request, response *Response, headers *map[string]string, startTime *time.Time, requestLogger *log.Logger) bool {
 	if len(statics) == 0 {
 		return false
 	}
@@ -55,7 +56,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 
 	//http.ServeFile(response, request, *rootPath+requestPath)
 
-	if conf.Compress && int(fileInfo.Size()) >= conf.CompressMinSize && int(fileInfo.Size()) <= conf.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+	if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 		zipWriter := NewGzipResponseWriter(response)
 		http.ServeFile(zipWriter, request, *rootPath+requestPath)
 		zipWriter.Close()
@@ -63,7 +64,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		http.ServeFile(response, request, *rootPath+requestPath)
 	}
 
-	writeLog("STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
+	writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
 
 	return true
 }

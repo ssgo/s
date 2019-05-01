@@ -17,7 +17,8 @@ import (
 type Api struct {
 	Type      string
 	Path      string
-	AuthLevel uint
+	AuthLevel int
+	Priority  int
 	Method    string
 	In        interface{}
 	Out       interface{}
@@ -64,6 +65,7 @@ func MakeDocument() []Api {
 			Type:      "Web",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
+			Priority:  a.priority,
 			Method:    a.method,
 			In:        u.If(a.inType != nil, getType(a.inType), ""),
 			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
@@ -76,6 +78,7 @@ func MakeDocument() []Api {
 			Type:      "Web",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
+			Priority:  a.priority,
 			Method:    a.method,
 			In:        u.If(a.inType != nil, getType(a.inType), ""),
 			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
@@ -95,6 +98,7 @@ func MakeDocument() []Api {
 			Type:      "WebSocket",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
+			Priority:  a.priority,
 			In:        u.If(a.openInType != nil, getType(a.openInType), ""),
 			Out:       u.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
 		}
@@ -105,6 +109,7 @@ func MakeDocument() []Api {
 				Type:      "Action",
 				Path:      u.StringIf(actionName != "", actionName, "*"),
 				AuthLevel: action.authLevel,
+				Priority:  action.priority,
 				In:        u.If(action.inType != nil, getType(action.inType), ""),
 				Out:       u.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
 			}
@@ -124,14 +129,14 @@ func MakeJsonDocumentFile(file string) {
 	if err == nil {
 		_, err = fp.Write(data)
 		if err != nil {
-			log.Error("S", "error", err)
+			log.DefaultLogger.Error(err.Error())
 		}
 		err = fp.Close()
 		if err != nil {
-			log.Error("S", "error", err)
+			log.DefaultLogger.Error(err.Error())
 		}
 	} else {
-		log.Error("S", "error", err)
+		log.DefaultLogger.Error(err.Error())
 	}
 }
 
@@ -150,16 +155,16 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 		if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
 			realFromFile = os.Args[0][0:strings.LastIndex(os.Args[0], string(os.PathSeparator))] + "/" + fromFile
 			if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-				u, _ := user.Current()
-				realFromFile = u.HomeDir + "/" + fromFile
+				currentUser, _ := user.Current()
+				realFromFile = currentUser.HomeDir + "/" + fromFile
 				if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
 					gopath := os.Getenv("GOPATH")
 					if gopath == "" {
-						gopath = u.HomeDir + "/go/"
+						gopath = currentUser.HomeDir + "/go/"
 					}
 					realFromFile = gopath + "/src/github.com/ssgo/" + fromFile
 					if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-						log.Error("S", "error", "template file is bad: "+err.Error())
+						log.DefaultLogger.Error("template file is bad: " + err.Error())
 						return ""
 					}
 				}
@@ -170,7 +175,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
 	_, err := t.ParseFiles(realFromFile)
 	if err != nil {
-		log.Error("S", "error", "template file is bad: "+err.Error())
+		log.DefaultLogger.Error("template file is bad: " + err.Error())
 		return ""
 	}
 
@@ -178,24 +183,24 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 		buf := bytes.NewBuffer(make([]byte, 0))
 		err = t.Execute(buf, data)
 		if err != nil {
-			log.Error("S", "error", err)
+			log.DefaultLogger.Error(err.Error())
 		}
 		return buf.String()
 	} else {
 		fp, err := os.OpenFile(toFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Error("S", "error", "dst file is bad: "+err.Error())
+			log.DefaultLogger.Error("dst file is bad: " + err.Error())
 			return ""
 		}
 
 		err = t.ExecuteTemplate(fp, fromFile, data)
 		if err != nil {
-			log.Error("S", "error", err)
+			log.DefaultLogger.Error(err.Error())
 		}
 
 		err = fp.Close()
 		if err != nil {
-			log.Error("S", "error", err)
+			log.DefaultLogger.Error(err.Error())
 		}
 		return ""
 	}

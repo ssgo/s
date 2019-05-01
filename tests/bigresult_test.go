@@ -1,14 +1,13 @@
 package tests
 
 import (
+	"github.com/ssgo/s"
 	"github.com/ssgo/u"
 	"os"
 	"testing"
-
-	"github.com/ssgo/s"
 )
 
-func List(in struct{}) s.Map {
+func List() s.Map {
 	return s.Map{
 		"code": 1,
 		"list": []ItemA{makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA(), makeItemA()},
@@ -23,7 +22,7 @@ type ItemB struct {
 	Password int
 }
 
-var indexA, indexB int
+var indexA int
 
 func makeItemA() ItemA {
 	indexA++
@@ -41,7 +40,7 @@ func makeItemB() ItemB {
 func TestList(tt *testing.T) {
 	t := s.T(tt)
 
-	os.Setenv("service_logOutputFields", "code,message,list")
+	_ = os.Setenv("service_logOutputFields", "code,message,list")
 	s.ResetAllSets()
 	s.Register(0, "/list", List)
 	as := s.AsyncStart()

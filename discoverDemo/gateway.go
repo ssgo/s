@@ -6,7 +6,7 @@ import (
 )
 
 func getInfo(in struct{ Name string }, c *discover.Caller) (out struct{ FullName string }) {
-	c.Get("c1", "/"+in.Name+"/fullName").To(&out)
+	_ = c.Get("c1", "/"+in.Name+"/fullName").To(&out)
 	return
 }
 

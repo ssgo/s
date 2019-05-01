@@ -20,7 +20,7 @@ func TestEchos(tt *testing.T) {
 	s.Register(0, "/echo3", Echo3)
 	s.Register(0, "/echo4", Echo4)
 
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	as := s.AsyncStart()
 	defer as.Stop()
 
@@ -63,7 +63,7 @@ func TestFilters(tt *testing.T) {
 	s.ResetAllSets()
 	s.Register(0, "/echo2", Echo2)
 
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	as := s.AsyncStart()
 	defer as.Stop()
 
@@ -116,7 +116,7 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2)
 	s.Register(2, "/echo2", Echo2)
 
-	s.SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
+	s.SetAuthChecker(func(authLevel int, url *string, in *map[string]interface{}, request *http.Request) bool {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 1:
@@ -129,7 +129,7 @@ func TestAuth(tt *testing.T) {
 
 	as := s.AsyncStart()
 	defer as.Stop()
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	r := as.Get("/echo0")
 	t.Test(r.Response.StatusCode == 200, "Test0", r.Response.StatusCode)
@@ -163,7 +163,7 @@ func TestPanic(tt *testing.T) {
 	s.Register(0, "/panic_test", panicFunc)
 	as := s.AsyncStart()
 	defer as.Stop()
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	r := as.Get("/panic_test")
 	t.Test(r.Response.StatusCode == s.ResponseCodePanicError, "Response status code test")
 }
@@ -174,12 +174,12 @@ func TestSetErrorHandle(tt *testing.T) {
 	s.Register(0, "/panic_test", panicFunc)
 	s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *http.ResponseWriter) interface{} {
 		out := s.Map{"message": "defined", "code": 30889, "panic": fmt.Sprintf("%s", err)}
-		(*rsp).Write([]byte(u.String(out)))
+		_, _ = (*rsp).Write([]byte(u.String(out)))
 		return out
 	})
 	as := s.AsyncStart()
 	defer as.Stop()
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	r := as.Get("/panic_test")
 	panicArr := r.Map()
 	//fmt.Println(panicArr)
@@ -216,7 +216,7 @@ func BenchmarkEchosForStructNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo1", Echo1)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	as := s.AsyncStart()
 	defer as.Stop()
@@ -242,7 +242,7 @@ func BenchmarkEchosForMapNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
 	s.Register(0, "/echo2", Echo2)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	as := s.AsyncStart()
 	defer as.Stop()

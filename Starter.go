@@ -24,14 +24,14 @@ func (si *serviceInfoType) exists() bool {
 }
 func (si *serviceInfoType) remove() {
 	if si.exists() {
-		os.Remove(si.pidFile)
+		_ = os.Remove(si.pidFile)
 	}
 }
 func (si *serviceInfoType) save() {
 	pidFile, err := os.OpenFile(si.pidFile, os.O_CREATE|os.O_WRONLY, 0600)
 	if err == nil {
-		pidFile.Write([]byte(fmt.Sprintf("%d,%d,%s", si.pid, si.httpVersion, si.baseUrl)))
-		pidFile.Close()
+		_, _ = pidFile.Write([]byte(fmt.Sprintf("%d,%d,%s", si.pid, si.httpVersion, si.baseUrl)))
+		_ = pidFile.Close()
 	}
 }
 func (si *serviceInfoType) load() {
@@ -58,7 +58,7 @@ func (si *serviceInfoType) load() {
 				si.baseUrl = a[2]
 			}
 		}
-		pidFile.Close()
+		_ = pidFile.Close()
 	}
 }
 
@@ -145,7 +145,7 @@ func startProcess() {
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Start()
+	_ = cmd.Start()
 
 	if !serviceInfo.exists() {
 		// 如果进程内没有产生pid文件，保存

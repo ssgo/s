@@ -855,7 +855,6 @@ func main() {
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
 | accessTokens | map | {"ad2dc32cde9" : 1} | 服务访问通行码，可以根据不同的授权等级设置多个 |
-| appAllows | string |  | 允许访问的服务应用，暂未启用 |
 | calls | map |  | 客户端访问服务的配置<br>"s1":{"accessToken": "hasfjlkdlasfsa","timeout": 5000, "httpVersion": 2,"withSSL": false} |
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
 

@@ -1,10 +1,8 @@
 package s
 
 import (
-	"errors"
 	"fmt"
 	"github.com/ssgo/standard"
-	golog "log"
 	"net"
 	"net/http"
 	"os"
@@ -26,21 +24,16 @@ type Arr = []interface{}
 
 type Map = map[string]interface{}
 
-var recordLogs = true
 var inited = false
 var running = false
 
-type configInfo struct {
+var Config = struct {
 	Listen                        string
 	HttpVersion                   int
 	RwTimeout                     int
 	KeepaliveTimeout              int
-	CallTimeout                   int
-	LogFile                       string
-	LogLevel                      string
 	NoLogGets                     bool
 	NoLogHeaders                  string
-	EncryptLogFields              string
 	NoLogInputFields              bool
 	LogInputArrayNum              int
 	LogOutputFields               string
@@ -51,21 +44,14 @@ type configInfo struct {
 	CompressMaxSize               int
 	CertFile                      string
 	KeyFile                       string
-	Registry                      string
-	RegistryCalls                 string
-	RegistryPrefix                string
-	App                           string
-	Weight                        uint
-	AccessTokens                  map[string]*uint
-	AppAllows                     []string
-	Calls                         map[string]*Call
-	CallRetryTimes                uint8
+	AccessTokens                  map[string]*int
+	CallTokens                    map[string]*string
+	CallTimeout                   int
 	AcceptXRealIpWithoutRequestId bool
-}
+}{}
 
-var conf = configInfo{}
-
-//var configedLogLevel log.LevelType
+var accessTokens = map[string]*int{}
+var callTokens = map[string]*string{}
 
 type Call struct {
 	AccessToken string
@@ -79,8 +65,21 @@ var noLogHeaders = map[string]bool{}
 var encryptLogFields = map[string]bool{}
 var logOutputFields = map[string]bool{}
 
+var serverId = u.ShortUniqueId()
+var serverStartTime = log.MakeLogTime(time.Now())
+var serverLogger = log.New(serverId)
+
 var serverAddr string
+var serverProto string
 var checker func(request *http.Request) bool
+
+func logInfo(info string, extra ...interface{}) {
+	serverLogger.Server(info, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
+}
+
+func logError(error string, extra ...interface{}) {
+	serverLogger.ServerError(error, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
+}
 
 func SetChecker(ck func(request *http.Request) bool) {
 	checker = ck
@@ -114,10 +113,6 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	}
 }
 
-func GetConfig() configInfo {
-	return conf
-}
-
 // 启动HTTP/1.1服务
 func Start1() {
 	start(1, nil)
@@ -139,7 +134,7 @@ type AsyncServer struct {
 
 func (as *AsyncServer) Stop() {
 	if as.listener != nil {
-		as.listener.Close()
+		_ = as.listener.Close()
 	}
 	if as.stopChan != nil {
 		<-as.stopChan
@@ -162,7 +157,7 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 	return as.Do("HEAD", path, data, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
-	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(conf.CertFile != "" && conf.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(Config.CertFile != "" && Config.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
 		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
 	}
@@ -183,128 +178,89 @@ func asyncStart(httpVersion int) *AsyncServer {
 	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool), httpVersion: httpVersion}
 	go start(httpVersion, as)
 	<-as.startChan
-	if as.httpVersion == 1 || conf.CertFile != "" {
-		as.clientPool = httpclient.GetClient(time.Duration(conf.CallTimeout) * time.Millisecond)
+	if as.httpVersion == 1 || Config.CertFile != "" {
+		as.clientPool = httpclient.GetClient(time.Duration(Config.CallTimeout) * time.Millisecond)
 	} else {
-		as.clientPool = httpclient.GetClientH2C(time.Duration(conf.CallTimeout) * time.Millisecond)
+		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.CallTimeout) * time.Millisecond)
 	}
 	return as
 }
 
 func Init() {
 	inited = true
-	config.LoadConfig("service", &conf)
+	config.LoadConfig("service", &Config)
 
-	golog.SetFlags(golog.Ldate | golog.Lmicroseconds)
-	if conf.LogFile != "" {
-		f, err := os.OpenFile(conf.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err == nil {
-			golog.SetOutput(f)
-		} else {
-			golog.SetOutput(os.Stdout)
-			log.Error("S", Map{
-				"subLogType": "server",
-				"type":       "openLogFileFailed",
-				"error":      err.Error(),
-			})
-			//log.Print("ERROR	", err)
-		}
-		recordLogs = conf.LogFile != os.DevNull
-	} else {
-		golog.SetOutput(os.Stdout)
+	// safe AccessTokens
+	accessTokens = Config.AccessTokens
+	Config.AccessTokens = nil
+	callTokens = Config.CallTokens
+	Config.CallTokens = nil
+
+	if Config.KeepaliveTimeout <= 0 {
+		Config.KeepaliveTimeout = 15000
 	}
 
-	logLevel := strings.ToLower(conf.LogLevel)
-	if logLevel == "debug" {
-		log.SetLevel(log.DEBUG)
-	} else if logLevel == "warning" {
-		log.SetLevel(log.WARNING)
-	} else if logLevel == "error" {
-		log.SetLevel(log.ERROR)
-	} else {
-		log.SetLevel(log.INFO)
+	if Config.CompressMinSize <= 0 {
+		Config.CompressMinSize = 1024
 	}
 
-	if conf.KeepaliveTimeout <= 0 {
-		conf.KeepaliveTimeout = 15000
+	if Config.CompressMaxSize <= 0 {
+		Config.CompressMaxSize = 4096000
 	}
 
-	if conf.CallTimeout <= 0 {
-		conf.CallTimeout = 10000
+	if Config.CallTimeout <= 0 {
+		Config.CallTimeout = 10000
 	}
 
-	if conf.Registry == "" {
-		conf.Registry = "discover:15"
+	if Config.NoLogHeaders == "" {
+		Config.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests")
 	}
-	if conf.RegistryCalls == "" {
-		conf.RegistryCalls = "discover:15"
-	}
-	if conf.CallRetryTimes <= 0 {
-		conf.CallRetryTimes = 10
-	}
-
-	if conf.App != "" && conf.App[0] == '_' {
-		log.Warning("S", Map{
-			"warning": "bad app name",
-			"app":     conf.App,
-		})
-		//log.Print("ERROR	", conf.App, " is a not available name")
-		conf.App = ""
-	}
-
-	if conf.Weight <= 0 {
-		conf.Weight = 1
-	}
-
-	if conf.CompressMinSize <= 0 {
-		conf.CompressMinSize = 1024
-	}
-
-	if conf.CompressMaxSize <= 0 {
-		conf.CompressMaxSize = 4096000
-	}
-
-	if conf.NoLogHeaders == "" {
-		conf.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests",
-			",", standard.DiscoverHeaderClientIp,
-			",", standard.DiscoverHeaderForwardedFor,
-			",", standard.DiscoverHeaderClientId,
-			",", standard.DiscoverHeaderSessionId,
-			",", standard.DiscoverHeaderRequestId,
-			",", standard.DiscoverHeaderHost,
-			",", standard.DiscoverHeaderScheme,
-			",", standard.DiscoverHeaderFromApp,
-			",", standard.DiscoverHeaderFromNode,
-		)
-	}
-	for _, k := range strings.Split(strings.ToLower(conf.NoLogHeaders), ",") {
+	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), ",") {
 		noLogHeaders[strings.TrimSpace(k)] = true
+		noLogHeaders[standard.DiscoverHeaderClientIp] = true
+		noLogHeaders[standard.DiscoverHeaderForwardedFor] = true
+		noLogHeaders[standard.DiscoverHeaderClientId] = true
+		noLogHeaders[standard.DiscoverHeaderSessionId] = true
+		noLogHeaders[standard.DiscoverHeaderRequestId] = true
+		noLogHeaders[standard.DiscoverHeaderHost] = true
+		noLogHeaders[standard.DiscoverHeaderScheme] = true
+		noLogHeaders[standard.DiscoverHeaderFromApp] = true
+		noLogHeaders[standard.DiscoverHeaderFromNode] = true
 	}
 
-	if conf.EncryptLogFields == "" {
-		conf.EncryptLogFields = "password,secure,token,accessToken"
+	if Config.LogOutputFields == "" {
+		Config.LogOutputFields = "code,message"
 	}
-	for _, k := range strings.Split(strings.ToLower(conf.EncryptLogFields), ",") {
-		encryptLogFields[strings.TrimSpace(k)] = true
-	}
-
-	if conf.LogOutputFields == "" {
-		conf.LogOutputFields = "code,message"
-	}
-	for _, k := range strings.Split(strings.ToLower(conf.LogOutputFields), ",") {
+	for _, k := range strings.Split(strings.ToLower(Config.LogOutputFields), ",") {
 		logOutputFields[strings.TrimSpace(k)] = true
 	}
 
-	if conf.LogInputArrayNum <= 0 {
-		conf.LogInputArrayNum = 0
+	if Config.LogInputArrayNum <= 0 {
+		Config.LogInputArrayNum = 0
 	}
 
-	if conf.LogOutputArrayNum <= 0 {
-		conf.LogOutputArrayNum = 2
+	if Config.LogOutputArrayNum <= 0 {
+		Config.LogOutputArrayNum = 2
 	}
+
+	if Config.HttpVersion == 2 {
+		if Config.CertFile == "" {
+			serverProto = "h2c"
+		} else {
+			serverProto = "h2"
+		}
+	} else {
+		if Config.CertFile == "" {
+			serverProto = "http"
+		} else {
+			serverProto = "https"
+		}
+	}
+
+	serverAddr = Config.Listen
 }
 
-func start(httpVersion int, as *AsyncServer) error {
+func start(httpVersion int, as *AsyncServer) {
 	// document must after registers
 	if inDocumentMode {
 		if len(os.Args) >= 4 {
@@ -322,66 +278,72 @@ func start(httpVersion int, as *AsyncServer) error {
 	if len(os.Args) > 1 {
 		for i := 1; i < len(os.Args); i++ {
 			if strings.ContainsRune(os.Args[i], ':') {
-				os.Setenv("SERVICE_LISTEN", os.Args[i])
+				_ = os.Setenv("SERVICE_LISTEN", os.Args[i])
 			} else if strings.ContainsRune(os.Args[i], '=') {
 				a := strings.SplitN(os.Args[i], "=", 2)
-				os.Setenv(a[0], a[1])
-			} else {
-				os.Setenv("SERVICE_LOGFILE", os.Args[i])
+				_ = os.Setenv(a[0], a[1])
 			}
+			//else {
+			//	_ = os.Setenv("LOG_FILE", os.Args[i])
+			//}
 		}
 	}
 	if !inited {
 		Init()
+		discover.Init()
 	}
 
-	if conf.HttpVersion == 1 || conf.HttpVersion == 2 {
-		httpVersion = conf.HttpVersion
+	if callTokens != nil && len(callTokens) > 0 {
+		for k, v := range callTokens {
+			if discover.Config.Calls[k] == nil {
+				discover.Config.Calls[k] = new(discover.CallInfo)
+			}
+			if discover.Config.Calls[k].Headers == nil {
+				discover.Config.Calls[k].Headers = map[string]*string{}
+			}
+			discover.Config.Calls[k].Headers["Access-Token"] = v
+		}
 	}
 
-	log.Info("S", Map{
-		"info":   "starting",
-		"listen": conf.Listen,
-	})
-	//log.Printf("SERVER	[%s]	Starting...", conf.Listen)
+	if Config.HttpVersion == 1 || Config.HttpVersion == 2 {
+		httpVersion = Config.HttpVersion
+	}
+
+	logInfo("starting")
 
 	rh := routeHandler{}
 	srv := &http.Server{
-		Addr:    conf.Listen,
+		Addr:    Config.Listen,
 		Handler: &rh,
 	}
 
-	if conf.RwTimeout > 0 {
-		srv.ReadTimeout = time.Duration(conf.RwTimeout) * time.Millisecond
-		srv.ReadHeaderTimeout = time.Duration(conf.RwTimeout) * time.Millisecond
-		srv.WriteTimeout = time.Duration(conf.RwTimeout) * time.Millisecond
+	if Config.RwTimeout > 0 {
+		srv.ReadTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
+		srv.ReadHeaderTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
+		srv.WriteTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
 	}
 
-	if conf.KeepaliveTimeout > 0 {
-		srv.IdleTimeout = time.Duration(conf.KeepaliveTimeout) * time.Millisecond
+	if Config.KeepaliveTimeout > 0 {
+		srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
 	}
 
-	listener, err := net.Listen("tcp", conf.Listen)
+	listener, err := net.Listen("tcp", Config.Listen)
 	if as != nil {
 		as.listener = listener
 	}
 	if err != nil {
-		log.Error("S", Map{
-			"listen": conf.Listen,
-			"error":  "listen failed: " + err.Error(),
-		})
-		//log.Print("SERVER	", err)
+		logError(err.Error())
 		if as != nil {
 			as.startChan <- false
 		}
-		return err
+		return
 	}
 
 	closeChan := make(chan os.Signal, 2)
 	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-closeChan
-		listener.Close()
+		_ = listener.Close()
 	}()
 
 	addrInfo := listener.Addr().(*net.TCPAddr)
@@ -400,49 +362,17 @@ func start(httpVersion int, as *AsyncServer) error {
 	}
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
-	dconf := discover.Config{
-		Registry:       conf.Registry,
-		RegistryPrefix: conf.RegistryPrefix,
-		RegistryCalls:  conf.RegistryCalls,
-		App:            conf.App,
-		Weight:         conf.Weight,
-		CallRetryTimes: conf.CallRetryTimes,
-		CallTimeout:    conf.CallTimeout,
-	}
-	calls := map[string]*discover.CallInfo{}
-	if conf.Calls == nil {
-		conf.Calls = map[string]*Call{}
-	}
-	for k, v := range conf.Calls {
-		call := discover.CallInfo{
-			Timeout:     v.Timeout,
-			HttpVersion: v.HttpVersion,
-			WithSSL:     v.WithSSL,
-		}
-		call.Headers = map[string]string{}
-		if v.AccessToken != "" {
-			call.Headers["Access-Token"] = v.AccessToken
-		}
-		if v.Host != "" {
-			call.Headers["Host"] = v.Host
-		}
-		calls[k] = &call
-	}
-	dconf.Calls = calls
-	if discover.Start(serverAddr, dconf) == false {
-		log.Error("S", Map{
-			"serverAddr": serverAddr,
-			"error":      "discover start failed: " + err.Error(),
-		})
-		//log.Printf("SERVER	failed to start discover")
-		listener.Close()
-		return errors.New("failed to start discover")
+	if discover.Start(serverAddr) == false {
+		logError(err.Error())
+		logError("failed to start discover")
+		_ = listener.Close()
+		return
 	}
 
 	// 信息记录到 pid file
 	serviceInfo.pid = os.Getpid()
 	serviceInfo.httpVersion = httpVersion
-	if conf.CertFile != "" && conf.KeyFile != "" {
+	if Config.CertFile != "" && Config.KeyFile != "" {
 		serviceInfo.baseUrl = "https://" + serverAddr
 	} else {
 		serviceInfo.baseUrl = "http://" + serverAddr
@@ -451,11 +381,7 @@ func start(httpVersion int, as *AsyncServer) error {
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
-	log.Info("S", Map{
-		"info":       "started",
-		"listen":     conf.Listen,
-		"serverAddr": serverAddr,
-	})
+	logInfo("started")
 	//log.Printf("SERVER	%s	Started", serverAddr)
 
 	if as != nil {
@@ -467,17 +393,15 @@ func start(httpVersion int, as *AsyncServer) error {
 		s2 := &http2.Server{}
 		err := http2.ConfigureServer(srv, s2)
 		if err != nil {
-			log.Error("S", Map{
-				"listen":     conf.Listen,
-				"serverAddr": serverAddr,
-				"error":      "start failed:" + err.Error(),
-			})
-			//log.Print("SERVER	", err)
-			return err
+			logError(err.Error())
+			return
 		}
 
-		if conf.CertFile != "" && conf.KeyFile != "" {
-			srv.ServeTLS(listener, conf.CertFile, conf.KeyFile)
+		if Config.CertFile != "" && Config.KeyFile != "" {
+			err := srv.ServeTLS(listener, Config.CertFile, Config.KeyFile)
+			if err != nil {
+				logError(err.Error())
+			}
 		} else {
 			for {
 				conn, err := listener.Accept()
@@ -485,77 +409,44 @@ func start(httpVersion int, as *AsyncServer) error {
 					if strings.Contains(err.Error(), "use of closed network connection") {
 						break
 					}
-					log.Error("S", Map{
-						"listen":     conf.Listen,
-						"serverAddr": serverAddr,
-						"error":      "listen failed: " + err.Error(),
-					})
-					//log.Print("SERVER	", err)
+					logError(err.Error())
 					continue
 				}
 				go s2.ServeConn(conn, &http2.ServeConnOpts{BaseConfig: srv})
 			}
 		}
 	} else {
-		if conf.CertFile != "" && conf.KeyFile != "" {
-			srv.ServeTLS(listener, conf.CertFile, conf.KeyFile)
+		if Config.CertFile != "" && Config.KeyFile != "" {
+			err = srv.ServeTLS(listener, Config.CertFile, Config.KeyFile)
 		} else {
-			srv.Serve(listener)
+			err = srv.Serve(listener)
+		}
+		if err != nil {
+			logError(err.Error())
 		}
 	}
 	running = false
 
 	if discover.IsClient() || discover.IsServer() {
-		log.Info("S", Map{
-			"info":       "stopping discover",
-			"listen":     conf.Listen,
-			"serverAddr": serverAddr,
-			"isClient":   discover.IsClient(),
-			"isServer":   discover.IsServer(),
-		})
-		//log.Printf("SERVER	%s	Stopping Discover", serverAddr)
+		logInfo("stopping discover")
 		discover.Stop()
 	}
-	log.Info("S", Map{
-		"info":       "stopping router",
-		"listen":     conf.Listen,
-		"serverAddr": serverAddr,
-	})
-	//log.Printf("SERVER	%s	Stopping Router", serverAddr)
+	logInfo("stopping router")
 	rh.Stop()
 
-	log.Info("S", Map{
-		"info":       "waiting router",
-		"listen":     conf.Listen,
-		"serverAddr": serverAddr,
-	})
-	//log.Printf("SERVER	%s	Waiting Router", serverAddr)
+	logInfo("waiting router")
 	rh.Wait()
-	log.Info("S", Map{
-		"info":       "waiting discover",
-		"listen":     conf.Listen,
-		"serverAddr": serverAddr,
-	})
-	//log.Printf("SERVER	%s	Waiting Discover", serverAddr)
+	logInfo("waiting discover")
 	discover.Wait()
 	serviceInfo.remove()
 
-	log.Info("S", Map{
-		"info":       "stopped",
-		"listen":     conf.Listen,
-		"serverAddr": serverAddr,
-	})
-	//log.Printf("SERVER	%s	Stopped", serverAddr)
+	logInfo("stopped")
 	if as != nil {
 		as.stopChan <- true
 	}
-	return nil
+	return
 }
 
 func IsRunning() bool {
 	return running
 }
-
-//func EnableLogs(enabled bool) {
-//	recordLogs = enabled
-//}

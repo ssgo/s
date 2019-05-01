@@ -14,7 +14,7 @@ func TestEchoWS(tt *testing.T) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	as := s.AsyncStart1()
 	defer as.Stop()
@@ -47,7 +47,7 @@ func TestEchoWS(tt *testing.T) {
 		t.Test(action == "echo" && int(data["oldAge"].(float64)) == oldAge && int(data["newAge"].(float64)) == newAge, "Echo age back", r, oldAge, newAge, err)
 		oldAge = newAge
 	}
-	c.Close()
+	_ = c.Close()
 }
 
 func BenchmarkWSEcho(b *testing.B) {
@@ -55,7 +55,7 @@ func BenchmarkWSEcho(b *testing.B) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	as := s.AsyncStart1()
 	defer as.Stop()
 	b.StartTimer()
@@ -126,7 +126,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	as := s.AsyncStart1()
 	defer as.Stop()
 

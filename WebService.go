@@ -3,20 +3,19 @@ package s
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
+	"github.com/ssgo/discover"
 	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
-	"time"
-
-	"github.com/mitchellh/mapstructure"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/u"
 )
 
 type webServiceType struct {
-	authLevel     uint
+	authLevel     int
+	priority      int
 	method        string
 	path          string
 	pathMatcher   *regexp.Regexp
@@ -27,6 +26,7 @@ type webServiceType struct {
 	headersIndex  int
 	requestIndex  int
 	responseIndex int
+	loggerIndex   int
 	callerIndex   int
 	funcType      reflect.Type
 	funcValue     reflect.Value
@@ -38,7 +38,7 @@ var regexWebServices = make([]*webServiceType, 0)
 var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
-var webAuthChecker func(uint, *string, *map[string]interface{}, *http.Request) bool
+var webAuthChecker func(int, *string, *map[string]interface{}, *http.Request) bool
 var sessionKey string
 var clientKey string
 var sessionCreator func() string
@@ -100,28 +100,33 @@ func GetInject(dataType reflect.Type) interface{} {
 }
 
 // 注册服务
-func Register(authLevel uint, path string, serviceFunc interface{}) {
+func Register(authLevel int, path string, serviceFunc interface{}) {
 	Restful(authLevel, "", path, serviceFunc)
 }
 
 // 注册服务
-func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
+func Restful(authLevel int, method, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, 0, method, path, serviceFunc)
+}
+
+// 注册服务
+func RegisterWithPriority(authLevel, priority int, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, priority, "", path, serviceFunc)
+}
+
+// 注册服务
+func RestfulWithPriority(authLevel, priority int, method, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		log.Error("S", Map{
-			"authLevel": authLevel,
-			"path":      path,
-			"method":    method,
-			"error":     "web register failed: " + err.Error(),
-		})
-		//log.Printf("ERROR	%s	%s	", path, err)
+		logError(err.Error(), "authLevel", authLevel, "priority", priority, "path", path, "method", method)
 		return
 	}
 
 	s.authLevel = authLevel
+	s.priority = priority
 	s.method = method
 	s.path = path
-	finder, err := regexp.Compile("\\{(.*?)\\}")
+	finder, err := regexp.Compile("{(.*?)}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
 		finds := finder.FindAllStringSubmatch(path, 20)
@@ -132,11 +137,11 @@ func Restful(authLevel uint, method, path string, serviceFunc interface{}) {
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
 			if err != nil {
-				log.Error("S", Map{
+				logError(err.Error(), Map{
 					"authLevel": authLevel,
+					"priority":  priority,
 					"path":      path,
 					"method":    method,
-					"error":     "web compile failed: " + err.Error(),
 				})
 				//log.Print("Register	Compile	", err)
 			}
@@ -158,7 +163,7 @@ func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request,
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool) {
+func SetAuthChecker(authChecker func(authLevel int, url *string, in *map[string]interface{}, request *http.Request) bool) {
 	webAuthChecker = authChecker
 }
 
@@ -167,7 +172,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 }
 
 func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{},
-	headers *map[string]string, result interface{}, startTime *time.Time) (webResult interface{}) {
+	result interface{}, requestLogger *log.Logger) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
 		return result
@@ -179,7 +184,10 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
 			in := reflect.New(service.inType).Interface()
-			mapstructure.WeakDecode(*args, in)
+			err := mapstructure.WeakDecode(*args, in)
+			if err != nil {
+				requestLogger.Error(err.Error())
+			}
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}
@@ -191,6 +199,9 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	}
 	if service.responseIndex >= 0 {
 		parms[service.responseIndex] = reflect.ValueOf(*response)
+	}
+	if service.loggerIndex >= 0 {
+		parms[service.loggerIndex] = reflect.ValueOf(requestLogger)
 	}
 	if service.callerIndex >= 0 {
 		caller := &discover.Caller{Request: request}
@@ -244,7 +255,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	// 类型或参数返回值个数不对
 	funcType := reflect.TypeOf(matchedServie)
 	if funcType.Kind() != reflect.Func {
-		return nil, fmt.Errorf("Bad Service")
+		return nil, fmt.Errorf("bad Service")
 	}
 
 	// 参数类型不对
@@ -254,6 +265,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.headersIndex = -1
 	targetService.requestIndex = -1
 	targetService.responseIndex = -1
+	targetService.loggerIndex = -1
 	targetService.callerIndex = -1
 	for i := 0; i < targetService.parmsNum; i++ {
 		t := funcType.In(i)
@@ -261,6 +273,8 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.requestIndex = i
 		} else if t.String() == "http.ResponseWriter" {
 			targetService.responseIndex = i
+		} else if t.String() == "*log.Logger" {
+			targetService.loggerIndex = i
 		} else if t.String() == "*http.Header" {
 			targetService.headersIndex = i
 		} else if t.String() == "*discover.Caller" {

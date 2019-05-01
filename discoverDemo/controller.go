@@ -12,7 +12,7 @@ import (
 
 func getFullNameController(in struct{ Name string }, c *discover.Caller) (out struct{ FullName string }) {
 	r := struct{ FullName string }{}
-	c.Get("s1", "/"+in.Name+"/fullName").To(&r)
+	_ = c.Get("s1", "/"+in.Name+"/fullName").To(&r)
 	out.FullName = r.FullName
 	return
 }

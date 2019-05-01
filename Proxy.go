@@ -1,15 +1,12 @@
 package s
 
 import (
-	"crypto/tls"
 	"fmt"
 	"github.com/ssgo/log"
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"io"
-	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"regexp"
 	"strings"
@@ -17,7 +14,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
-	"golang.org/x/net/http2"
 )
 
 type proxyInfo struct {
@@ -43,10 +39,7 @@ func Proxy(path string, toApp, toPath string) {
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			log.Error("S", Map{
-				"error": "proxy compile field: " + err.Error(),
-				"expr":  "^" + path + "$",
-			})
+			logError(err.Error(), "expr", "^"+path+"$")
 		} else {
 			p.matcher = matcher
 			regexProxies = append(regexProxies, p)
@@ -91,7 +84,7 @@ func findProxy(request *http.Request) (*string, *string) {
 }
 
 // ProxyBy
-func processProxy(request *http.Request, response *Response, logHeaders *map[string]string, startTime *time.Time) (finished bool) {
+func processProxy(request *http.Request, response *Response, logHeaders *map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	proxyToApp, proxyToPath := findProxy(request)
 	var proxyHeaders *map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
@@ -106,22 +99,21 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	//}
 
 	// 注册新的Call，并重启订阅
-	if conf.Calls[*proxyToApp] == nil {
+	if discover.Config.Calls[*proxyToApp] == nil {
 		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
-		log.Info("S", Map{
-			"info":   "add app on proxy",
+		requestLogger.Info("add app on proxy", Map{
 			"app":    proxyToApp,
 			"ip":     getRealIp(request),
 			"host":   request.Host,
 			"method": request.Method,
 			"uri":    request.RequestURI,
 		})
-		conf.Calls[*proxyToApp] = &Call{HttpVersion: 2}
+		discover.Config.Calls[*proxyToApp] = &discover.CallInfo{HttpVersion: 2}
 		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
 		discover.Restart()
 	}
 
-	appConf := conf.Calls[*proxyToApp]
+	appConf := discover.Config.Calls[*proxyToApp]
 	requestHeaders := make([]string, 0)
 	if proxyHeaders != nil {
 		for k, v := range *proxyHeaders {
@@ -129,17 +121,11 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 		}
 	}
 
-	if appConf != nil && appConf.AccessToken != "" {
-		requestHeaders = append(requestHeaders, "Access-Token", appConf.AccessToken)
-	}
-
-	//requestHeaders = append(requestHeaders, "Host", request.Host)
-	//uniqueId := request.Header.Get(standard.DiscoverHeaderRequestId)
-	//if request.Header.Get(standard.DiscoverHeaderRequestId) != "" {
-	//	requestHeaders = append(requestHeaders, standard.DiscoverHeaderRequestId, uniqueId)
+	//if appConf.Headers != nil {
+	//	for k, v := range appConf.Headers {
+	//		requestHeaders = append(requestHeaders, k, v)
+	//	}
 	//}
-	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
-	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderForwardedFor, request.Header.Get(standard.DiscoverHeaderForwardedFor)+u.StringIf(request.Header.Get(standard.DiscoverHeaderForwardedFor) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
 
 	// 真实的用户IP，通过 X-Real-IP 续传
 	requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
@@ -178,23 +164,21 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 
 	// 处理短连接 Proxy
 	if request.Header.Get("Upgrade") == "websocket" {
-		outLen = proxyWebsocketRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf)
+		outLen = proxyWebsocketRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf, requestLogger)
 	} else {
-		proxyWebRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders)
+		proxyWebRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, requestLogger)
 		//outLen = proxyWebRequestReverse(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
 	}
 
-	if recordLogs {
-		writeLog("PROXY", nil, outLen, request, response, nil, logHeaders, startTime, 0, Map{
-			"toApp":        proxyToApp,
-			"toPath":       proxyToPath,
-			"proxyHeaders": proxyHeaders,
-		})
-	}
+	writeLog(requestLogger, "PROXY", nil, outLen, request, response, nil, logHeaders, startTime, 0, Map{
+		"toApp":        proxyToApp,
+		"toPath":       proxyToPath,
+		"proxyHeaders": proxyHeaders,
+	})
 	return true
 }
 
-func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string) {
+func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, requestLogger *log.Logger) {
 	//var bodyBytes []byte = nil
 	//if request.Body != nil {
 	//	bodyBytes, _ = ioutil.ReadAll(request.Body)
@@ -215,7 +199,10 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		outLen, err := io.Copy(response.writer, r.Response.Body)
 		if err != nil {
 			response.WriteHeader(500)
-			response.Write([]byte(err.Error()))
+			n, err := response.Write([]byte(err.Error()))
+			if err != nil {
+				requestLogger.Error(err.Error(), "wrote", n)
+			}
 			response.outLen = int(len(err.Error()))
 			//statusCode = 500
 			//outBytes = []byte(r.Error.Error())
@@ -226,18 +213,20 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		//statusCode = 500
 		//outBytes = []byte(r.Error.Error())
 		response.WriteHeader(500)
-		response.Write([]byte(r.Error.Error()))
+		n, err := response.Write([]byte(r.Error.Error()))
+		if err != nil {
+			requestLogger.Error(err.Error(), "wrote", n)
+		}
 		response.outLen = int(len(r.Error.Error()))
 	}
 }
 
 var updater = websocket.Upgrader{}
 
-func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf *Call) int {
+func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf *discover.CallInfo, requestLogger *log.Logger) int {
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
-		log.Error("S", Map{
-			"error":  "upgrade failed on proxy: " + err.Error(),
+		requestLogger.Error(err.Error(), Map{
 			"app":    app,
 			"path":   path,
 			"ip":     getRealIp(request),
@@ -248,7 +237,9 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		//log.Printf("PROXY	Upgrade	%s", err.Error())
 		return 0
 	}
-	defer srcConn.Close()
+	defer func() {
+		_ = srcConn.Close()
+	}()
 
 	appClient := discover.AppClient{}
 	var node *discover.NodeInfo
@@ -265,17 +256,16 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		if appConf.WithSSL {
 			scheme += "s"
 		}
-		u, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
+		parsedUrl, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
 		if err != nil {
-			log.Error("S", Map{
-				"error":  "proxy parsing failed:" + err.Error(),
+			requestLogger.Error(err.Error(), Map{
 				"app":    app,
 				"path":   path,
 				"ip":     getRealIp(request),
 				"method": request.Method,
 				"host":   request.Host,
 				"uri":    request.RequestURI,
-				"url":    u.String(),
+				"url":    parsedUrl.String(),
 			})
 			//log.Printf("PROXY	parsing websocket address	%s", err.Error())
 			return 0
@@ -303,43 +293,40 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		//}
 
 		dialer := websocket.Dialer{}
-		dstConn, dstResponse, err := dialer.Dial(u.String(), sendHeader)
+		dstConn, dstResponse, err := dialer.Dial(parsedUrl.String(), sendHeader)
 		if err != nil {
-			log.Error("S", Map{
+			requestLogger.Error(err.Error(), Map{
 				"app":    app,
 				"path":   path,
 				"ip":     getRealIp(request),
 				"method": request.Method,
 				"host":   request.Host,
 				"uri":    request.RequestURI,
-				"url":    u.String(),
-				"error":  "connect failed on proxy: " + err.Error(),
+				"url":    parsedUrl.String(),
 			})
 			//log.Printf("PROXY	opening client websocket connection	%s", err.Error())
 			continue
 		}
 		if dstResponse.StatusCode == 502 || dstResponse.StatusCode == 503 || dstResponse.StatusCode == 504 {
-			dstConn.Close()
+			_ = dstConn.Close()
 			continue
 		}
 
 		waits := make(chan bool, 2)
 		totalOutLen := 0
 		go func() {
-			defer dstConn.Close()
 			for {
 				mt, message, err := dstConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						log.Error("S", Map{
+						requestLogger.Error(err.Error(), Map{
 							"app":    app,
 							"path":   path,
 							"ip":     getRealIp(request),
 							"method": request.Method,
 							"host":   request.Host,
 							"uri":    request.RequestURI,
-							"url":    u.String(),
-							"error":  "proxy reading failed: " + err.Error(),
+							"url":    parsedUrl.String(),
 						})
 						//log.Print("PROXY	WS Error	reading message from the client websocket	", err)
 					}
@@ -348,38 +335,36 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				totalOutLen += len(message)
 				err = srcConn.WriteMessage(mt, message)
 				if err != nil {
-					log.Error("S", Map{
+					requestLogger.Error(err.Error(), Map{
 						"app":    app,
 						"path":   path,
 						"ip":     getRealIp(request),
 						"method": request.Method,
 						"host":   request.Host,
 						"uri":    request.RequestURI,
-						"url":    u.String(),
-						"error":  "proxy writing failed:" + err.Error(),
+						"url":    parsedUrl.String(),
 					})
 					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
 				}
 			}
 			waits <- true
+			_ = dstConn.Close()
 		}()
 
 		go func() {
-			defer srcConn.Close()
 			for {
 				mt, message, err := srcConn.ReadMessage()
 				if err != nil {
 					if !strings.Contains(err.Error(), "websocket: close ") {
-						log.Error("S", Map{
+						requestLogger.Error(err.Error(), Map{
 							"app":    app,
 							"path":   path,
 							"ip":     getRealIp(request),
 							"method": request.Method,
 							"host":   request.Host,
 							"uri":    request.RequestURI,
-							"url":    u.String(),
-							"error":  "proxy closing failed: " + err.Error(),
+							"url":    parsedUrl.String(),
 						})
 						//log.Print("PROXY	WS Error	reading message from the server websocket	", err)
 					}
@@ -387,21 +372,21 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				}
 				err = dstConn.WriteMessage(mt, message)
 				if err != nil {
-					log.Error("S", Map{
+					requestLogger.Error(err.Error(), Map{
 						"app":    app,
 						"path":   path,
 						"ip":     getRealIp(request),
 						"method": request.Method,
 						"host":   request.Host,
 						"uri":    request.RequestURI,
-						"url":    u.String(),
-						"error":  "proxy writing failed: " + err.Error(),
+						"url":    parsedUrl.String(),
 					})
 					//log.Print("PROXY	WS Error	writing message to the server websocket	", err)
 					break
 				}
 			}
 			waits <- true
+			_ = srcConn.Close()
 		}()
 
 		<-waits
@@ -411,52 +396,52 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 	return 0
 }
 
-func proxyWebRequestReverse(app, path string, request *http.Request, response *Response, requestHeaders []string, httpVersion int) int {
-	appClient := discover.AppClient{}
-	var node *discover.NodeInfo
-	for {
-		node = appClient.NextWithNode(app, "", request)
-		if node == nil {
-			break
-		}
-
-		// 请求节点
-		node.UsedTimes++
-
-		rp := &httputil.ReverseProxy{Director: func(req *http.Request) {
-			req.URL.Scheme = u.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
-			if request.TLS != nil {
-				req.URL.Scheme += "s"
-			}
-			req.URL.Host = node.Addr
-			req.URL.Path = path
-			for k, vv := range request.Header {
-				for _, v := range vv {
-					req.Header.Add(k, v)
-				}
-			}
-			for i := 1; i < len(requestHeaders); i += 2 {
-				if requestHeaders[i-1] == "Host" {
-					req.Host = requestHeaders[i]
-				} else {
-					req.Header.Set(requestHeaders[i-1], requestHeaders[i])
-				}
-			}
-		}}
-		if httpVersion != 1 {
-			rp.Transport = &http2.Transport{
-				AllowHTTP: true,
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return net.Dial(network, addr)
-				},
-			}
-		}
-		response.ProxyHeader = &http.Header{}
-		rp.ServeHTTP(response, request)
-		if response.status != 502 && response.status != 503 && response.status != 504 {
-			break
-		}
-	}
-
-	return response.outLen
-}
+//func proxyWebRequestReverse(app, path string, request *http.Request, response *Response, requestHeaders []string, httpVersion int) int {
+//	appClient := discover.AppClient{}
+//	var node *discover.NodeInfo
+//	for {
+//		node = appClient.NextWithNode(app, "", request)
+//		if node == nil {
+//			break
+//		}
+//
+//		// 请求节点
+//		node.UsedTimes++
+//
+//		rp := &httputil.ReverseProxy{Director: func(req *http.Request) {
+//			req.URL.Scheme = u.StringIf(request.URL.Scheme == "", "http", request.URL.Scheme)
+//			if request.TLS != nil {
+//				req.URL.Scheme += "s"
+//			}
+//			req.URL.Host = node.Addr
+//			req.URL.Path = path
+//			for k, vv := range request.Header {
+//				for _, v := range vv {
+//					req.Header.Add(k, v)
+//				}
+//			}
+//			for i := 1; i < len(requestHeaders); i += 2 {
+//				if requestHeaders[i-1] == "Host" {
+//					req.Host = requestHeaders[i]
+//				} else {
+//					req.Header.Set(requestHeaders[i-1], requestHeaders[i])
+//				}
+//			}
+//		}}
+//		if httpVersion != 1 {
+//			rp.Transport = &http2.Transport{
+//				AllowHTTP: true,
+//				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+//					return net.Dial(network, addr)
+//				},
+//			}
+//		}
+//		response.ProxyHeader = &http.Header{}
+//		rp.ServeHTTP(response, request)
+//		if response.status != 502 && response.status != 503 && response.status != 504 {
+//			break
+//		}
+//	}
+//
+//	return response.outLen
+//}

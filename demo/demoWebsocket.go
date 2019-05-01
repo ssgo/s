@@ -34,7 +34,7 @@ func OnWsOpen(in struct {
 	sess.RoomId = in.RoomId
 	fmt.Println("===OnWsOpen===")
 
-	client.WriteJSON(WsEncoder("welcome", map[string]interface{}{
+	_ = client.WriteJSON(WsEncoder("welcome", map[string]interface{}{
 		"token":  in.Token,
 		"roomId": in.RoomId,
 		"oldAge": sess.UserInfo.Age,
@@ -45,7 +45,7 @@ func OnWsOpen(in struct {
 func OnWsMessage(in struct {
 	Action string
 	Age    int
-}, client *websocket.Conn, sess *wsSession) (string, *ageData) {
+}, sess *wsSession) (string, *ageData) {
 	oldAge := sess.UserInfo.Age
 	sess.UserInfo.Age = in.Age
 	fmt.Println("===OnWsMessage===")
@@ -55,7 +55,7 @@ func OnWsMessage(in struct {
 	}
 }
 
-func OnWsClose(client *websocket.Conn, sess *wsSession) {
+func OnWsClose() {
 	fmt.Println("===OnWsClose===")
 }
 
@@ -81,9 +81,9 @@ func WsEncoder(action string, data interface{}) interface{} {
 func main() {
 	app := "w1"
 	listen := ":8308"
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
-	os.Setenv("SERVICE_APP", app)
-	os.Setenv("SERVICE_LISTEN", listen)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_APP", app)
+	_ = os.Setenv("SERVICE_LISTEN", listen)
 	s.ResetAllSets()
 	wsAR := s.RegisterWebsocket(0, "/service/{token}/{roomId}", nil,
 		OnWsOpen, OnWsClose, WsDecoder, WsEncoder)
@@ -109,5 +109,5 @@ func main() {
 		err = c.ReadJSON(&r)
 		fmt.Println("r is:", r, "err is:", err)
 	}
-	c.Close()
+	_ = c.Close()
 }

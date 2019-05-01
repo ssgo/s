@@ -17,7 +17,7 @@ import (
 func TestBase(tt *testing.T) {
 	t := s.T(tt)
 
-	dc := redis.GetRedis("discover:15")
+	dc := redis.GetRedis("discover:15", nil)
 	dc.DEL("a1")
 
 	s.Register(2, "/dc/s1", func() (out struct{ Name string }) {
@@ -27,7 +27,7 @@ func TestBase(tt *testing.T) {
 
 	s.Register(1, "/dc/c1", func(c *discover.Caller) string {
 		r := struct{ Name string }{}
-		c.Get("a1", "/dc/s1").To(&r)
+		_ = c.Get("a1", "/dc/s1").To(&r)
 		return r.Name
 	})
 
@@ -51,10 +51,12 @@ func TestBase(tt *testing.T) {
 	s.Proxy("/dc1/s1", "a1", "/dc/s1")
 	s.Proxy("/proxy/(.+?)", "a1", "/dc/$1")
 
-	os.Setenv("SERVICE_APP", "a1")
-	os.Setenv("SERVICE_WEIGHT", "100")
-	os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
-	os.Setenv("SERVICE_CALLS", `{"a1": {"accessToken": "aabbcc222", "httpVersion": 1}}`)
+	_ = os.Setenv("DISCOVER_APP", "a1")
+	_ = os.Setenv("DISCOVER_WEIGHT", "100")
+	_ = os.Setenv("DISCOVER_CALLS", `{"a1": {"httpVersion": 1}}`)
+	_ = os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
+	_ = os.Setenv("SERVICE_CALLTOKENS", `{"a1": "aabbcc222"}`)
+
 	config.ResetConfigEnv()
 	as := s.AsyncStart1()
 
@@ -93,5 +95,5 @@ func TestBase(tt *testing.T) {
 	t.Test(err == nil, "send hello", err)
 	err = c.ReadJSON(&r)
 	t.Test(err == nil || r["action"] != "hello" || r["name"] != "aaa!", "read hello", err, r)
-	c.Close()
+	_ = c.Close()
 }

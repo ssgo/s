@@ -9,7 +9,7 @@ import (
 	"github.com/ssgo/s"
 )
 
-func Welcome(in struct{}) string {
+func Welcome() string {
 	return "Hello World!"
 }
 
@@ -99,7 +99,7 @@ func TestWelcomePicture(tt *testing.T) {
 
 	s.ResetAllSets()
 	s.Register(0, "/w/{picName}.png", WelcomePicture)
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	as := s.AsyncStart()
 	defer as.Stop()

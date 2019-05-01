@@ -34,11 +34,10 @@ func setRewrite(path string, toPath string, httpVersion int) {
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
-			log.Error("S", Map{
+			logError(err.Error(), Map{
 				"fromPath":    path,
 				"toPath":      toPath,
 				"httpVersion": httpVersion,
-				"error":       "rewrite compile failed: " + err.Error(),
 			})
 			//log.Print("Rewrite Error	Compile	", err)
 		} else {
@@ -62,7 +61,7 @@ func SetRewriteBy(by func(request *http.Request) (toPath string, httpVersion int
 	rewriteBy = by
 }
 
-func processRewrite(request *http.Request, response *Response, headers *map[string]string, startTime *time.Time) (finished bool) {
+func processRewrite(request *http.Request, response *Response, headers *map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	// 获取路径
 	requestPath := request.RequestURI
 	var queryString string
@@ -120,11 +119,11 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 			//	request.Body.Close()
 			//}
 			if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
-				clientForRewrite1 = httpclient.GetClient(time.Duration(conf.CallTimeout) * time.Millisecond)
+				clientForRewrite1 = httpclient.GetClient(time.Duration(Config.CallTimeout) * time.Millisecond)
 				clientForRewrite1.NoBody = true
 			}
 			if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
-				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(conf.CallTimeout) * time.Millisecond)
+				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(Config.CallTimeout) * time.Millisecond)
 				clientForRewrite2.NoBody = true
 			}
 			requestHeaders := make([]string, 0)
@@ -150,7 +149,10 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				copiedLen, err := io.Copy(response.writer, r.Response.Body)
 				if err != nil {
 					response.WriteHeader(500)
-					response.Write([]byte(err.Error()))
+					n, err := response.Write([]byte(err.Error()))
+					if err != nil {
+						requestLogger.Error(err.Error(), "wrote", n)
+					}
 					response.outLen = int(len(err.Error()))
 				} else {
 					response.outLen = int(copiedLen)
@@ -160,39 +162,31 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				//statusCode = 500
 				//outBytes = []byte(r.Error.Error())
 				response.WriteHeader(500)
-				response.Write([]byte(r.Error.Error()))
+				n, err := response.Write([]byte(r.Error.Error()))
+				if err != nil {
+					requestLogger.Error(err.Error(), "wrote", n)
+				}
 				response.outLen = int(len(r.Error.Error()))
 			}
 
-			//response.WriteHeader(statusCode)
-			//response.Write(outBytes)
-			if recordLogs {
-				//if outBytes != nil {
-				//	outLen = len(outBytes)
-				//}
-				writeLog("REWRITE", nil, response.outLen, request, response, nil, headers, startTime, 0, Map{
-					"toPath":         rewriteToPath,
-					"rewriteHeaders": rewriteHeaders,
-					"httpVersion":    rewriteHttpVersion,
-				})
-			}
+			writeLog(requestLogger, "REWRITE", nil, response.outLen, request, response, nil, headers, startTime, 0, Map{
+				"toPath":         rewriteToPath,
+				"rewriteHeaders": rewriteHeaders,
+				"httpVersion":    rewriteHttpVersion,
+			})
 			return true
 		} else {
 			// 直接修改内部跳转地址
-			if recordLogs {
-				log.Error("S", Map{
-					"error":          "rewrite compile failed: ",
-					"fromPath":       request.RequestURI,
-					"toPath":         rewriteToPath,
-					"httpVersion":    rewriteHttpVersion,
-					"rewriteHeaders": rewriteHeaders,
-					"ip":             getRealIp(request),
-					"method":         request.Method,
-					"host":           request.Host,
-				})
+			requestLogger.Info("rewrite", Map{
+				"fromPath":       request.RequestURI,
+				"toPath":         rewriteToPath,
+				"httpVersion":    rewriteHttpVersion,
+				"rewriteHeaders": rewriteHeaders,
+				"ip":             getRealIp(request),
+				"method":         request.Method,
+				"host":           request.Host,
+			})
 
-				//log.Printf("REWRITE	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *rewriteToPath)
-			}
 			request.RequestURI = *rewriteToPath
 			if queryString != "" && !strings.Contains(request.RequestURI, "?") {
 				request.RequestURI += queryString

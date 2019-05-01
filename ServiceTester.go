@@ -42,7 +42,6 @@ func ResetAllSets() {
 	regexWebsocketServices = make(map[string]*websocketServiceType)
 	webAuthChecker = nil
 	webSocketActionAuthChecker = nil
-	recordLogs = true
 }
 
 //func testRequest(method string, path string, body []byte) (*http.Response, []byte, error) {
