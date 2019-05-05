@@ -219,7 +219,12 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 				} else {
 					injectObj := GetInject(st)
 					if injectObj != nil {
-						parms[i] = reflect.ValueOf(injectObj)
+						injectObjValue := reflect.ValueOf(injectObj)
+						setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
+						if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+							setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+						}
+						parms[i] = injectObjValue
 						isset = true
 					}
 				}
@@ -303,6 +308,6 @@ func makeBytesResult(data interface{}) []byte {
 			bytesResult = []byte("{}")
 		}
 	}
-	u.FixUpperCase(bytesResult)
+	u.FixUpperCase(bytesResult, nil)
 	return bytesResult
 }

@@ -34,6 +34,7 @@ type websocketServiceType struct {
 	closeParmsNum     int
 	closeClientIndex  int
 	closeRequestIndex int
+	closeLoggerIndex  int
 	closeSessionIndex int
 	closeFuncType     reflect.Type
 	closeFuncValue    reflect.Value
@@ -131,6 +132,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 		s.closeParmsNum = s.closeFuncType.NumIn()
 		s.closeClientIndex = -1
 		s.closeRequestIndex = -1
+		s.closeLoggerIndex = -1
 		s.closeSessionIndex = -1
 		s.closeFuncValue = reflect.ValueOf(onClose)
 		for i := 0; i < s.closeParmsNum; i++ {
@@ -141,6 +143,8 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 			} else if t.String() == "*websocket.Conn" {
 				s.closeClientIndex = i
 			} else if t.String() == "*http.Request" {
+				s.closeRequestIndex = i
+			} else if t.String() == "*log.Logger" {
 				s.closeRequestIndex = i
 			}
 		}
@@ -254,6 +258,28 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				openParms[ws.openClientIndex] = reflect.ValueOf(client)
 			}
 
+			for i, parm := range openParms {
+				if parm.Kind() == reflect.Invalid {
+					st := ws.openFuncType.In(i)
+					isset := false
+					if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+						injectObj := GetInject(st)
+						if injectObj != nil {
+							injectObjValue := reflect.ValueOf(injectObj)
+							setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
+							if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+								setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+							}
+							openParms[i] = injectObjValue
+							isset = true
+						}
+					}
+					if isset == false {
+						openParms[i] = reflect.New(st).Elem()
+					}
+				}
+			}
+
 			//client.SetCloseHandler(func(closeCode int, closeMessage string) error {
 			//	log.Println(" >>>>", code, message)
 			//	code = closeCode
@@ -363,6 +389,32 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			if ws.closeRequestIndex >= 0 {
 				closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
 			}
+			if ws.closeLoggerIndex >= 0 {
+				closeParms[ws.closeLoggerIndex] = reflect.ValueOf(requestLogger)
+			}
+
+			for i, parm := range closeParms {
+				if parm.Kind() == reflect.Invalid {
+					st := ws.openFuncType.In(i)
+					isset := false
+					if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+						injectObj := GetInject(st)
+						if injectObj != nil {
+							injectObjValue := reflect.ValueOf(injectObj)
+							setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
+							if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+								setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+							}
+							closeParms[i] = injectObjValue
+							isset = true
+						}
+					}
+					if isset == false {
+						closeParms[i] = reflect.New(st).Elem()
+					}
+				}
+			}
+
 			ws.closeFuncValue.Call(closeParms)
 		}
 
@@ -401,7 +453,12 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 				} else {
 					injectObj := GetInject(st)
 					if injectObj != nil {
-						messageParms[i] = reflect.ValueOf(injectObj)
+						injectObjValue := reflect.ValueOf(injectObj)
+						setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
+						if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+							setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+						}
+						messageParms[i] = injectObjValue
 						isset = true
 					}
 				}
@@ -451,7 +508,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 		if err != nil {
 			return outAction, outData, outLen, err
 		}
-		u.FixUpperCase(outBytes)
+		u.FixUpperCase(outBytes, nil)
 		err = client.WriteMessage(websocket.TextMessage, outBytes)
 		if err != nil {
 			return outAction, outData, outLen, err

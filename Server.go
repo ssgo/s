@@ -53,13 +53,13 @@ var Config = struct {
 var accessTokens = map[string]*int{}
 var callTokens = map[string]*string{}
 
-type Call struct {
-	AccessToken string
-	Host        string
-	Timeout     int
-	HttpVersion int
-	WithSSL     bool
-}
+//type Call struct {
+//	AccessToken string
+//	Host        string
+//	Timeout     int
+//	HttpVersion int
+//	WithSSL     bool
+//}
 
 var noLogHeaders = map[string]bool{}
 var encryptLogFields = map[string]bool{}

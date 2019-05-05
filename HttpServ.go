@@ -327,6 +327,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				response.WriteHeader(ResponseCodePanicError)
 				out = ""
 			}
+
+			logError(u.String(err))
 			writeLog(requestLogger, "PANIC", out, myResponse.outLen, request, myResponse, &args, &logHeaders, &startTime, authLevel, Map{
 				"error": err,
 			})
