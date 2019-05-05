@@ -6,7 +6,7 @@ require (
 	github.com/gorilla/websocket v1.4.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/ssgo/config v0.1.0
-	github.com/ssgo/discover v0.1.1
+	github.com/ssgo/discover v0.1.2
 	github.com/ssgo/httpclient v0.1.0
 	github.com/ssgo/log v0.1.1
 	github.com/ssgo/redis v0.1.1
