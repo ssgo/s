@@ -363,7 +363,6 @@ func start(httpVersion int, as *AsyncServer) {
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
 	if discover.Start(serverAddr) == false {
-		logError(err.Error())
 		logError("failed to start discover")
 		_ = listener.Close()
 		return
