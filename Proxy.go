@@ -99,6 +99,9 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	//}
 
 	// 注册新的Call，并重启订阅
+	if discover.Config.Calls == nil {
+		discover.Config.Calls = make(map[string]*discover.CallInfo)
+	}
 	if discover.Config.Calls[*proxyToApp] == nil {
 		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
 		requestLogger.Info("add app on proxy", Map{
