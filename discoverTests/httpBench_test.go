@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ssgo/u"
 	"os"
 	"testing"
 
@@ -16,18 +17,14 @@ func BenchmarkForHttpClient2(tb *testing.B) {
 }
 
 func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("LOG_FILE", os.DevNull)
+	_ = os.Setenv("SERVICE_HTTPVERSION", u.String(httpVersion))
 	tb.StopTimer()
 	s.Register(0, "/s1", func() (out struct{ Name string }) {
 		out.Name = "s1"
 		return
 	})
-	var as *s.AsyncServer
-	if httpVersion == 1 {
-		as = s.AsyncStart1()
-	} else {
-		as = s.AsyncStart()
-	}
+	as := s.AsyncStart()
 	defer as.Stop()
 
 	tb.StartTimer()
@@ -35,7 +32,7 @@ func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
 		for pb.Next() {
 			d := struct{ Name string }{}
 			r := as.Get("/s1")
-			r.To(&d)
+			_ = r.To(&d)
 			if r.Error != nil || d.Name != "s1" {
 				tb.Error("Discover Benchmark", r.Error, r.String(), r.Response)
 			}

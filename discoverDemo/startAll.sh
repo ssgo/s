@@ -18,4 +18,5 @@ unset DISCOVER_APP
 unset SERVICE_ACCESSTOKENS
 export DISCOVER_CALLS='{"c1": {"headers": {"Access-Token":"aabbcc"}}}'
 export SERVICE_LISTEN=:8080
+export SERVICE_HTTPVERSION=1
 go run gateway.go

@@ -43,10 +43,11 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 func TestWelcomeWithRestful(tt *testing.T) {
 	t := s.T(tt)
 
+	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	s.Restful(0, "GET", "/", Welcome)
 	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture)
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 
 	r := as.Get("/")
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Get", r.Error, r.String())
@@ -68,9 +69,10 @@ func TestWelcomeWithRestful(tt *testing.T) {
 func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 
+	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 
 	r := as.Get("/")
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
@@ -82,6 +84,7 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 func TestWelcomeWithHttp2(tt *testing.T) {
 	t := s.T(tt)
 
+	_ = os.Unsetenv("service_httpVersion")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
 	as := s.AsyncStart()
@@ -97,9 +100,9 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 func TestWelcomePicture(tt *testing.T) {
 	t := s.T(tt)
 
+	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	s.ResetAllSets()
 	s.Register(0, "/w/{picName}.png", WelcomePicture)
-	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
 	as := s.AsyncStart()
 	defer as.Stop()

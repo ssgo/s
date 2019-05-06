@@ -11,12 +11,13 @@ import (
 func TestEchoWS(tt *testing.T) {
 	t := s.T(tt)
 
+	_ = os.Setenv("LOG_FILE", os.DevNull)
+	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
 
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 	defer as.Stop()
 
 	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)
@@ -52,11 +53,12 @@ func TestEchoWS(tt *testing.T) {
 
 func BenchmarkWSEcho(b *testing.B) {
 	b.StopTimer()
+	_ = os.Setenv("LOG_FILE", os.DevNull)
+	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 	defer as.Stop()
 	b.StartTimer()
 
@@ -123,11 +125,12 @@ func BenchmarkWSEcho(b *testing.B) {
 
 func BenchmarkWSEchoAction(b *testing.B) {
 	b.StopTimer()
+	_ = os.Setenv("LOG_FILE", os.DevNull)
+	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)
-	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 	defer as.Stop()
 
 	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)

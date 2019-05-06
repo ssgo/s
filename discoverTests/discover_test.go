@@ -56,9 +56,10 @@ func TestBase(tt *testing.T) {
 	_ = os.Setenv("DISCOVER_CALLS", `{"a1": {"httpVersion": 1}}`)
 	_ = os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
 	_ = os.Setenv("SERVICE_CALLTOKENS", `{"a1": "aabbcc222"}`)
+	_ = os.Setenv("SERVICE_HTTPVERSION", "1")
 
 	config.ResetConfigEnv()
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 
 	addr2 := "127.0.0.1:" + strings.Split(as.Addr, ":")[1]
 	dc.HSET("a1", addr2, 1)

@@ -27,7 +27,7 @@ type Map = map[string]interface{}
 var inited = false
 var running = false
 
-var Config = struct {
+type serviceConfig struct {
 	Listen                        string
 	HttpVersion                   int
 	RwTimeout                     int
@@ -48,7 +48,9 @@ var Config = struct {
 	CallTokens                    map[string]*string
 	CallTimeout                   int
 	AcceptXRealIpWithoutRequestId bool
-}{}
+}
+
+var Config = serviceConfig{}
 
 var accessTokens = map[string]*int{}
 var callTokens = map[string]*string{}
@@ -113,23 +115,22 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	}
 }
 
-// 启动HTTP/1.1服务
-func Start1() {
-	start(1, nil)
-}
-
-// 启动HTTP/2服务
-func Start() {
-	start(2, nil)
-}
+//// 启动HTTP/1.1服务
+//func Start1() {
+//	start(1, nil)
+//}
+//
+//// 启动HTTP/2服务
+//func Start() {
+//	start(2, nil)
+//}
 
 type AsyncServer struct {
-	startChan   chan bool
-	stopChan    chan bool
-	httpVersion int
-	listener    net.Listener
-	Addr        string
-	clientPool  *httpclient.ClientPool
+	startChan  chan bool
+	stopChan   chan bool
+	listener   net.Listener
+	Addr       string
+	clientPool *httpclient.ClientPool
 }
 
 func (as *AsyncServer) Stop() {
@@ -168,17 +169,17 @@ func (as *AsyncServer) SetGlobalHeader(k, v string) {
 	as.clientPool.SetGlobalHeader(k, v)
 }
 
+//func AsyncStart() *AsyncServer {
+//	return asyncStart(2)
+//}
+//func AsyncStart1() *AsyncServer {
+//	return asyncStart(1)
+//}
 func AsyncStart() *AsyncServer {
-	return asyncStart(2)
-}
-func AsyncStart1() *AsyncServer {
-	return asyncStart(1)
-}
-func asyncStart(httpVersion int) *AsyncServer {
-	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool), httpVersion: httpVersion}
-	go start(httpVersion, as)
+	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool)}
+	go start(as)
 	<-as.startChan
-	if as.httpVersion == 1 || Config.CertFile != "" {
+	if Config.HttpVersion == 1 || Config.CertFile != "" {
 		as.clientPool = httpclient.GetClient(time.Duration(Config.CallTimeout) * time.Millisecond)
 	} else {
 		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.CallTimeout) * time.Millisecond)
@@ -243,24 +244,29 @@ func Init() {
 		Config.LogOutputArrayNum = 2
 	}
 
-	if Config.HttpVersion == 2 {
-		if Config.CertFile == "" {
-			serverProto = "h2c"
-		} else {
-			serverProto = "h2"
-		}
-	} else {
+	if Config.HttpVersion == 1 {
 		if Config.CertFile == "" {
 			serverProto = "http"
 		} else {
 			serverProto = "https"
+		}
+	} else {
+		Config.HttpVersion = 2
+		if Config.CertFile == "" {
+			serverProto = "h2c"
+		} else {
+			serverProto = "h2"
 		}
 	}
 
 	serverAddr = Config.Listen
 }
 
-func start(httpVersion int, as *AsyncServer) {
+func Start() {
+	start(nil)
+}
+
+func start(as *AsyncServer) {
 	// document must after registers
 	if inDocumentMode {
 		if len(os.Args) >= 4 {
@@ -303,10 +309,6 @@ func start(httpVersion int, as *AsyncServer) {
 			}
 			discover.Config.Calls[k].Headers["Access-Token"] = v
 		}
-	}
-
-	if Config.HttpVersion == 1 || Config.HttpVersion == 2 {
-		httpVersion = Config.HttpVersion
 	}
 
 	logInfo("starting")
@@ -370,7 +372,7 @@ func start(httpVersion int, as *AsyncServer) {
 
 	// 信息记录到 pid file
 	serviceInfo.pid = os.Getpid()
-	serviceInfo.httpVersion = httpVersion
+	serviceInfo.httpVersion = Config.HttpVersion
 	if Config.CertFile != "" && Config.KeyFile != "" {
 		serviceInfo.baseUrl = "https://" + serverAddr
 	} else {
@@ -387,7 +389,7 @@ func start(httpVersion int, as *AsyncServer) {
 		as.Addr = serverAddr
 		as.startChan <- true
 	}
-	if httpVersion == 2 {
+	if Config.HttpVersion == 2 {
 		//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
 		s2 := &http2.Server{}
 		err := http2.ConfigureServer(srv, s2)

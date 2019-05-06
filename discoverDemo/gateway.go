@@ -12,5 +12,5 @@ func getInfo(in struct{ Name string }, c *discover.Caller) (out struct{ FullName
 
 func main() {
 	s.Register(0, "/{name}", getInfo)
-	s.Start1()
+	s.Start()
 }

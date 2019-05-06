@@ -2,6 +2,7 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/config"
 	"net/http"
 	"reflect"
 	"testing"
@@ -23,6 +24,10 @@ import (
 //}
 
 func ResetAllSets() {
+	config.ResetConfigEnv()
+	Config = serviceConfig{}
+	inited = false
+
 	rewrites = make(map[string]*rewriteInfo)
 	regexRewrites = make([]*rewriteInfo, 0)
 	proxies = make(map[string]*proxyInfo, 0)
