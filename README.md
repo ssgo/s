@@ -39,7 +39,7 @@ func main() {
 	s.Restful(0, "GET", "/hello", func() string{
 		return "Hello ssgo\n"
 	})
-	s.Start1()
+	s.Start()
 }
 ```
 
@@ -47,6 +47,7 @@ func main() {
 
 ```shell
 export SERVICE_LISTEN=:8080
+export SERVICE_HTTPVERSION=1
 go run start.go
 ```
 
@@ -54,6 +55,7 @@ windows下环境变量不区分大小写，windows下使用：
 
 ```cmd
 set service_listen=:8080
+sest service_httpversion=1
 go run start.go
 ```
 
@@ -64,7 +66,6 @@ go run start.go
   "listen":":8081"
 }
 ```
-
 开发时可以使用配置文件
 
 部署推荐使用容器技术设置环境变量
@@ -99,6 +100,16 @@ sskey -e 123456
   }
 }
 ```
+也可以通过环境变量来设置：
+
+```shell
+export REDIS_DISCOVER_PASSWORD="upvNALgTxwS/xUp2Cie4tg=="
+```
+
+windows下：
+```cmd
+set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
+```
 
 ## 服务发现
 
@@ -121,7 +132,7 @@ func main() {
 ```
 
 ```shell
-export SERVICE_APP=s1
+export DISCOVER_APP=s1
 export SERVICE_ACCESSTOKENS='{"s1token":1}'
 go run service.go
 ```
@@ -129,6 +140,7 @@ go run service.go
 windows下使用：
 
 ```cmd
+set discover_app=s1
 set service_accesstokens={"s1token":1}
 go run service.go
 ```
@@ -146,32 +158,37 @@ s.Start()将会工作在 HTTP/2.0 No SSL 协议上（服务间通讯默认都使
 ```go
 package main
 
-import "github.com/ssgo/s"
+import (
+	"github.com/ssgo/s"
+	"github.com/ssgo/discover"
+)
 
-func getInfo(in struct{ Name string }, c *s.Caller) (out struct{ FullName string }) {
+func getInfo(in struct{ Name string }, c *discover.Caller) (out struct{ FullName string }) {
   c.Get("s1", "/"+in.Name+"/fullName", nil).To(&out)
   return
 }
 
 func main() {
   s.Register(0, "/{name}", getInfo)
-  s.Start1()
+  s.Start()
 }
 ```
 
 ```shell
-export SERVICE_APP=g1
+export DISCOVER_APP=g1
+export SERVICE_HTTPVERSION=1
 export SERVICE_LISTEN=:8091
-export SERVICE_CALLS='{"s1": {"accessToken": "s1token"}}'
+export SERVICE_CALLTOKENS='{"s1": "s1token"}'
 go run gateway.go &
 ```
 
-windows下使用：
+windows下使用：b
 
 ```cmd
-set service_app=g1
+set discover_app=g1
+set service_httpversion=1
 set service_listen=:8091
-set service_calls={"s1": {"accessToken": "s1token"}}
+set service_calltokens={"s1":"s1token"}
 go run gateway.go
 ```
 
@@ -183,6 +200,17 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 所有调用 s1 服务的请求都会自动带上 "sltoken" 这个令牌以获得相应等级的访问权限
 
+##### callToken说明
+
+service_calltokens是简写
+
+gateway上token的设置也可以为：
+
+```
+discover_calls={"s1": {"headers":{"access-token": "s1token"}}}
+```
+
+service_calltokens与discover_calls同时设置时，service_calltokens优先级高
 
 ## 框架常用方法
 
@@ -205,16 +233,14 @@ func SetAuthChecker(authChecker func(authLevel uint, url *string, request *map[s
 // 设置panic错误处理方法
 func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{})
 
-// 启动HTTP/1.1服务
-func Start1() {}
 
-// 启动HTTP/2.0服务（若未配置证书将工作在No SSL模式）
+// 默认启动HTTP/2.0服务（若未配置证书将工作在No SSL模式）
+// 如果设置了httpVersion=1则启动HTTP/1.1服务
 func Start() {}
 
-// 异步方式启动HTTP/2.0服务（）
+// 默认异步方式启动HTTP/2.0服务（）
+// 如果设置了httpVersion=1则启动HTTP/1.1服务
 func AsyncStart() *AsyncServer {}
-// 异步方式启动HTTP/1.1服务（）
-func AsyncStart1() *AsyncServer {}
 
 // 停止以异步方式启动的服务后等待各种子线程结束
 func (as *AsyncServer) Stop() {}
@@ -256,8 +282,6 @@ func showFullName(in struct{ Name string }) (out struct{ FullName string }) {
 	return
 }
 func main() {
-	//demo演示，实际场景不推荐这样配置
-	os.Setenv("service_listen", ":8301")
 	//http://127.0.0.1:8301/api/echo?aaa=1&bbb=2&ccc=3
 	s.Restful(0, "GET", "/api/echo", restAct)
 	s.Restful(0, "POST", "/api/echo", restAct)
@@ -271,9 +295,14 @@ func main() {
 	s.Restful(0, "GET", "/full_name/{name}", showFullName)
 	//访问设置header content-type:application/json  params:{"name":"jim"}
 	s.Restful(0, "PUT", "/full_name", showFullName)
-	s.Start1()
+	s.Start()
 }
 ```
+
+| 环境变量| 值 |
+|:------ |:------ |
+| service_listen | :8301 |
+| service_httpVersion | 1 |
 
 请求例子
 
@@ -352,7 +381,7 @@ func main() {
 	//header
 	s.Restful(0, "GET", "/header_test", headerTest)
 	s.Restful(0, "POST", "/label", label)
-	s.Start1()
+	s.Start() ////设置service_httpVersion=1
 }
 
 ```
@@ -447,7 +476,7 @@ func main() {
 		return data, false
 	})
 
-	s.Start1()
+	s.Start() ////设置service_httpVersion=1
 }
 ```
 
@@ -470,7 +499,7 @@ func main() {
 	s.Rewrite("/r2/(\\w+?)\\?.*?", "/show/$1")
 	//post http://127.0.0.1:8305/r3?name=123  s2=456
 	s.Rewrite("/r3\\?name=(\\w+)", "/show/$1")
-	s.Start1()
+	s.Start() //设置service_httpVersion=1
 }
 ```
 #### 异步服务
@@ -577,15 +606,18 @@ calls客户端使用服务具备的高等级的访问token，可以访问以低�
 #### 静态资源
 
 ```go
-s.Static("/", "resource")
+s.Static("/", "resource/")
 s.Start()
 ```
+
+注意：resource结尾一定要有/
+
 启动服务可以访问站点resource目录下的静态资源
 
 gateway可以通过proxy来实现多个静态服务的负载代理：
 ```go
 s.Proxy("/proxy/(.+?)", "k1", "/$1")
-s.Start1()
+s.Start()
 ```
 
 #### Websocket
@@ -696,7 +728,7 @@ func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} 
 ```go
 s.Restful(2, "PUT", "/api/echo", action)
 s.SetSessionKey("name")
-s.Start1()
+s.Start()
 func showFullName(in struct{ Name string },req *http.Request) (out struct{ FullName string }) {
 	out.FullName = in.Name + " Lee." + s.GetSessionId(req)
 	return
@@ -785,42 +817,25 @@ func main() {
   "rwTimeout": 5000,
   "keepaliveTimeout": 15000,
   "callTimeout": 10000,
-  "logFile": "",
-  "logLevel": "info",
   "noLogGets": false,
   "noLogHeaders": "Accept,Accept-Encoding,Cache-Control,Pragma,Connection",
-  "encryptLogFields": "password,secure,token,accessToken",
   "noLogInputFields": false,
   "logInputArrayNum": 0,
   "logOutputFields": "code,message",
   "logOutputArrayNum": 2,
   "logWebsocketAction": false,
   "compress": true,
-  "xUniqueId": "X-Unique-Id",
-  "xForwardedForName": "X-Forwarded-For",
-  "xRealIpName": "X-Real-Ip",
   "certFile": "",
   "keyFile": "",
-  "registry": "discover:15",
-  "registryCalls": "discover:15",
-  "registryPrefix": "",
-  "app": "",
-  "weight": 1,
   "accessTokens": {
     "hasfjlkdlasfsa": 1,
     "fdasfsadfdsa": 2,
     "9ifjjabdsadsa": 2
   },
-  "calls": {
-    "user": {},
-    "news": {
-      "accessToken": "hasfjlkdlasfsa",
-      "timeout": 5000,
-      "httpVersion": 2,
-      "withSSL": false
-    }
-  },
-  "callRetryTimes": 10
+  "callTokens": {
+    "hasfjlkdlasfsa": 1,
+    "fdasfsadfdsa": 2
+  }
 }
 ```
 
@@ -831,32 +846,75 @@ func main() {
 | rwTimeout | int<br>毫秒 | 10000 | 服务读写超时时间 |
 | keepaliveTimeout | int<br>毫秒 | 10000 | keepalived激活时连接允许空闲的最大时间<br>如果未设置，默认为15秒 |
 | callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
-| logFile | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
-| logLevel | string | info | 指定的日志输出级别<br />debug,info,warning,error |
-| httpVersion | int | 2 | 服务的http版本 |
 | noLogGets | bool | false | 为true时屏蔽Get网络请求日志 |
 | noLogHeaders | string | Accept,Accept-Encoding | 日志请求头和响应头屏蔽header头指定字段输出<br />可设置为false |
-| encryptLogFields | string | accessToken | 以***号显示header头敏感信息 <br>默认字段：password,secure,token,accessToken |
 | noLogInputFields | string | accessToken | 日志过滤输入的字段，目前未启用<br>为false代表所有字段都日志打印 |
 | logInputArrayNum | int | 2 | 输入字段子元素（数组）日志打印个数限制<br>默认为0， s.Arr{1, 2, 3}会输出为float64 (3)|
 | logOutputFields | string | code,message | 日志输出的字段白名单<br>默认为false，代表不限制 |
 | logOutputArrayNum | int | 3 | 输出字段子元素（数组）日志打印个数限制<br>默认为0 |
 | logWebsocketAction | bool | false | 是否展示websocket的WSACTION请求日志 |
 | compress | bool | false | 是否开启响应压缩 |
-| xUniqueId | string | X-Unique-Id | 请求id |
-| xForwardedForName | string | X-Forwarded-For | 请求header头中的X-Forwarded-For HTTP请求端真实IP |
-| xRealIpName | string |  X-Real-Ip | http请求机器ip |
 | certFile | string |  | https签名证书文件路径 |
 | keyFile | string |  | https私钥证书文件路径 |
+| accessTokens | map | {"ad2dc32cde9" : 1} | 当前服务访问授权码，可以根据不同的授权等级设置多个 |
+| callTokens | map | {"ad2dc32cde9" : 1} | 调用服务授权码，可以根据不同的授权等级设置多个 |
+
+#### 服务发现配置
+
+可在应用根目录放置一个 discover.json
+
+```json
+{
+  "registry": "discover:15",
+  "registryCalls": "discover:15",
+  "registryPrefix": "",
+  "app": "",
+  "weight": 1,
+  "calls": {
+    "s1": {
+      "headers": {
+        "access-token": "hasfjlkdlasfsa"
+      },
+      "timeout": 5000,
+      "httpVersion": 2,
+      "withSSL": false
+    }
+  },
+  "callRetryTimes": 10,
+  "callTimeout": 5000
+}
+```
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
 | registry | string | discover:15 | 服务发现redis的host、密码、数据库、超时时间配置<br>用于服务注册与注销 |
-| registryAllowTimeout | string | discover:15:-1 | 服务发现redis允许超时的访问配置<br />用于服务订阅与取消订阅 |
 | registryCalls | string | discover:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
 | registryPrefix | string | user- | 服务应用名前缀 |
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
-| accessTokens | map | {"ad2dc32cde9" : 1} | 服务访问通行码，可以根据不同的授权等级设置多个 |
-| calls | map |  | 客户端访问服务的配置<br>"s1":{"accessToken": "hasfjlkdlasfsa","timeout": 5000, "httpVersion": 2,"withSSL": false} |
+| calls | map |  | 客户端访问服务的配置<br>"s1":{"timeout": 5000, "httpVersion": 2,"withSSL": false} |
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
+| callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
+
+calls中包含：
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
+| headers |  map[string]*string |{access-token":"hasfjlkdlasfsa"}| 在服务发现配置中设置调用服务的授权码 | 
+| timeout |  int | 5000 | 调用服务的超时时间 | 
+| httpVersion |  int | 2 | 调用服务使用的http协议：1代表http1.1 2代表http2.0 | 
+| withSSL| bool | false| 是否开启https调用 |
+
+#### 日志配置
+
+| 配置项| 类型 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ | 
+| level | string | info | 指定的日志输出级别<br />debug,info,warning,error |
+| file | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
+| truncations | []string |  | 字段截断 |
+| sensitive | []string |  | 敏感字段 |
+| RegexSensitive | []string |  | 敏感正则 |
+| sensitiveRule | []string |  | 敏感规则 |
 
 #### redis配置
 
