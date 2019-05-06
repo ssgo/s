@@ -300,6 +300,9 @@ func start(as *AsyncServer) {
 	}
 
 	if callTokens != nil && len(callTokens) > 0 {
+		if discover.Config.Calls == nil {
+			discover.Config.Calls = make(map[string]*discover.CallInfo)
+		}
 		for k, v := range callTokens {
 			if discover.Config.Calls[k] == nil {
 				discover.Config.Calls[k] = new(discover.CallInfo)
