@@ -46,7 +46,7 @@ type serviceConfig struct {
 	KeyFile                       string
 	AccessTokens                  map[string]*int
 	CallTokens                    map[string]*string
-	CallTimeout                   int
+	RewriteTimeout                int
 	AcceptXRealIpWithoutRequestId bool
 }
 
@@ -180,9 +180,9 @@ func AsyncStart() *AsyncServer {
 	go start(as)
 	<-as.startChan
 	if Config.HttpVersion == 1 || Config.CertFile != "" {
-		as.clientPool = httpclient.GetClient(time.Duration(Config.CallTimeout) * time.Millisecond)
+		as.clientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 	} else {
-		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.CallTimeout) * time.Millisecond)
+		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 	}
 	return as
 }
@@ -209,8 +209,8 @@ func Init() {
 		Config.CompressMaxSize = 4096000
 	}
 
-	if Config.CallTimeout <= 0 {
-		Config.CallTimeout = 10000
+	if Config.RewriteTimeout <= 0 {
+		Config.RewriteTimeout = 10000
 	}
 
 	if Config.NoLogHeaders == "" {

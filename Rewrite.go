@@ -119,11 +119,11 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 			//	request.Body.Close()
 			//}
 			if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
-				clientForRewrite1 = httpclient.GetClient(time.Duration(Config.CallTimeout) * time.Millisecond)
+				clientForRewrite1 = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 				clientForRewrite1.NoBody = true
 			}
 			if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
-				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(Config.CallTimeout) * time.Millisecond)
+				clientForRewrite2 = httpclient.GetClientH2C(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 				clientForRewrite2.NoBody = true
 			}
 			requestHeaders := make([]string, 0)
