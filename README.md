@@ -858,6 +858,7 @@ func main() {
 | keyFile | string |  | https私钥证书文件路径 |
 | accessTokens | map | {"ad2dc32cde9" : 1} | 当前服务访问授权码，可以根据不同的授权等级设置多个 |
 | callTokens | map | {"ad2dc32cde9" : 1} | 调用服务授权码，可以根据不同的授权等级设置多个 |
+| acceptXRealIpWithoutRequestId| bool | false | 在没有X-Request-ID的情况下是否忽略 X-Real-IP false代表忽略 |
 
 #### 服务发现配置
 
@@ -913,7 +914,7 @@ calls中包含：
 | file | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
 | truncations | []string |  | 字段截断 |
 | sensitive | []string |  | 敏感字段 |
-| RegexSensitive | []string |  | 敏感正则 |
+| regexSensitive | []string | ["password","token"] | 敏感字段正则 |
 | sensitiveRule | []string |  | 敏感规则 |
 
 #### redis配置
@@ -1025,8 +1026,10 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
     }
   },
   "service":{
-    "app":"e1",
     "listen":":8081"
+  },
+  "discover": {
+    "app":"e1"
   },
   "db":{
     "test": {
@@ -1049,20 +1052,20 @@ env.json的优先级高于其他配置文件。
 以下是服务配置
 
 ```shell
-export SERVICE='{"listen": ":80", "app": "s1"}'
+export SERVICE='{"listen": ":80", "httpVersion": 1}'
 export SERVICE_LISTEN=10.34.22.19:8001
-export SERVICE_CALLS_NEWS_ACCESSTOKEN=real_token
+export SERVICE_HTTPVERSION=1
 ```
 
 windows下：
 
 ```cmd
-set service={"listen": ":80", "app": "s1"}
+set service={"listen": ":80", "calltokens": {"s1":"asfews"}}
 set service_listen=10.34.22.19:8001
-set service_calls_news_accesstoken=real_token
+set service_calltokens_s1=asfews
 ```
 
-以下是服务发现的配置
+以下是服务发现的redis配置
 
 ```shell
 export REDIS='{"discover":{"host":"127.0.0.1:6379","db":1}}'
