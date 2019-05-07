@@ -182,7 +182,7 @@ export SERVICE_CALLTOKENS='{"s1": "s1token"}'
 go run gateway.go &
 ```
 
-windows下使用：b
+windows下使用：
 
 ```cmd
 set discover_app=g1
@@ -567,9 +567,10 @@ func main() {
 	})
 	s.Proxy("/proxy/(.+?)", "e1", "/serv/$1")
 
-	os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	os.Setenv("LOG_FILE", os.DevNull)
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"e1_level1": 1, "e1_level2": 2, "e1_level3":3}`)
-	os.Setenv("SERVICE_CALLS", `{"e1": {"accessToken": "e1_level3", "httpVersion": 1}}`)
+	os.Setenv("DISCOVER_CALLS", `{"e1": {"headers":{"access-token": "e1_level3"}, "httpVersion": 1}}`)
+	//一定要做reset，不然手动设置的环境变量不可被加载****
 	config.ResetConfigEnv()
 	as := s.AsyncStart()
 	fmt.Println("/serv/provide:")
@@ -939,7 +940,7 @@ calls中包含：
 | level | string | info | 指定的日志输出级别<br />debug,info,warning,error |
 | file | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
 | truncations | []string |  ["github.com/", "/ssgo/"] | 程序调用栈callStack字段忽略的目录 |
-| sensitive | []string | ["password","token"] |  | 敏感字段 |
+| sensitive | []string | ["password","token"] | 敏感字段 |
 | regexSensitive | []string | ["\\[(\\w+)\\]"] | 日志敏感信息正则匹配 |
 | sensitiveRule | []string | ["11:3*3", "7:2*2", "3:1*1", "2:1*0"] | 敏感字段展示规则 |
 
@@ -1040,7 +1041,7 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
 
 #### env配置
 
-可以在应用根目录使用env.json综合配置(redis+service+proxy+db)服务：
+可以在应用根目录使用env.json综合配置(service+discover+log+proxy+redis+db)服务：
 
 ```json
 {
@@ -1072,7 +1073,7 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
 }
 ```
 
-env.json的优先级高于其他配置文件。
+prox<font color=red>env.json的优先级高于其他配置文件。</font>
 
 如果同级目录下同时出现env和server配置文件，env的配置会对server配置进行覆盖。
 
