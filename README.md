@@ -55,7 +55,7 @@ windows下环境变量不区分大小写，windows下使用：
 
 ```cmd
 set service_listen=:8080
-sest service_httpversion=1
+set service_httpversion=1
 go run start.go
 ```
 
@@ -192,9 +192,7 @@ set service_calltokens={"s1":"s1token"}
 go run gateway.go
 ```
 
-该服务工作在认证级别0上，可以随意访问
-
-s.Start1() 将会工作在 HTTP/1.1 协议上（方便直接测试）
+该服务工作在认证级别0上，工作在 HTTP/1.1 协议上,可以直接访问
 
 getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均衡到某一个节点
 
@@ -573,7 +571,7 @@ func main() {
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"e1_level1": 1, "e1_level2": 2, "e1_level3":3}`)
 	os.Setenv("SERVICE_CALLS", `{"e1": {"accessToken": "e1_level3", "httpVersion": 1}}`)
 	config.ResetConfigEnv()
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 	fmt.Println("/serv/provide:")
 	fmt.Println(as.Get("/serv/provide", "Access-Token", "e1_level1"))
 	fmt.Println("/serv/gate_get:")
@@ -619,6 +617,20 @@ gateway可以通过proxy来实现多个静态服务的负载代理：
 s.Proxy("/proxy/(.+?)", "k1", "/$1")
 s.Start()
 ```
+
+#### 路由规则
+
+s框架的路由规则是倒置的，同时满足url规则的路由，上面设置路由的优先级高于下方路由
+
+正确路由设置：
+
+```go
+s.Restful(0, http.MethodGet, "/user/{userId}/grade", user.Grade)
+s.Restful(0, http.MethodGet, "/user/{userId}", user.Detail)
+```
+
+如果将/user/{userId}/grade设置在下方，永远匹配的都是/user/{userId}
+
 
 #### Websocket
 
@@ -816,7 +828,7 @@ func main() {
   "httpVersion": 2,
   "rwTimeout": 5000,
   "keepaliveTimeout": 15000,
-  "callTimeout": 10000,
+  "rewriteTimeout": 10000,
   "noLogGets": false,
   "noLogHeaders": "Accept,Accept-Encoding,Cache-Control,Pragma,Connection",
   "noLogInputFields": false,
@@ -845,7 +857,7 @@ func main() {
 | httpVersion | int | 2 | 服务的http版本 |
 | rwTimeout | int<br>毫秒 | 10000 | 服务读写超时时间 |
 | keepaliveTimeout | int<br>毫秒 | 10000 | keepalived激活时连接允许空闲的最大时间<br>如果未设置，默认为15秒 |
-| callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
+| rewriteTimeout | int<br>毫秒 | 5000 | rewrite、proxy操作的超时时间 |
 | noLogGets | bool | false | 为true时屏蔽Get网络请求日志 |
 | noLogHeaders | string | Accept,Accept-Encoding | 日志请求头和响应头屏蔽header头指定字段输出<br />可设置为false |
 | noLogInputFields | string | accessToken | 日志过滤输入的字段，目前未启用<br>为false代表所有字段都日志打印 |
@@ -853,12 +865,14 @@ func main() {
 | logOutputFields | string | code,message | 日志输出的字段白名单<br>默认为false，代表不限制 |
 | logOutputArrayNum | int | 3 | 输出字段子元素（数组）日志打印个数限制<br>默认为0 |
 | logWebsocketAction | bool | false | 是否展示websocket的WSACTION请求日志 |
-| compress | bool | false | 是否开启响应压缩 |
+| compress | bool | false | 是否开启响应gzip压缩(包含静态资源) |
+| compressMinSize | int | 1024 | 设置响应内容gzip压缩满足的最小尺寸<br />默认为1024Bytes |
+| compressMaxSize | int | 4096000 | 设置响应内容gzip压缩满足的最大尺寸<br />默认为4096000Bytes |
 | certFile | string |  | https签名证书文件路径 |
 | keyFile | string |  | https私钥证书文件路径 |
 | accessTokens | map | {"ad2dc32cde9" : 1} | 当前服务访问授权码，可以根据不同的授权等级设置多个 |
 | callTokens | map | {"ad2dc32cde9" : 1} | 调用服务授权码，可以根据不同的授权等级设置多个 |
-| acceptXRealIpWithoutRequestId| bool | false | 在没有X-Request-ID的情况下是否忽略 X-Real-IP false代表忽略 |
+| acceptXRealIpWithoutRequestId| bool | false | 在没有X-Request-ID的情况下是否忽略 X-Real-IP<br />false代表忽略 |
 
 #### 服务发现配置
 
@@ -908,14 +922,26 @@ calls中包含：
 
 #### 日志配置
 
+可在应用根目录放置一个 log.json
+```json
+{
+  "level": "info",
+  "truncations": ["github.com/", "/ssgo/"],
+  "sensitive": ["password", "secure", "token", "accessToken"],
+  "regexSensitive": ["(^|[^\\d])(1\\d{10})([^\\d]|$)", "\\[(\\w+)\\]"],
+  "sensitiveRule": ["11:3*3", "7:2*2", "3:1*1", "2:1*0"]
+  
+}
+```
+
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
 | level | string | info | 指定的日志输出级别<br />debug,info,warning,error |
 | file | string | /dev/null | 日志文件<br />设置为nil,不展示日志<br>可以指定日志文件路径<br>不设置默认打向控制台 |
-| truncations | []string |  | 字段截断 |
-| sensitive | []string |  | 敏感字段 |
-| regexSensitive | []string | ["password","token"] | 敏感字段正则 |
-| sensitiveRule | []string |  | 敏感规则 |
+| truncations | []string |  ["github.com/", "/ssgo/"] | 程序调用栈callStack字段忽略的目录 |
+| sensitive | []string | ["password","token"] |  | 敏感字段 |
+| regexSensitive | []string | ["\\[(\\w+)\\]"] | 日志敏感信息正则匹配 |
+| sensitiveRule | []string | ["11:3*3", "7:2*2", "3:1*1", "2:1*0"] | 敏感字段展示规则 |
 
 #### redis配置
 
@@ -1030,6 +1056,9 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
   },
   "discover": {
     "app":"e1"
+  },
+  "log": {
+    "level": "info"
   },
   "db":{
     "test": {

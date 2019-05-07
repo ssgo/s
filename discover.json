@@ -1,0 +1,8 @@
+{
+  "registry": "localhost:6379:1:udigzs+oTp2Kau3Gs20xXQ==:3000:10000",
+  "registryCalls": "localhost:6379:1:udigzs+oTp2Kau3Gs20xXQ==:3000:10000",
+  "registryPrefix": "",
+  "app": "s1",
+  "weight": 1,
+  "callRetryTimes": 10
+}
