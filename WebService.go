@@ -280,8 +280,6 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			//	requestLogger.Error(err.Error())
 			//}
 			u.Convert(args, in)
-			fmt.Println("  ###", u.JsonP(args))
-			fmt.Println("  ###>>", u.JsonP(in))
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}
