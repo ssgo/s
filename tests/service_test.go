@@ -47,7 +47,7 @@ func TestEchos(tt *testing.T) {
 		"ggg": 223,
 	}).Map()
 
-	t.Test(d["aaa"].(float64) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", d)
+	t.Test(u.Float64(d["aaa"]) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", d)
 
 	a := as.Post("/echo3?a=1", s.Map{"name": "Star"}).Arr()
 	t.Test(ok, "[Echo3] Data1", a)

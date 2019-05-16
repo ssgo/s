@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/mitchellh/mapstructure"
 	"github.com/ssgo/u"
 )
 
@@ -239,10 +238,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			var openParms = make([]reflect.Value, ws.openParmsNum)
 			if ws.openInType != nil {
 				in := reflect.New(ws.openInType).Interface()
-				err := mapstructure.WeakDecode(*args, in)
-				if err != nil {
-					requestLogger.Error(err.Error())
-				}
+				u.Convert(*args, in)
 				openParms[ws.openInIndex] = reflect.ValueOf(in).Elem()
 			}
 			if ws.openHeadersIndex >= 0 {
@@ -426,10 +422,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
-		err := mapstructure.WeakDecode(*data, in)
-		if err != nil {
-			return "", nil, 0, err
-		}
+		u.Convert(*data, in)
 		messageParms[action.inIndex] = reflect.ValueOf(in).Elem()
 	}
 	if action.sessionIndex >= 0 {
@@ -492,10 +485,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 			if outDataType.Kind() == reflect.Map && outDataType.Elem().Kind() == reflect.Interface {
 				outDataMap = outData.(map[string]interface{})
 			} else if outDataType.Kind() == reflect.Struct {
-				err := mapstructure.WeakDecode(outData, &outDataMap)
-				if err != nil {
-					requestLogger.Error(err.Error())
-				}
+				u.Convert(outData, &outDataMap)
 			} else {
 				outDataMap = map[string]interface{}{}
 				outDataMap["data"] = outData

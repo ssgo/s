@@ -2,7 +2,13 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/config"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/httpclient"
+	"github.com/ssgo/log"
 	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
+	"golang.org/x/net/http2"
 	"net"
 	"net/http"
 	"os"
@@ -11,13 +17,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/ssgo/config"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/httpclient"
-	"github.com/ssgo/log"
-	"github.com/ssgo/u"
-	"golang.org/x/net/http2"
 )
 
 type Arr = []interface{}
@@ -28,9 +27,9 @@ var inited = false
 var running = false
 
 type serviceConfig struct {
-	Listen                        string
-	HttpVersion                   int
-	RwTimeout                     int
+	Listen      string
+	HttpVersion int
+	//RwTimeout                     int
 	KeepaliveTimeout              int
 	NoLogGets                     bool
 	NoLogHeaders                  string
@@ -313,7 +312,6 @@ func start(as *AsyncServer) {
 			discover.Config.Calls[k].Headers["Access-Token"] = v
 		}
 	}
-
 	logInfo("starting")
 
 	rh := routeHandler{}
@@ -322,11 +320,11 @@ func start(as *AsyncServer) {
 		Handler: &rh,
 	}
 
-	if Config.RwTimeout > 0 {
-		srv.ReadTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
-		srv.ReadHeaderTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
-		srv.WriteTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
-	}
+	//if Config.RwTimeout > 0 {
+	//	srv.ReadTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
+	//	srv.ReadHeaderTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
+	//	srv.WriteTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
+	//}
 
 	if Config.KeepaliveTimeout > 0 {
 		srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
@@ -425,7 +423,7 @@ func start(as *AsyncServer) {
 		} else {
 			err = srv.Serve(listener)
 		}
-		if err != nil {
+		if err != nil && strings.Index(err.Error(), "use of closed network connection") == -1 {
 			logError(err.Error())
 		}
 	}

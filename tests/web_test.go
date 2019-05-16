@@ -100,7 +100,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 func TestWelcomePicture(tt *testing.T) {
 	t := s.T(tt)
 
-	_ = os.Setenv("SERVICE_LOGFILE", os.DevNull)
+	_ = os.Setenv("LOG_FILE", os.DevNull)
 	s.ResetAllSets()
 	s.Register(0, "/w/{picName}.png", WelcomePicture)
 

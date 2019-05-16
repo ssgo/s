@@ -3,7 +3,6 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/log"
 	"github.com/ssgo/u"
@@ -171,6 +170,98 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 	errorHandle = myErrorHandle
 }
 
+//func StringValue(v reflect.Value) reflect.Value {
+//	v = Elem(v)
+//	k := v.Kind()
+//	switch k {
+//	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+//		return reflect.ValueOf(strconv.FormatInt(v.Int(), 10))
+//	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+//		return reflect.ValueOf(strconv.FormatUint(v.Uint(), 10))
+//	case reflect.Float32, reflect.Float64:
+//		return reflect.ValueOf(strconv.FormatFloat(v.Float(), 'f', -1, 64))
+//	case reflect.Bool:
+//		if v.Bool() {
+//			return reflect.ValueOf(true)
+//		} else {
+//			return reflect.ValueOf(true)
+//		}
+//	case reflect.String:
+//		return v
+//	default:
+//		if (k == reflect.Slice || k == reflect.Array) && v.Type().Kind() == reflect.Uint8 {
+//			var buf []uint8
+//			if k == reflect.Array {
+//				buf = make([]uint8, v.Len(), v.Len())
+//				for i := range buf {
+//					buf[i] = v.Index(i).Interface().(uint8)
+//				}
+//			} else {
+//				buf = v.Interface().([]uint8)
+//			}
+//			return reflect.ValueOf(string(buf))
+//		} else {
+//			return reflect.ValueOf(fmt.Sprint(v.Interface()))
+//		}
+//	}
+//}
+//
+//func IntValue(v reflect.Value) reflect.Value {
+//	return reflect.ValueOf(int(intValue(v).Int()))
+//}
+//
+//func Int8Value(v reflect.Value) reflect.Value {
+//	return reflect.ValueOf(int8(intValue(v).Int()))
+//}
+//
+//func Int16Value(v reflect.Value) reflect.Value {
+//	return reflect.ValueOf(int16(intValue(v).Int()))
+//}
+//
+//func Int32Value(v reflect.Value) reflect.Value {
+//	return reflect.ValueOf(int32(intValue(v).Int()))
+//}
+//
+//func Int64Value(v reflect.Value) reflect.Value {
+//	return reflect.ValueOf(int64(intValue(v).Int()))
+//}
+//
+//func intValue(v reflect.Value) reflect.Value {
+//	v = Elem(v)
+//	k := v.Kind()
+//	switch k {
+//	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+//		return v
+//	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+//		return reflect.ValueOf(int64(v.Uint()))
+//	case reflect.Float32, reflect.Float64:
+//		return reflect.ValueOf(strconv.FormatFloat(v.Float(), 'f', -1, 64))
+//	case reflect.Bool:
+//		if v.Bool() {
+//			return reflect.ValueOf(true)
+//		} else {
+//			return reflect.ValueOf(true)
+//		}
+//	case reflect.String:
+//		return v
+//	default:
+//		if (k == reflect.Slice || k == reflect.Array) && v.Type().Kind() == reflect.Uint8 {
+//			var buf []uint8
+//			if k == reflect.Array {
+//				buf = make([]uint8, v.Len(), v.Len())
+//				for i := range buf {
+//					buf[i] = v.Index(i).Interface().(uint8)
+//				}
+//			} else {
+//				buf = v.Interface().([]uint8)
+//			}
+//			return reflect.ValueOf(string(buf))
+//		} else {
+//			return reflect.ValueOf(fmt.Sprint(v.Interface()))
+//		}
+//	}
+//}
+
 func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{},
 	result interface{}, requestLogger *log.Logger) (webResult interface{}) {
 	// 反射调用
@@ -184,10 +275,13 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
 			in := reflect.New(service.inType).Interface()
-			err := mapstructure.WeakDecode(*args, in)
-			if err != nil {
-				requestLogger.Error(err.Error())
-			}
+			//err := mapstructure.WeakDecode(*args, in)
+			//if err != nil {
+			//	requestLogger.Error(err.Error())
+			//}
+			u.Convert(args, in)
+			fmt.Println("  ###", u.JsonP(args))
+			fmt.Println("  ###>>", u.JsonP(in))
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}

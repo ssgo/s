@@ -19,13 +19,7 @@ type echo1Args struct {
 }
 
 type echo2Args struct {
-	Aaa        int
-	Bbb        string
-	Ccc        string
-	Ddd        float32
-	Eee        bool
-	Fff        interface{}
-	Ggg        string
+	echo1Args
 	FilterTag  string
 	FilterTag2 int
 }
@@ -75,7 +69,7 @@ func OnEchoOpen(in struct {
 	sess.UserInfo.Age = 1
 	sess.RoomId = in.RoomId
 
-	client.WriteJSON(EchoEncoder("welcome", map[string]interface{}{
+	_ = client.WriteJSON(EchoEncoder("welcome", map[string]interface{}{
 		"token":  in.Token,
 		"roomId": in.RoomId,
 		"oldAge": sess.UserInfo.Age,
