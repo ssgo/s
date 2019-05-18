@@ -27,9 +27,8 @@ var inited = false
 var running = false
 
 type serviceConfig struct {
-	Listen      string
-	HttpVersion int
-	//RwTimeout                     int
+	Listen                        string
+	HttpVersion                   int
 	KeepaliveTimeout              int
 	NoLogGets                     bool
 	NoLogHeaders                  string
@@ -44,7 +43,6 @@ type serviceConfig struct {
 	CertFile                      string
 	KeyFile                       string
 	AccessTokens                  map[string]*int
-	CallTokens                    map[string]*string
 	RewriteTimeout                int
 	AcceptXRealIpWithoutRequestId bool
 }
@@ -52,7 +50,8 @@ type serviceConfig struct {
 var Config = serviceConfig{}
 
 var accessTokens = map[string]*int{}
-var callTokens = map[string]*string{}
+
+//var callTokens = map[string]*string{}
 
 //type Call struct {
 //	AccessToken string
@@ -193,8 +192,6 @@ func Init() {
 	// safe AccessTokens
 	accessTokens = Config.AccessTokens
 	Config.AccessTokens = nil
-	callTokens = Config.CallTokens
-	Config.CallTokens = nil
 
 	if Config.KeepaliveTimeout <= 0 {
 		Config.KeepaliveTimeout = 15000
@@ -298,20 +295,6 @@ func start(as *AsyncServer) {
 		discover.Init()
 	}
 
-	if callTokens != nil && len(callTokens) > 0 {
-		if discover.Config.Calls == nil {
-			discover.Config.Calls = make(map[string]*discover.CallInfo)
-		}
-		for k, v := range callTokens {
-			if discover.Config.Calls[k] == nil {
-				discover.Config.Calls[k] = new(discover.CallInfo)
-			}
-			if discover.Config.Calls[k].Headers == nil {
-				discover.Config.Calls[k].Headers = map[string]*string{}
-			}
-			discover.Config.Calls[k].Headers["Access-Token"] = v
-		}
-	}
 	logInfo("starting")
 
 	rh := routeHandler{}

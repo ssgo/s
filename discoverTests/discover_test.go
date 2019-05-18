@@ -53,10 +53,9 @@ func TestBase(tt *testing.T) {
 
 	_ = os.Setenv("DISCOVER_APP", "a1")
 	_ = os.Setenv("DISCOVER_WEIGHT", "100")
-	_ = os.Setenv("DISCOVER_CALLS", `{"a1": {"httpVersion": 1}}`)
-	//_ = os.Setenv("DISCOVER_CALLS", `{"a1": {"httpVersion": 1, "headers": {"Access-Token": "aabbcc222"}}}`)
+	//_ = os.Setenv("DISCOVER_CALLS", `{"a1": "1000:aabbcc222:1"}`)
+	_ = os.Setenv("DISCOVER_CALLS_a1", "1000:aabbcc222:1")
 	_ = os.Setenv("SERVICE_ACCESSTOKENS", `{"aabbcc": 1, "aabbcc222": 2}`)
-	_ = os.Setenv("SERVICE_CALLTOKENS", `{"a1": "aabbcc222"}`)
 	_ = os.Setenv("SERVICE_HTTPVERSION", "1")
 
 	config.ResetConfigEnv()

@@ -100,9 +100,9 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 
 	// 注册新的Call，并重启订阅
 	if discover.Config.Calls == nil {
-		discover.Config.Calls = make(map[string]*discover.CallInfo)
+		discover.Config.Calls = make(map[string]string)
 	}
-	if discover.Config.Calls[*proxyToApp] == nil {
+	if discover.Config.Calls[*proxyToApp] == "" {
 		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
 		requestLogger.Info("add app on proxy", Map{
 			"app":    proxyToApp,
@@ -111,8 +111,8 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 			"method": request.Method,
 			"uri":    request.RequestURI,
 		})
-		discover.Config.Calls[*proxyToApp] = &discover.CallInfo{HttpVersion: 2}
-		discover.AddExternalApp(*proxyToApp, discover.CallInfo{})
+		discover.Config.Calls[*proxyToApp] = u.String(Config.RewriteTimeout)
+		discover.AddExternalApp(*proxyToApp, u.String(Config.RewriteTimeout))
 		discover.Restart()
 	}
 
@@ -226,7 +226,7 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 
 var updater = websocket.Upgrader{}
 
-func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf *discover.CallInfo, requestLogger *log.Logger) int {
+func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf string, requestLogger *log.Logger) int {
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
 		requestLogger.Error(err.Error(), Map{
@@ -256,9 +256,9 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		node.UsedTimes++
 
 		scheme := "ws"
-		if appConf.WithSSL {
-			scheme += "s"
-		}
+		//if appConf.WithSSL {
+		//	scheme += "s"
+		//}
 		parsedUrl, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
 		if err != nil {
 			requestLogger.Error(err.Error(), Map{
