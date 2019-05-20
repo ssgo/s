@@ -89,26 +89,22 @@ go build sskey.go
 # 123456是原始密码
 sskey -e 123456
 ```
-得到AES加密后的密码放入redis.json中
+得到AES加密后的密码放入discover.json中
 
 ```json
 {
-  "discover":{
-  "host":"127.0.0.1:6379",
-  "password":"upvNALgTxwS/xUp2Cie4tg==",
-  "db":1
-  }
+  "registry":"127.0.0.1:6379:1:upvNALgTxwS/xUp2Cie4tg=="
 }
 ```
 也可以通过环境变量来设置：
 
 ```shell
-export REDIS_DISCOVER_PASSWORD="upvNALgTxwS/xUp2Cie4tg=="
+export DISCOVER_REGISTRY="127.0.0.1:6379:1:upvNALgTxwS/xUp2Cie4tg=="
 ```
 
 windows下：
 ```cmd
-set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
+set discover_registry="127.0.0.1:6379:1:upvNALgTxwS/xUp2Cie4tg=="
 ```
 
 ## 服务发现
@@ -178,9 +174,10 @@ func main() {
 export DISCOVER_APP=g1
 export SERVICE_HTTPVERSION=1
 export SERVICE_LISTEN=:8091
-export SERVICE_CALLTOKENS='{"s1": "s1token"}'
+export DISCOVER_CALLS='{"s1":"5000:s1token"}'
 go run gateway.go &
 ```
+
 
 windows下使用：
 
@@ -188,7 +185,7 @@ windows下使用：
 set discover_app=g1
 set service_httpversion=1
 set service_listen=:8091
-set service_calltokens={"s1":"s1token"}
+set discover_calls={"s1":"5000:s1token"}
 go run gateway.go
 ```
 
@@ -198,17 +195,15 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 所有调用 s1 服务的请求都会自动带上 "sltoken" 这个令牌以获得相应等级的访问权限
 
-##### callToken说明
+##### calls说明
 
-service_calltokens是简写
+使用服务的配置格式为：
 
-gateway上token的设置也可以为：
+DISCOVER_CALLS={"app":"timeout:token:httpVersion"}
 
-```
-discover_calls={"s1": {"headers":{"access-token": "s1token"}}}
-```
+代表 —— 应用名:"请求服务超时时间：访问服务的授权码:访问服务使用的http协议版本"
 
-service_calltokens与discover_calls同时设置时，service_calltokens优先级高
+token未配置默认为空，httpversion未配置默认为2
 
 ## 框架常用方法
 
@@ -569,7 +564,7 @@ func main() {
 
 	os.Setenv("LOG_FILE", os.DevNull)
 	os.Setenv("SERVICE_ACCESSTOKENS", `{"e1_level1": 1, "e1_level2": 2, "e1_level3":3}`)
-	os.Setenv("DISCOVER_CALLS", `{"e1": {"headers":{"access-token": "e1_level3"}, "httpVersion": 1}}`)
+	os.Setenv("DISCOVER_CALLS", `{"e1":"5000:e1_level3:1"}`)
 	//一定要做reset，不然手动设置的环境变量不可被加载****
 	config.ResetConfigEnv()
 	as := s.AsyncStart()
@@ -844,10 +839,6 @@ func main() {
     "hasfjlkdlasfsa": 1,
     "fdasfsadfdsa": 2,
     "9ifjjabdsadsa": 2
-  },
-  "callTokens": {
-    "hasfjlkdlasfsa": 1,
-    "fdasfsadfdsa": 2
   }
 }
 ```
@@ -872,7 +863,6 @@ func main() {
 | certFile | string |  | https签名证书文件路径 |
 | keyFile | string |  | https私钥证书文件路径 |
 | accessTokens | map | {"ad2dc32cde9" : 1} | 当前服务访问授权码，可以根据不同的授权等级设置多个 |
-| callTokens | map | {"ad2dc32cde9" : 1} | 调用服务授权码，可以根据不同的授权等级设置多个 |
 | acceptXRealIpWithoutRequestId| bool | false | 在没有X-Request-ID的情况下是否忽略 X-Real-IP<br />false代表忽略 |
 
 #### 服务发现配置
@@ -881,20 +871,13 @@ func main() {
 
 ```json
 {
-  "registry": "discover:15",
-  "registryCalls": "discover:15",
+  "registry": "127.0.0.1:6379:15",
+  "registryCalls": "127.0.0.1:6379:15",
   "registryPrefix": "",
   "app": "",
   "weight": 1,
   "calls": {
-    "s1": {
-      "headers": {
-        "access-token": "hasfjlkdlasfsa"
-      },
-      "timeout": 5000,
-      "httpVersion": 2,
-      "withSSL": false
-    }
+    "s1": "5000:hasfjlkdlasfsa"
   },
   "callRetryTimes": 10,
   "callTimeout": 5000
@@ -903,12 +886,12 @@ func main() {
 
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
-| registry | string | discover:15 | 服务发现redis的host、密码、数据库、超时时间配置<br>用于服务注册与注销 |
-| registryCalls | string | discover:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
+| registry | string | 127.0.0.1:6379:15 | 服务发现redis的host、密码、数据库、超时时间配置<br>用于服务注册与注销 |
+| registryCalls | string | 127.0.0.1:6379:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
 | registryPrefix | string | user- | 服务应用名前缀 |
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
-| calls | map |  | 客户端访问服务的配置<br>"s1":{"timeout": 5000, "httpVersion": 2,"withSSL": false} |
+| calls | map |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000"}|
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
 | callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
 
@@ -1082,32 +1065,30 @@ prox<font color=red>env.json的优先级高于其他配置文件。</font>
 以下是服务配置
 
 ```shell
-export SERVICE='{"listen": ":80", "httpVersion": 1}'
-export SERVICE_LISTEN=10.34.22.19:8001
-export SERVICE_HTTPVERSION=1
+export DISCOVER='{"app": "c1", "calls": {"s1":"5000:asfews:1"}}'
+export DISCOVER_APP='c1'
+export DISCOVER_CALLS_s1='5000:asfews:2'
 ```
 
 windows下：
 
 ```cmd
-set service={"listen": ":80", "calltokens": {"s1":"asfews"}}
-set service_listen=10.34.22.19:8001
-set service_calltokens_s1=asfews
+set discover={"app": "c1", "calls": {"s1":"5000:asfews"}}
+set discover_app=c1
+set discover_calls_s1=5000:asfews:2
 ```
 
 以下是服务发现的redis配置
 
 ```shell
-export REDIS='{"discover":{"host":"127.0.0.1:6379","db":1}}'
-export REDIS_DISCOVER_HOST=127.0.0.1:6379
-export REDIS_DISCOVER_PASSWORD='upvNALgTxwS/xUp2Cie4tg=='
+export DISCOVER='{"REGISTRY":"127.0.0.1:6379:1"}'
+export DISCOVER_REGISTRY='127.0.0.1:6379:1:udigzs+oTp2Kau3Gs20xXQ=='
 ```
 windows下：
 
 ```shell
-set redis={"discover":{"host":"127.0.0.1:6379","db":1}}
-set redis_discover_host=127.0.0.1:6379
-set redis_discover_password=upvNALgTxwS/xUp2Cie4tg==
+set discover={"registry":"127.0.0.1:6379:1"}
+set discover_registry=127.0.0.1:6379:udigzs+oTp2Kau3Gs20xXQ==
 ```
 
 环境变量单项配置优先级大于总体配置
