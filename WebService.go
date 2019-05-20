@@ -13,22 +13,23 @@ import (
 )
 
 type webServiceType struct {
-	authLevel     int
-	priority      int
-	method        string
-	path          string
-	pathMatcher   *regexp.Regexp
-	pathArgs      []string
-	parmsNum      int
-	inType        reflect.Type
-	inIndex       int
-	headersIndex  int
-	requestIndex  int
-	responseIndex int
-	loggerIndex   int
-	callerIndex   int
-	funcType      reflect.Type
-	funcValue     reflect.Value
+	authLevel           int
+	priority            int
+	method              string
+	path                string
+	pathMatcher         *regexp.Regexp
+	pathArgs            []string
+	parmsNum            int
+	inType              reflect.Type
+	inIndex             int
+	headersIndex        int
+	requestIndex        int
+	responseIndex       int
+	responseWriterIndex int
+	loggerIndex         int
+	callerIndex         int
+	funcType            reflect.Type
+	funcValue           reflect.Value
 }
 
 var webServices = make(map[string]*webServiceType)
@@ -290,7 +291,12 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		parms[service.requestIndex] = reflect.ValueOf(request)
 	}
 	if service.responseIndex >= 0 {
-		parms[service.responseIndex] = reflect.ValueOf(*response)
+		if r, ok := (*response).(*Response); ok {
+			parms[service.responseIndex] = reflect.ValueOf(r)
+		}
+	}
+	if service.responseWriterIndex >= 0 {
+		parms[service.responseWriterIndex] = reflect.ValueOf(*response)
 	}
 	if service.loggerIndex >= 0 {
 		parms[service.loggerIndex] = reflect.ValueOf(requestLogger)
@@ -362,14 +368,17 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.headersIndex = -1
 	targetService.requestIndex = -1
 	targetService.responseIndex = -1
+	targetService.responseWriterIndex = -1
 	targetService.loggerIndex = -1
 	targetService.callerIndex = -1
 	for i := 0; i < targetService.parmsNum; i++ {
 		t := funcType.In(i)
 		if t.String() == "*http.Request" {
 			targetService.requestIndex = i
-		} else if t.String() == "http.ResponseWriter" {
+		} else if t.String() == "*s.Response" {
 			targetService.responseIndex = i
+		} else if t.String() == "http.ResponseWriter" {
+			targetService.responseWriterIndex = i
 		} else if t.String() == "*log.Logger" {
 			targetService.loggerIndex = i
 		} else if t.String() == "*http.Header" {

@@ -38,6 +38,9 @@ func (response *Response) Write(bytes []byte) (int, error) {
 	}
 	return response.writer.Write(bytes)
 }
+func (response *Response) WriteString(s string) (int, error) {
+	return response.Write([]byte(s))
+}
 func (response *Response) WriteHeader(code int) {
 	response.status = code
 	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
@@ -47,6 +50,18 @@ func (response *Response) WriteHeader(code int) {
 	if response.ProxyHeader != nil {
 		response.copyProxyHeader()
 	}
+}
+func (response *Response) Flush() {
+	if flusher, ok := response.writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+func (response *Response) FlushString(s string) (int, error) {
+	n, err := response.WriteString(s)
+	if err == nil {
+		response.Flush()
+	}
+	return n, err
 }
 
 func (response *Response) copyProxyHeader() {
