@@ -46,18 +46,20 @@ func main() {
 即可快速构建出一个8080端口可访问的服务:
 
 ```shell
-export SERVICE_LISTEN=:8080
-export SERVICE_HTTPVERSION=1
+export service_listen=:8080
+export service_httpversion=1
 go run start.go
 ```
 
-windows下环境变量不区分大小写，windows下使用：
+windows下使用：
 
 ```cmd
 set service_listen=:8080
 set service_httpversion=1
 go run start.go
 ```
+
+环境变量设置不区分大小写
 
 服务默认使用随机端口启动，若要指定端口可设置环境变量，或start.go目录下配置文件service.json
 
@@ -101,11 +103,14 @@ sskey -e 123456
 ```shell
 export DISCOVER_REGISTRY="127.0.0.1:6379:1:upvNALgTxwS/xUp2Cie4tg=="
 ```
-
 windows下：
 ```cmd
 set discover_registry="127.0.0.1:6379:1:upvNALgTxwS/xUp2Cie4tg=="
 ```
+
+discover_registry的设置代表：
+
+redis主机:端口号:数据库:res加密后的密码
 
 ## 服务发现
 
@@ -128,8 +133,8 @@ func main() {
 ```
 
 ```shell
-export DISCOVER_APP=s1
-export SERVICE_ACCESSTOKENS='{"s1token":1}'
+export discover_app=s1
+export service_accesstokens='{"s1token":1}'
 go run service.go
 ```
 
@@ -171,10 +176,10 @@ func main() {
 ```
 
 ```shell
-export DISCOVER_APP=g1
-export SERVICE_HTTPVERSION=1
-export SERVICE_LISTEN=:8091
-export DISCOVER_CALLS='{"s1":"5000:s1token"}'
+export discover_app=g1
+export service_httpversion=1
+export service_listen=:8091
+export discover_calls='{"s1":"5000:s1token"}'
 go run gateway.go &
 ```
 
@@ -322,8 +327,8 @@ Content-Type: application/json
 配置https服务需要在原来配置基础上增加两个环境变量
 
 ```shell
-export SERVICE_CERTFILE="your cert file path"
-export SERVICE_KEYFILE="your key file path"
+export service_certfile="your cert file path"
+export service_keyfile="your key file path"
 ```
 
 windows下：
@@ -886,23 +891,24 @@ func main() {
 
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
-| registry | string | 127.0.0.1:6379:15 | 服务发现redis的host、密码、数据库、超时时间配置<br>用于服务注册与注销 |
+| registry | string | 127.0.0.1:6379:15 | 服务发现redis的host、端口、数据库、密码、超时时间配置<br>用于服务注册与注销 |
 | registryCalls | string | 127.0.0.1:6379:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
 | registryPrefix | string | user- | 服务应用名前缀 |
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
-| calls | map |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000"}|
+| calls | string |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000"}|
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
 | callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
 
 calls中包含：
 
+timeout:accessToken:httpVersion
+
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
-| headers |  map[string]*string |{access-token":"hasfjlkdlasfsa"}| 在服务发现配置中设置调用服务的授权码 | 
-| timeout |  int | 5000 | 调用服务的超时时间 | 
-| httpVersion |  int | 2 | 调用服务使用的http协议：1代表http1.1 2代表http2.0 | 
-| withSSL| bool | false| 是否开启https调用 |
+| timeout |  int |5000| 如果未设置默认为10000（10秒）,比如：":s1token"   ":s1token:2" | 
+| accessToken | string | 5000 | 默认为空，比如："5000" | 
+| httpVersion | int | 2 | 调用服务使用的http协议：1代表http1.1 2代表http2.0，未配置默认为2，比如:"5000:s1token" | 
 
 #### 日志配置
 
@@ -931,11 +937,9 @@ calls中包含：
 
 可在应用根目录放置一个 redis.json
 
-服务发现使用的都是discover模块下的配置
-
 ```json
 {
-  "discover": {
+  "test": {
     "host": "127.0.0.1:6379",
     "password": "",
     "db": 1,
@@ -946,7 +950,7 @@ calls中包含：
     "readTimeout": 0,
     "writeTimeout": 0
   },
-  "test": {
+  "dev": {
     "…":"…"
   }
 }
@@ -1029,7 +1033,7 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
 ```json
 {
   "redis":{
-    "discover":{
+    "test":{
       "host":"127.0.0.1:6379",
       "password":"upvNALgTxwS/xUp2Cie4tg==",
       "db":1
@@ -1065,9 +1069,9 @@ prox<font color=red>env.json的优先级高于其他配置文件。</font>
 以下是服务配置
 
 ```shell
-export DISCOVER='{"app": "c1", "calls": {"s1":"5000:asfews:1"}}'
-export DISCOVER_APP='c1'
-export DISCOVER_CALLS_s1='5000:asfews:2'
+export discover='{"app": "c1", "calls": {"s1":"5000:asfews:1"}}'
+export discover_app='c1'
+export discover_calls_s1='5000:asfews:2'
 ```
 
 windows下：
@@ -1081,8 +1085,8 @@ set discover_calls_s1=5000:asfews:2
 以下是服务发现的redis配置
 
 ```shell
-export DISCOVER='{"REGISTRY":"127.0.0.1:6379:1"}'
-export DISCOVER_REGISTRY='127.0.0.1:6379:1:udigzs+oTp2Kau3Gs20xXQ=='
+export discover='{"REGISTRY":"127.0.0.1:6379:1"}'
+export discover_registry='127.0.0.1:6379:1:udigzs+oTp2Kau3Gs20xXQ=='
 ```
 windows下：
 
@@ -1094,11 +1098,11 @@ set discover_registry=127.0.0.1:6379:udigzs+oTp2Kau3Gs20xXQ==
 环境变量单项配置优先级大于总体配置
 
 ```shell
-export SERVICE_CALLS='{"k1": {"accessToken": "s1token"}}'
-export SERVICE_CALLS_k1_ACCESSTOKENS=s1-token
+export service_calls='{"k1": {"accessToken": "s1token"}}'
+export service_calls_k1_accesstokens='s1-token'
 ```
 
-SERVICE_CALLS_k1_ACCESSTOKENS的配置会覆盖SERVICE_CALLS对k1服务accessToken的配置
+service_calls_k1_accesstokens的配置会覆盖service_calls对k1服务accessToken的配置
 
 #### 配置优先级顺序
 
