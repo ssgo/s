@@ -152,9 +152,9 @@ s.Start()将会工作在 HTTP/2.0 No SSL 协议上（服务间通讯默认都使
 
 并且自动连接本机默认的redis服务，并注册一个叫 s1 的服务（如需使用其他可以参考redis的配置）
 
-可运行多个实例，Gateway访问时将会自动负载均衡到某一个节点
+可运行多个实例，调用方访问时将会自动负载均衡到某一个节点
 
-#### Gateway
+#### Controller
 
 ```go
 package main
@@ -180,7 +180,7 @@ export discover_app=g1
 export service_httpversion=1
 export service_listen=:8091
 export discover_calls='{"s1":"5000:s1token"}'
-go run gateway.go &
+go run controller.go &
 ```
 
 
@@ -191,7 +191,7 @@ set discover_app=g1
 set service_httpversion=1
 set service_listen=:8091
 set discover_calls={"s1":"5000:s1token"}
-go run gateway.go
+go run controller.go
 ```
 
 该服务工作在认证级别0上，工作在 HTTP/1.1 协议上,可以直接访问
@@ -390,7 +390,7 @@ func main() {
 ```go
 s.Register(1, "/ssdesign", func(response http.ResponseWriter) string {
 	response.WriteHeader(504)
-	return "gateway timeout"
+	return "controller timeout"
 })
 ```
 
@@ -613,7 +613,7 @@ s.Start()
 
 启动服务可以访问站点resource目录下的静态资源
 
-gateway可以通过proxy来实现多个静态服务的负载代理：
+controller可以通过proxy来实现多个静态服务的负载代理：
 ```go
 s.Proxy("/proxy/(.+?)", "k1", "/$1")
 s.Start()
