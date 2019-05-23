@@ -11,3 +11,5 @@ func main() {
 	s.Register(1, "/{name}/fullName", getFullNameService)
 	s.Start()
 }
+
+//export service_app="s1"

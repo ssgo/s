@@ -21,3 +21,5 @@ func main() {
 	s.Register(1, "/{name}/fullName", getFullNameController)
 	s.Start()
 }
+
+//export discover_app="c1"
