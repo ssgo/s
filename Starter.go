@@ -190,14 +190,18 @@ func checkProcess() {
 		return
 	}
 	pid := strconv.Itoa(serviceInfo.pid)
-	cmd := exec.Command("ps", "-p", pid)
+	cmd := exec.Command("ps", "ax -o pid|grep -E '^\\s*"+pid+"$'")
 	outBytes, err := cmd.Output()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 		return
 	}
-
+	if len(outBytes) == 0 {
+		fmt.Printf("pid: %s not found\n", pid)
+		os.Exit(1)
+		return
+	}
 	out := string(outBytes)
 	if strings.Index(out, "\n"+pid+" ") == -1 && strings.Index(out, " "+pid+" ") == -1 {
 		fmt.Printf("pid: %s not found\n", pid)
