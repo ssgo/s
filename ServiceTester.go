@@ -44,7 +44,7 @@ func ResetAllSets() {
 	outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 
 	websocketServices = make(map[string]*websocketServiceType)
-	regexWebsocketServices = make(map[string]*websocketServiceType)
+	regexWebsocketServices = make([]*websocketServiceType, 0)
 	webAuthChecker = nil
 	webSocketActionAuthChecker = nil
 }

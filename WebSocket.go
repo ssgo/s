@@ -61,7 +61,7 @@ type ActionRegister struct {
 }
 
 var websocketServices = make(map[string]*websocketServiceType)
-var regexWebsocketServices = make(map[string]*websocketServiceType)
+var regexWebsocketServices = make([]*websocketServiceType, 0)
 
 var webSocketActionAuthChecker func(int, *string, *string, *map[string]interface{}, *http.Request, interface{}) bool
 
@@ -167,7 +167,8 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 				})
 				//log.Print("RegisterWebsocket	Compile	", err)
 			}
-			regexWebsocketServices[path] = s
+			//regexWebsocketServices[path] = s
+			regexWebsocketServices = append(regexWebsocketServices, s)
 		}
 	}
 	if s.pathMatcher == nil {

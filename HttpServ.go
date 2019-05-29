@@ -212,7 +212,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	// 未匹配到缓存，尝试匹配新的 Service
 	if s == nil && ws == nil {
-		for _, tmpS := range regexWebServices {
+		//for _, tmpS := range regexWebServices {
+		for i := len(regexWebServices) - 1; i >= 0; i-- {
+			tmpS := regexWebServices[i]
 			if tmpS.method != "" && tmpS.method != request.Method {
 				continue
 			}
@@ -231,7 +233,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	// 未匹配到缓存和Service，尝试匹配新的WebsocketService
 	if s == nil && ws == nil {
-		for _, tmpS := range regexWebsocketServices {
+		//for _, tmpS := range regexWebsocketServices {
+		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
+			tmpS := regexWebsocketServices[i]
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
 				foundArgs := finds[0]
@@ -540,7 +544,15 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		host = request.Host
 	}
 
-	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, request.RequestURI, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
+	var requestPath string
+	pos := strings.LastIndex(request.RequestURI, "?")
+	if pos != -1 {
+		requestPath = request.RequestURI[0:pos]
+	} else {
+		requestPath = request.RequestURI
+	}
+
+	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
 }
 
 func makeLogableData(v reflect.Value, allows *map[string]bool, numArrays int, level int) reflect.Value {
