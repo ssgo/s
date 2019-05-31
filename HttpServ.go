@@ -222,8 +222,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			if len(finds) > 0 {
 				foundArgs := finds[0]
 				for i := 1; i < len(foundArgs); i++ {
-					//log.Println("  >>>>", tmpS.pathArgs[i-1], foundArgs[i])
-					args[tmpS.pathArgs[i-1]] = foundArgs[i]
+					unescaped, err := url.QueryUnescape(foundArgs[i])
+					//fmt.Println("  >>>>", tmpS.pathArgs[i-1], foundArgs[i], unescaped, err)
+					if err == nil {
+						args[tmpS.pathArgs[i-1]] = unescaped
+					} else {
+						args[tmpS.pathArgs[i-1]] = foundArgs[i]
+					}
 					s = tmpS
 				}
 				break
