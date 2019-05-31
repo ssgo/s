@@ -276,10 +276,6 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
 			in := reflect.New(service.inType).Interface()
-			//err := mapstructure.WeakDecode(*args, in)
-			//if err != nil {
-			//	requestLogger.Error(err.Error())
-			//}
 			u.Convert(args, in)
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
