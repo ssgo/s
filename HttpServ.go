@@ -213,7 +213,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 未匹配到缓存，尝试匹配新的 Service
 	if s == nil && ws == nil {
 		//for _, tmpS := range regexWebServices {
-		for i := len(regexWebServices) - 1; i >= 0; i-- {
+		maxRegexWebServicesKey := len(regexWebServices) - 1
+		for i := maxRegexWebServicesKey; i >= 0; i-- {
 			tmpS := regexWebServices[i]
 			if tmpS.method != "" && tmpS.method != request.Method {
 				continue

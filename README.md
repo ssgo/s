@@ -619,19 +619,6 @@ s.Proxy("/proxy/(.+?)", "k1", "/$1")
 s.Start()
 ```
 
-#### 路由规则
-
-s框架的路由规则是倒置的，同时满足url规则的路由，上面设置路由的优先级高于下方路由
-
-正确路由设置：
-
-```go
-s.Restful(0, http.MethodGet, "/user/{userId}/grade", user.Grade)
-s.Restful(0, http.MethodGet, "/user/{userId}", user.Detail)
-```
-
-如果将/user/{userId}/grade设置在下方，永远匹配的都是/user/{userId}
-
 
 #### Websocket
 
