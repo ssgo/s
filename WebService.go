@@ -276,9 +276,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
 			in := reflect.New(service.inType).Interface()
-			fmt.Println("######", u.JsonP(args))
 			u.Convert(args, in)
-			fmt.Println("######", u.JsonP(in))
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}
