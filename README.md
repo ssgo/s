@@ -88,8 +88,10 @@ go run start.go
 cd ssgo/tool/sskey
 # 如果以前没有编译过
 go build sskey.go
-# 123456是原始密码
-sskey -e 123456
+# 创建并保存秘钥
+sskey -c sshow
+# 输入原始密码
+sskey -e sshow
 ```
 得到AES加密后的密码放入discover.json中
 
