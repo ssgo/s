@@ -49,8 +49,8 @@ func TestRewrite(tt *testing.T) {
 	r = as.Post("/r3?name=a", s.Map{"s2": "b"}).String()
 	t.Test(r == "a b", "r3", r)
 
-	r = as.Post("/r4?s1=a", s.Map{"s2": "b"}).String()
-	t.Test(r == "a b", "r4", r)
+	res := as.Post("/r4?s1=a", s.Map{"s2": "b"})
+	t.Test(res.Response != nil && res.Response.Header.Get("Location") == "http://localhost:18811/echo?s1=a", "r4", res.Response.Header.Get("Location"))
 
 	r = as.Get("/echo/a?s2=b").String()
 	t.Test(r == "a b", "/echo/a?s2=b", r)
