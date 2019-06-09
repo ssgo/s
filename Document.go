@@ -67,8 +67,14 @@ func MakeDocument() []Api {
 			AuthLevel: a.authLevel,
 			Priority:  a.priority,
 			Method:    a.method,
-			In:        u.If(a.inType != nil, getType(a.inType), ""),
-			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        "",
+			Out:       "",
+		}
+		if a.inType != nil {
+			api.In = getType(a.inType)
+		}
+		if a.funcType.NumOut() > 0 {
+			api.Out = getType(a.funcType.Out(0))
 		}
 		out = append(out, api)
 	}
@@ -80,8 +86,15 @@ func MakeDocument() []Api {
 			AuthLevel: a.authLevel,
 			Priority:  a.priority,
 			Method:    a.method,
-			In:        u.If(a.inType != nil, getType(a.inType), ""),
-			Out:       u.If(a.funcType.NumOut() > 0, getType(a.funcType.Out(0)), ""),
+			In:        "",
+			Out:       "",
+		}
+
+		if a.inType != nil {
+			api.In = getType(a.inType)
+		}
+		if a.funcType.NumOut() > 0 {
+			api.Out = getType(a.funcType.Out(0))
 		}
 		out = append(out, api)
 	}
@@ -99,8 +112,14 @@ func MakeDocument() []Api {
 			Path:      a.path,
 			AuthLevel: a.authLevel,
 			Priority:  a.priority,
-			In:        u.If(a.openInType != nil, getType(a.openInType), ""),
-			Out:       u.If(a.openFuncType.NumOut() > 0, getType(a.openFuncType.Out(0)), ""),
+			In:        "",
+			Out:       "",
+		}
+		if a.openInType != nil {
+			api.In = getType(a.openInType)
+		}
+		if a.openFuncType.NumOut() > 0 {
+			api.Out = getType(a.openFuncType.Out(0))
 		}
 		out = append(out, api)
 
@@ -110,8 +129,14 @@ func MakeDocument() []Api {
 				Path:      u.StringIf(actionName != "", actionName, "*"),
 				AuthLevel: action.authLevel,
 				Priority:  action.priority,
-				In:        u.If(action.inType != nil, getType(action.inType), ""),
-				Out:       u.If(action.funcType.NumOut() > 0, getType(action.funcType.Out(0)), ""),
+				In:        "",
+				Out:       "",
+			}
+			if action.inType != nil {
+				api.In = getType(action.inType)
+			}
+			if action.funcType.NumOut() > 0 {
+				api.Out = getType(action.funcType.Out(0))
 			}
 			out = append(out, api)
 		}
