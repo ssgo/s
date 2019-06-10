@@ -20,14 +20,25 @@ func TestBase(tt *testing.T) {
 	dc := redis.GetRedis("discover:15", nil)
 	dc.DEL("a1")
 
-	s.Register(2, "/dc/s1", func() (out struct{ Name string }) {
-		out.Name = "s1"
+	discover.SetRoute(func(appClient *discover.AppClient, request *http.Request) {
+		if appClient.App == "ax" {
+			appClient.App = "a1"
+		}
+		if appClient.Path == "/dc/sx" {
+			appClient.Path = "/dc/s1"
+		}
+	})
+
+	s.Register(2, "/dc/s1", func(in struct{ Aaa int }) (out struct{ Name string }) {
+		if in.Aaa == 111 {
+			out.Name = "s1"
+		}
 		return
 	})
 
-	s.Register(1, "/dc/c1", func(c *discover.Caller) string {
+	s.Register(1, "/dc/c1", func(in struct{ Aaa int }, c *discover.Caller) string {
 		r := struct{ Name string }{}
-		_ = c.Get("a1", "/dc/s1").To(&r)
+		_ = c.Post("ax", "/dc/sx", in).To(&r)
 		return r.Name
 	})
 
@@ -67,22 +78,23 @@ func TestBase(tt *testing.T) {
 
 	defer as.Stop()
 
-	r0 := as.Get("/dc/s1", "Access-Token", "aabbcc222")
+	r0 := as.Post("/dc/s1", s.Map{"aaa": 111}, "Access-Token", "aabbcc222")
 	t.Test(r0.Error == nil && r0.String() == "{\"name\":\"s1\"}", "Service", r0.Error, r0.String())
 
-	r0 = as.Get("/dc/s1", "Access-Token", "testtest")
+	r0 = as.Post("/dc/s1", s.Map{"aaa": 111}, "Access-Token", "testtest")
 	fmt.Println(r0.Response.StatusCode == 403, "ErrorToken test")
 
-	r0 = as.Get("/dc/s1", "Access-Token", "aabbcc")
+	r0 = as.Post("/dc/s1", s.Map{"aaa": 111}, "Access-Token", "aabbcc")
 	fmt.Println(r0.Response.StatusCode == 403, "Low authLevel token test")
 
-	r0 = as.Get("/dc/c1", "Access-Token", "aabbcc")
+	r0 = as.Post("/dc/c1", s.Map{"aaa": 111}, "Access-Token", "aabbcc")
+	fmt.Println("  ****", r0)
 	t.Test(r0.Error == nil && r0.String() == "s1", "DC", r0.Error, r0.String())
 
-	r1 := as.Get("/dc1/s1", "Access-Token", "aabbcc").Map()
+	r1 := as.Post("/dc1/s1", s.Map{"aaa": 111}, "Access-Token", "aabbcc").Map()
 	t.Test(r1["name"] == "s1", "DC by proxy", r1)
 
-	r1 = as.Get("/proxy/s1", "Access-Token", "aabbcc").Map()
+	r1 = as.Post("/proxy/s1", s.Map{"aaa": 111}, "Access-Token", "aabbcc").Map()
 	t.Test(r1["name"] == "s1", "DC by proxy 2", r1)
 
 	r2 := as.Get("/proxy/s2", "Access-Token", "aabbcc")

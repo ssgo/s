@@ -8,7 +8,7 @@ require (
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/ssgo/config v0.2.0
 	github.com/ssgo/db v0.2.0
-	github.com/ssgo/discover v0.2.0
+	github.com/ssgo/discover v0.2.2
 	github.com/ssgo/httpclient v0.2.0
 	github.com/ssgo/log v0.2.0
 	github.com/ssgo/redis v0.2.0
