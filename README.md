@@ -202,16 +202,6 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 所有调用 s1 服务的请求都会自动带上 "sltoken" 这个令牌以获得相应等级的访问权限
 
-##### calls说明
-
-使用服务的配置格式为：
-
-DISCOVER_CALLS={"app":"timeout:token:httpVersion"}
-
-代表 —— 应用名:"请求服务超时时间：访问服务的授权码:访问服务使用的http协议版本"
-
-token未配置默认为空，httpversion未配置默认为2
-
 ## 框架常用方法
 
 ```go
