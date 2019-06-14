@@ -181,7 +181,7 @@ func main() {
 export discover_app=g1
 export service_httpversion=1
 export service_listen=:8091
-export discover_calls='{"s1":"5000:s1token"}'
+export discover_calls='{"s1":"s1token"}'
 go run controller.go &
 ```
 
@@ -192,7 +192,7 @@ windows下使用：
 set discover_app=g1
 set service_httpversion=1
 set service_listen=:8091
-set discover_calls={"s1":"5000:s1token"}
+set discover_calls={"s1":"s1token"}
 go run controller.go
 ```
 
@@ -871,7 +871,7 @@ func main() {
   "app": "",
   "weight": 1,
   "calls": {
-    "s1": "5000:hasfjlkdlasfsa"
+    "s1": "5000:hasfjlkdlasfsa:2:s"
   },
   "callRetryTimes": 10,
   "callTimeout": 5000
@@ -885,19 +885,32 @@ func main() {
 | registryPrefix | string | user- | 服务应用名前缀 |
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
-| calls | string |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000"}|
+| calls | string |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000:s"}<br>{"s1":"adfad:s"}|
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
 | callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
 
 calls中包含：
 
-timeout:accessToken:httpVersion
+timeout:accessToken:httpVersion:SSL
 
-| 配置项| 类型 | 样例数据 | 说明 |
-|:------ |:------ |:------ |:------ | 
-| timeout |  int |5000| 如果未设置默认为10000（10秒）,比如：":s1token"   ":s1token:2" | 
-| accessToken | string | 5000 | 默认为空，比如："5000" | 
-| httpVersion | int | 2 | 调用服务使用的http协议：1代表http1.1 2代表http2.0，未配置默认为2，比如:"5000:s1token" | 
+没有固定前后顺序，自动检查配置型
+
+| 配置项| 类型 | 不填默认 | 样例数据 | 说明 |
+|:------ |:------ |:------ |:------ |:------ |
+| timeout |  int | 5000ms |5000| 如果未设置默认为10000（10秒）,比如：":s1token"   ":s1token:2" | 
+| accessToken | string | 空 | 5000 | 比如："5000" | 
+| httpVersion | int | http 2.0 no ssl | 2 | 调用服务使用的http协议：1代表http1.1 2代表http2 | 
+| SSL | string  | 不使用ssl | s | 是否使用https ssl  这里的值可以不填或者为s|
+
+
+calls检查顺序：
+* 1或2代表http 1.1 2.0  默认为2
+* s代表https 没有s 表示不使用ssl
+* 字符串代表token
+* int类型代表超时的ms
+* 其他类型为token
+
+
 
 #### 日志配置
 
