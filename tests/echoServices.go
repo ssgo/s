@@ -24,13 +24,14 @@ type echo2Args struct {
 	FilterTag2 int
 }
 
-func Echo1(in echo1Args, headers *http.Header) (out struct {
+func Echo1(in echo1Args, headers struct{ CID string }) (out struct {
+	//func Echo1(in echo1Args, headers map[string]string) (out struct {
 	In      echo1Args
-	Headers struct{ Cid string }
+	Headers struct{ CID string }
 }) {
 	//c.Call("lesson", "/getList", s.Map{"id": 100})
 	out.In = in
-	out.Headers.Cid = headers.Get("Cid")
+	out.Headers.CID = headers.CID
 	return
 }
 

@@ -30,14 +30,14 @@ func TestEchos(tt *testing.T) {
 		"eEe": true,
 		"fff": nil,
 		"ggg": "223",
-	}, "Cid", "test-client").Map()
+	}, "CID", "test-client").Map()
 
 	d1, ok := datas["in"].(map[string]interface{})
 	t.Test(ok, "[Echo1] Data2", datas)
 	d2, ok := datas["headers"].(map[string]interface{})
 	t.Test(ok, "[Echo1] Data3", datas)
 	t.Test(d1["aaa"].(float64) == 11 && d1["bbb"] == "_o_" && d1["ddd"] == 101.123 && d1["eee"] == true && d1["fff"] == nil, "[Echo1] In", datas)
-	t.Test(d2["cid"] == "test-client", "[Echo1] Headers", datas)
+	t.Test(d2["CID"] == "test-client", "[Echo1] Headers", datas)
 
 	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{
 		"ccc": "ccc",
@@ -247,7 +247,7 @@ func BenchmarkEchosForMapNoLog(tb *testing.B) {
 	as := s.AsyncStart()
 	defer as.Stop()
 
-	as.Get("/echo2?aaa=11&bbb=_o_", "Cid", "test-client")
+	as.Get("/echo2?aaa=11&bbb=_o_", "CID", "test-client")
 
 	tb.StartTimer()
 

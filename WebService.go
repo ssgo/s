@@ -22,6 +22,7 @@ type webServiceType struct {
 	parmsNum            int
 	inType              reflect.Type
 	inIndex             int
+	headersType         reflect.Type
 	headersIndex        int
 	requestIndex        int
 	responseIndex       int
@@ -271,7 +272,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	}
 	// 生成参数
 	var parms = make([]reflect.Value, service.parmsNum)
-	if service.inType != nil {
+	if service.inIndex >= 0 {
 		if service.inType.Kind() == reflect.Map && service.inType.Elem().Kind() == reflect.Interface {
 			parms[service.inIndex] = reflect.ValueOf(args).Elem()
 		} else {
@@ -281,7 +282,22 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		}
 	}
 	if service.headersIndex >= 0 {
-		parms[service.headersIndex] = reflect.ValueOf(&request.Header)
+		//parms[service.headersIndex] = reflect.ValueOf(&request.Header)
+		headersMap := map[string]string{}
+		for k, v := range request.Header {
+			if len(v) == 1 {
+				headersMap[k] = v[0]
+			} else if len(v) > 1 {
+				headersMap[k] = strings.Join(v, ", ")
+			}
+		}
+		if service.headersType.Kind() == reflect.Map && service.headersType.Elem().Kind() == reflect.String {
+			parms[service.headersIndex] = reflect.ValueOf(headersMap)
+		} else {
+			headers := reflect.New(service.headersType).Interface()
+			u.Convert(headersMap, headers)
+			parms[service.headersIndex] = reflect.ValueOf(headers).Elem()
+		}
 	}
 	if service.requestIndex >= 0 {
 		parms[service.requestIndex] = reflect.ValueOf(request)
@@ -377,14 +393,17 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.responseWriterIndex = i
 		} else if t.String() == "*log.Logger" {
 			targetService.loggerIndex = i
-		} else if t.String() == "*http.Header" {
-			targetService.headersIndex = i
+			//} else if t.String() == "*http.Header" {
+			//	targetService.headersIndex = i
 		} else if t.String() == "*discover.Caller" {
 			targetService.callerIndex = i
-		} else if t.Kind() == reflect.Struct || (t.Kind() == reflect.Map && t.Elem().Kind() == reflect.Interface) {
+		} else if t.Kind() == reflect.Struct || (t.Kind() == reflect.Map && t.Elem().Kind() == reflect.Interface) || (t.Kind() == reflect.Map && t.Elem().Kind() == reflect.String) {
 			if targetService.inType == nil {
 				targetService.inIndex = i
 				targetService.inType = t
+			} else if targetService.headersType == nil {
+				targetService.headersIndex = i
+				targetService.headersType = t
 			}
 		}
 	}

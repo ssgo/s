@@ -26,6 +26,7 @@ type websocketServiceType struct {
 	openRequestIndex  int
 	openLoggerIndex   int
 	openClientIndex   int
+	openHeadersType   reflect.Type
 	openHeadersIndex  int
 	openFuncType      reflect.Type
 	openFuncValue     reflect.Value
@@ -109,13 +110,16 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 				if s.openInType == nil {
 					s.openInIndex = i
 					s.openInType = t
+				} else if s.openHeadersType == nil {
+					s.openHeadersIndex = i
+					s.openHeadersType = t
 				}
 			} else if t.String() == "*http.Request" {
 				s.openRequestIndex = i
 			} else if t.String() == "*log.Logger" {
 				s.openLoggerIndex = i
-			} else if t.String() == "*http.Header" {
-				s.openHeadersIndex = i
+				//} else if t.String() == "*http.Header" {
+				//	s.openHeadersIndex = i
 			} else if t.String() == "*websocket.Conn" {
 				s.openClientIndex = i
 			}
@@ -237,13 +241,16 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 		var sessionValue reflect.Value
 		if ws.openFuncType != nil {
 			var openParms = make([]reflect.Value, ws.openParmsNum)
-			if ws.openInType != nil {
+			if ws.openInIndex >= 0 {
 				in := reflect.New(ws.openInType).Interface()
 				u.Convert(*args, in)
 				openParms[ws.openInIndex] = reflect.ValueOf(in).Elem()
 			}
 			if ws.openHeadersIndex >= 0 {
-				openParms[ws.openRequestIndex] = reflect.ValueOf(&request.Header)
+				//openParms[ws.openRequestIndex] = reflect.ValueOf(&request.Header)
+				headersParm := reflect.New(ws.openHeadersType).Interface()
+				u.Convert(*headers, headersParm)
+				openParms[ws.openHeadersIndex] = reflect.ValueOf(headersParm).Elem()
 			}
 			if ws.openRequestIndex >= 0 {
 				openParms[ws.openRequestIndex] = reflect.ValueOf(request)
