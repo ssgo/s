@@ -45,6 +45,7 @@ var clientKey string
 var sessionCreator func() string
 var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
+var injectFunctions = map[reflect.Type]func() interface{}{}
 
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
 func SetSessionKey(inSessionKey string) {
@@ -91,13 +92,21 @@ func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} 
 }
 
 // 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
-func SetInject(obj interface{}) {
-	injectObjects[reflect.TypeOf(obj)] = obj
+func SetInject(data interface{}) {
+	injectObjects[reflect.TypeOf(data)] = data
+}
+func SetInjectFunc(factory func() interface{}) {
+	injectObjects[reflect.TypeOf(factory())] = factory
 }
 
 // 获取一个注入对象
 func GetInject(dataType reflect.Type) interface{} {
-	return injectObjects[dataType]
+	if injectObjects[dataType] != nil {
+		return injectObjects[dataType]
+	} else if injectObjects[dataType] != nil {
+		return injectFunctions[dataType]()
+	}
+	return nil
 }
 
 // 注册服务
