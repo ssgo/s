@@ -184,14 +184,14 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	var requestPath string
-	pos := strings.LastIndex(request.RequestURI, "?")
-	if pos != -1 {
-		requestPath = request.RequestURI[0:pos]
-	} else {
-		requestPath = request.RequestURI
-	}
-
+	//var requestPath string
+	//pos := strings.LastIndex(request.RequestURI, "?")
+	//if pos != -1 {
+	//	requestPath = request.RequestURI[0:pos]
+	//} else {
+	//	requestPath = request.RequestURI
+	//}
+	requestPath := request.URL.Path
 	// 处理静态文件
 	if processStatic(requestPath, request, myResponse, &logHeaders, &startTime, requestLogger) {
 		return
@@ -550,13 +550,14 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		host = request.Host
 	}
 
-	var requestPath string
-	pos := strings.LastIndex(request.RequestURI, "?")
-	if pos != -1 {
-		requestPath = request.RequestURI[0:pos]
-	} else {
-		requestPath = request.RequestURI
-	}
+	//var requestPath string
+	//pos := strings.LastIndex(request.RequestURI, "?")
+	//if pos != -1 {
+	//	requestPath = request.RequestURI[0:pos]
+	//} else {
+	//	requestPath = request.RequestURI
+	//}
+	requestPath := request.URL.Path
 
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, *headers, args2, usedTime, response.status, outHeaders, uint(outLen), result, extraInfo)
 }

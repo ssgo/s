@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ssgo/log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -189,11 +190,11 @@ func processRewrite(request *http.Request, response *Response, headers *map[stri
 				"method": request.Method,
 				"host":   request.Host,
 			})
-
 			request.RequestURI = *rewriteToPath
 			if queryString != "" && !strings.Contains(request.RequestURI, "?") {
 				request.RequestURI += queryString
 			}
+			request.URL, _ = url.Parse(request.RequestURI)
 		}
 	}
 	return false
