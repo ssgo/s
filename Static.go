@@ -50,7 +50,7 @@ func margePath(path string) string {
 	return path
 }
 
-func processStatic(requestPath string, request *http.Request, response *Response, headers *map[string]string, startTime *time.Time, requestLogger *log.Logger) bool {
+func processStatic(requestPath string, request *http.Request, response *Response, headers map[string]string, startTime *time.Time, requestLogger *log.Logger) bool {
 	if len(statics) == 0 {
 		return false
 	}

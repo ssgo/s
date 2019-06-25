@@ -36,10 +36,10 @@ type webServiceType struct {
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make([]*webServiceType, 0)
 
-var inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
-var outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
+var inFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
+var outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
-var webAuthChecker func(int, *string, *map[string]interface{}, *http.Request) bool
+var webAuthChecker func(int, *string, map[string]interface{}, *http.Request) bool
 var sessionKey string
 var clientKey string
 var sessionCreator func() string
@@ -164,16 +164,16 @@ func RestfulWithPriority(authLevel, priority int, method, path string, serviceFu
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {
+func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, url *string, in *map[string]interface{}, request *http.Request) bool) {
+func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool) {
 	webAuthChecker = authChecker
 }
 
@@ -273,7 +273,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 //	}
 //}
 
-func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args *map[string]interface{},
+func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args map[string]interface{},
 	result interface{}, requestLogger *log.Logger) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
@@ -283,7 +283,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 	var parms = make([]reflect.Value, service.parmsNum)
 	if service.inIndex >= 0 {
 		if service.inType.Kind() == reflect.Map && service.inType.Elem().Kind() == reflect.Interface {
-			parms[service.inIndex] = reflect.ValueOf(args).Elem()
+			parms[service.inIndex] = reflect.ValueOf(args)
 		} else {
 			in := reflect.New(service.inType).Interface()
 			u.Convert(args, in)

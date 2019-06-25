@@ -40,8 +40,8 @@ func ResetAllSets() {
 
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make([]*webServiceType, 0)
-	inFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
-	outFilters = make([]func(*map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
+	inFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
+	outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make([]*websocketServiceType, 0)

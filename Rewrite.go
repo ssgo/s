@@ -62,7 +62,7 @@ func SetRewriteBy(by func(request *http.Request) (toPath string, rewrite bool)) 
 	rewriteBy = by
 }
 
-func processRewrite(request *http.Request, response *Response, headers *map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processRewrite(request *http.Request, response *Response, headers map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	// 获取路径
 	requestPath := request.RequestURI
 	var queryString string

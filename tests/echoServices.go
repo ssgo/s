@@ -98,13 +98,13 @@ func OnEchoMessage(in struct {
 func OnEchoClose(client *websocket.Conn, sess *echoWsSession) {
 }
 
-func EchoDecoder(srcData interface{}) (string, *map[string]interface{}, error) {
+func EchoDecoder(srcData interface{}) (string, map[string]interface{}, error) {
 	var a []interface{}
 	var m map[string]interface{}
 	var ok bool
 	if a, ok = srcData.([]interface{}); ok {
 		if m, ok = a[1].(map[string]interface{}); ok {
-			return a[0].(string), &m, nil
+			return a[0].(string), m, nil
 		}
 	}
 	return "", nil, fmt.Errorf("in data err	%s", fmt.Sprint(srcData))

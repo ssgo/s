@@ -70,15 +70,15 @@ func TestFilters(tt *testing.T) {
 	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", d)
 
-	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
-		(*in)["filterTag"] = "Abc"
-		(*in)["filterTag2"] = 1000
+	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
+		in["filterTag"] = "Abc"
+		in["filterTag2"] = 1000
 		return nil
 	})
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", d)
 
-	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
 		data.FilterTag2 = data.FilterTag2 + 100
 		return data, false
@@ -87,11 +87,11 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", d)
 
-	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
 		data := result.(echo2Args)
 		//fmt.Println(" ***************", data.FilterTag2+100)
 		return s.Map{
-			"filterTag":  (*in)["filterTag"],
+			"filterTag":  in["filterTag"],
 			"filterTag2": data.FilterTag2 + 100,
 		}, true
 	})
@@ -99,10 +99,10 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
-	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
+	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
 		return echo2Args{
-			FilterTag:  (*in)["filterTag"].(string),
-			FilterTag2: (*in)["filterTag2"].(int) + 100,
+			FilterTag:  in["filterTag"].(string),
+			FilterTag2: in["filterTag2"].(int) + 100,
 		}
 	})
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
@@ -116,7 +116,7 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2)
 	s.Register(2, "/echo2", Echo2)
 
-	s.SetAuthChecker(func(authLevel int, url *string, in *map[string]interface{}, request *http.Request) bool {
+	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 1:

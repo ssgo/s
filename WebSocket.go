@@ -38,7 +38,7 @@ type websocketServiceType struct {
 	closeSessionIndex int
 	closeFuncType     reflect.Type
 	closeFuncValue    reflect.Value
-	decoder           func(interface{}) (string, *map[string]interface{}, error)
+	decoder           func(interface{}) (string, map[string]interface{}, error)
 	encoder           func(string, interface{}) interface{}
 	actions           map[string]*websocketActionType
 }
@@ -64,13 +64,13 @@ type ActionRegister struct {
 var websocketServices = make(map[string]*websocketServiceType)
 var regexWebsocketServices = make([]*websocketServiceType, 0)
 
-var webSocketActionAuthChecker func(int, *string, *string, *map[string]interface{}, *http.Request, interface{}) bool
+var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{}, *http.Request, interface{}) bool
 
 // 注册Websocket服务
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
-	decoder func(data interface{}) (action string, request *map[string]interface{}, err error),
+	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
 	return RegisterWebsocketWithPriority(authLevel, 0, path, updater, onOpen, onClose, decoder, encoder)
 }
@@ -79,7 +79,7 @@ func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
-	decoder func(data interface{}) (action string, request *map[string]interface{}, err error),
+	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
 
 	s := new(websocketServiceType)
@@ -218,13 +218,13 @@ func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, ac
 	ar.websocketServiceType.actions[actionName] = a
 }
 
-func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *string, in *map[string]interface{}, request *http.Request, sess interface{}) bool) {
+func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *string, in map[string]interface{}, request *http.Request, sess interface{}) bool) {
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args *map[string]interface{}, headers *map[string]string, startTime *time.Time, requestLogger *log.Logger) {
-	//byteArgs, _ := json.Marshal(*args)
-	//byteHeaders, _ := json.Marshal(*headers)
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args map[string]interface{}, headers map[string]string, startTime *time.Time, requestLogger *log.Logger) {
+	//byteArgs, _ := json.Marshal(args)
+	//byteHeaders, _ := json.Marshal(headers)
 
 	message := "OK"
 	client, err := ws.updater.Upgrade(response.writer, request, nil)
@@ -243,13 +243,13 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			var openParms = make([]reflect.Value, ws.openParmsNum)
 			if ws.openInIndex >= 0 {
 				in := reflect.New(ws.openInType).Interface()
-				u.Convert(*args, in)
+				u.Convert(args, in)
 				openParms[ws.openInIndex] = reflect.ValueOf(in).Elem()
 			}
 			if ws.openHeadersIndex >= 0 {
 				//openParms[ws.openRequestIndex] = reflect.ValueOf(&request.Header)
 				headersParm := reflect.New(ws.openHeadersType).Interface()
-				u.Convert(*headers, headersParm)
+				u.Convert(headers, headersParm)
 				openParms[ws.openHeadersIndex] = reflect.ValueOf(headersParm).Elem()
 			}
 			if ws.openRequestIndex >= 0 {
@@ -306,7 +306,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			}
 
 			var actionName string
-			var messageData *map[string]interface{}
+			var messageData map[string]interface{}
 			if ws.decoder != nil {
 				actionName, messageData, err = ws.decoder(*msg)
 				if err != nil {
@@ -323,12 +323,12 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				actionName = ""
 				mapMsg, isMap := (*msg).(map[string]interface{})
 				if isMap {
-					messageData = &mapMsg
-					if (*messageData)["action"] != "" {
-						actionName = u.String((*messageData)["action"])
+					messageData = mapMsg
+					if messageData["action"] != "" {
+						actionName = u.String(messageData["action"])
 					}
 				} else {
-					messageData = &map[string]interface{}{"data": *msg}
+					messageData = map[string]interface{}{"data": *msg}
 				}
 			}
 			// 异步调用 action 处理
@@ -343,7 +343,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			//printableMsg, _ := json.Marshal(messageData)
 			if webSocketActionAuthChecker != nil {
 				if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
 					writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
 						"inAction":  actionName,
 						"inMessage": logInMsg,
@@ -356,8 +356,8 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			actionStartTime := time.Now()
 			outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger)
 			if err == nil {
-				logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+				logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+				logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
 				if Config.LogWebsocketAction {
 					writeLog(requestLogger, "WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
 						"inAction":   actionName,
@@ -368,8 +368,8 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				}
 				//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
 			} else {
-				logInMsg := makeLogableData(reflect.ValueOf(messageData), &logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				logOutMsg := makeLogableData(reflect.ValueOf(outData), &logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+				logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+				logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
 				writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
 					"inAction":   actionName,
 					"inMessage":  logInMsg,
@@ -426,11 +426,11 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	}
 }
 
-func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *http.Request, data *map[string]interface{}, sess reflect.Value, requestLogger *log.Logger) (string, interface{}, int, error) {
+func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *http.Request, data map[string]interface{}, sess reflect.Value, requestLogger *log.Logger) (string, interface{}, int, error) {
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
-		u.Convert(*data, in)
+		u.Convert(data, in)
 		messageParms[action.inIndex] = reflect.ValueOf(in).Elem()
 	}
 	if action.sessionIndex >= 0 {

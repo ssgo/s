@@ -25,10 +25,10 @@ type proxyInfo struct {
 
 var proxies = make(map[string]*proxyInfo, 0)
 var regexProxies = make([]*proxyInfo, 0)
-var proxyBy func(*http.Request) (*string, *string, *map[string]string)
+var proxyBy func(*http.Request) (*string, *string, map[string]string)
 
 // 跳转
-func SetProxyBy(by func(request *http.Request) (toApp, toPath *string, headers *map[string]string)) {
+func SetProxyBy(by func(request *http.Request) (toApp, toPath *string, headers map[string]string)) {
 	//forceDiscoverClient = true // 代理模式强制启动 Discover Client
 	proxyBy = by
 }
@@ -84,9 +84,9 @@ func findProxy(request *http.Request) (*string, *string) {
 }
 
 // ProxyBy
-func processProxy(request *http.Request, response *Response, logHeaders *map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processProxy(request *http.Request, response *Response, logHeaders map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	proxyToApp, proxyToPath := findProxy(request)
-	var proxyHeaders *map[string]string
+	var proxyHeaders map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
 		proxyToApp, proxyToPath, proxyHeaders = proxyBy(request)
 	}
@@ -119,7 +119,7 @@ func processProxy(request *http.Request, response *Response, logHeaders *map[str
 	appConf := discover.Config.Calls[*proxyToApp]
 	requestHeaders := make([]string, 0)
 	if proxyHeaders != nil {
-		for k, v := range *proxyHeaders {
+		for k, v := range proxyHeaders {
 			requestHeaders = append(requestHeaders, k, v)
 		}
 	}

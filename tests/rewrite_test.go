@@ -1,7 +1,9 @@
 package tests
 
 import (
+	"fmt"
 	"github.com/ssgo/config"
+	"github.com/ssgo/u"
 	"os"
 	"testing"
 
@@ -13,6 +15,7 @@ func TestRewrite(tt *testing.T) {
 	t := s.T(tt)
 	//os.Setenv("SERVICE_LOGFILE", os.DevNull)
 	s.Register(0, "/echo", func(in struct{ S1, S2 string }, c *discover.Caller) string {
+		fmt.Println("   #####", u.JsonP(in))
 		return in.S1 + " " + in.S2
 	})
 	s.Register(0, "/echo/{s1}", func(in struct{ S1, S2 string }, c *discover.Caller) string {
