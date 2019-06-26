@@ -226,7 +226,7 @@ func Init() {
 	}
 
 	if Config.LogOutputFields == "" {
-		Config.LogOutputFields = "code,message"
+		Config.LogOutputFields = "ok,code,message"
 	}
 	for _, k := range strings.Split(strings.ToLower(Config.LogOutputFields), ",") {
 		logOutputFields[strings.TrimSpace(k)] = true
