@@ -96,14 +96,14 @@ func SetInject(data interface{}) {
 	injectObjects[reflect.TypeOf(data)] = data
 }
 func SetInjectFunc(factory func() interface{}) {
-	injectObjects[reflect.TypeOf(factory())] = factory
+	injectFunctions[reflect.TypeOf(factory())] = factory
 }
 
 // 获取一个注入对象
 func GetInject(dataType reflect.Type) interface{} {
 	if injectObjects[dataType] != nil {
 		return injectObjects[dataType]
-	} else if injectObjects[dataType] != nil {
+	} else if injectFunctions[dataType] != nil {
 		return injectFunctions[dataType]()
 	}
 	return nil
@@ -295,9 +295,9 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		headersMap := map[string]string{}
 		for k, v := range request.Header {
 			if len(v) == 1 {
-				headersMap[k] = v[0]
+				headersMap[strings.ReplaceAll(k, "-", "")] = v[0]
 			} else if len(v) > 1 {
-				headersMap[k] = strings.Join(v, ", ")
+				headersMap[strings.ReplaceAll(k, "-", "")] = strings.Join(v, ", ")
 			}
 		}
 		if service.headersType.Kind() == reflect.Map && service.headersType.Elem().Kind() == reflect.String {
