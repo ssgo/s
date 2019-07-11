@@ -996,7 +996,7 @@ calls检查顺序：
 
 #### 网关代理配置
 
-可以在项目根目录放置一个proxy.json来做网关代理配置
+可以在项目根目录放置一个gateway.json来做网关代理配置
 
 ```json
 {
@@ -1020,7 +1020,7 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
 
 #### env配置
 
-可以在应用根目录使用env.json综合配置(service+discover+log+proxy+redis+db)服务：
+可以在应用根目录使用env.json综合配置(service+discover+log+gateway+redis+db)服务：
 
 ```json
 {
@@ -1052,7 +1052,7 @@ proxies可以从环境变量、配置文件、redis中来获取。其中redis配
 }
 ```
 
-prox<font color=red>env.json的优先级高于其他配置文件。</font>
+<font color=red>env.json的优先级高于其他配置文件。</font>
 
 如果同级目录下同时出现env和server配置文件，env的配置会对server配置进行覆盖。
 
