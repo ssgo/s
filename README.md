@@ -856,28 +856,21 @@ func main() {
 ```json
 {
   "registry": "127.0.0.1:6379:15",
-  "registryCalls": "127.0.0.1:6379:15",
-  "registryPrefix": "",
   "app": "",
   "weight": 1,
   "calls": {
     "s1": "5000:hasfjlkdlasfsa:2:s"
-  },
-  "callRetryTimes": 10,
-  "callTimeout": 5000
+  }
 }
 ```
 
 | 配置项| 类型 | 样例数据 | 说明 |
 |:------ |:------ |:------ |:------ | 
 | registry | string | 127.0.0.1:6379:15 | 服务发现redis的host、端口、数据库、密码、超时时间配置<br>用于服务注册与注销 |
-| registryCalls | string | 127.0.0.1:6379:15 | 客户端使用服务发现redis的配置<br />服务节点检查、无效服务节点删除 |
-| registryPrefix | string | user- | 服务应用名前缀 |
 | app | string | s1 | 可被发现的服务应用名 |
 | weight | int | 2 | 负载均衡服务权重 |
 | calls | string |  | 客户端访问服务的配置<br>{"s1":"5000:adfad"}<br>{"s1":"5000:s"}<br>{"s1":"adfad:s"}|
 | callRetryTimes | int | 10 | 客户端访问服务失败重试次数 |
-| callTimeout | int<br>毫秒 | 5000 | 调用服务超时时间 |
 
 calls中包含：
 
