@@ -47,6 +47,18 @@ type serviceConfig struct {
 	AcceptXRealIpWithoutRequestId bool
 }
 
+type Result struct {
+	Ok      bool
+	Message string
+	Data    interface{}
+}
+
+type CodeResult struct {
+	Code    int
+	Message string
+	Data    interface{}
+}
+
 var Config = serviceConfig{}
 
 var accessTokens = map[string]*int{}
@@ -434,4 +446,35 @@ func start(as *AsyncServer) {
 
 func IsRunning() bool {
 	return running
+}
+
+func OK(data interface{}) Result {
+	return Result{
+		Ok:      true,
+		Message: "",
+		Data:    data,
+	}
+}
+
+func Failed(message string, data interface{}) Result {
+	return Result{
+		Ok:      false,
+		Message: message,
+		Data:    data,
+	}
+}
+func OK2(data interface{}) CodeResult {
+	return CodeResult{
+		Code:    200,
+		Message: "",
+		Data:    data,
+	}
+}
+
+func Failed2(code int, message string, data interface{}) CodeResult {
+	return CodeResult{
+		Code:    code,
+		Message: message,
+		Data:    data,
+	}
 }

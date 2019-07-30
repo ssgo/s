@@ -385,8 +385,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
-			response.WriteHeader(403)
-			writeLog(requestLogger, "REJECT", result, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+			if webAuthFailedData == nil {
+				response.WriteHeader(403)
+				writeLog(requestLogger, "REJECT", result, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+			} else {
+				outBytes := makeOutput(webAuthFailedData)
+				n, err := response.Write(outBytes)
+				if err != nil {
+					logError(err.Error(), "wrote", n)
+				}
+				writeLog(requestLogger, "ACCESS", webAuthFailedData, len(outBytes), request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+			}
 			return
 		}
 	}
@@ -426,21 +435,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			}
 		}
 		// 返回结果
-		outType := reflect.TypeOf(result)
-		if outType == nil {
-			return
-		}
-		for outType.Kind() == reflect.Ptr {
-			outType = outType.Elem()
-		}
-		var outBytes []byte
-		if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
-			outBytes = makeBytesResult(result)
-		} else if outType.Kind() == reflect.String {
-			outBytes = []byte(result.(string))
-		} else {
-			outBytes = result.([]byte)
-		}
+		outBytes := makeOutput(result)
 
 		isZipOuted := false
 		if Config.Compress && len(outBytes) >= Config.CompressMinSize && len(outBytes) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
@@ -473,6 +468,25 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			writeLog(requestLogger, "ACCESS", result, outLen, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
 		}
 	}
+}
+
+func makeOutput(result interface{}) []byte {
+	outType := reflect.TypeOf(result)
+	if outType == nil {
+		return []byte{}
+	}
+	for outType.Kind() == reflect.Ptr {
+		outType = outType.Elem()
+	}
+	var outBytes []byte
+	if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
+		outBytes = makeBytesResult(result)
+	} else if outType.Kind() == reflect.String {
+		outBytes = []byte(result.(string))
+	} else {
+		outBytes = result.([]byte)
+	}
+	return outBytes
 }
 
 func requireEncryptField(k string) bool {

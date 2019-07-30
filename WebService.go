@@ -40,6 +40,7 @@ var inFilters = make([]func(map[string]interface{}, *http.Request, *http.Respons
 var outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
 var webAuthChecker func(int, *string, map[string]interface{}, *http.Request) bool
+var webAuthFailedData interface{}
 var sessionKey string
 var clientKey string
 var sessionCreator func() string
@@ -175,6 +176,10 @@ func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, 
 
 func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool) {
 	webAuthChecker = authChecker
+}
+
+func SetAuthFailedData(data interface{}) {
+	webAuthFailedData = data
 }
 
 func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{}) {
