@@ -85,6 +85,43 @@ var serverAddr string
 var serverProto string
 var checker func(request *http.Request) bool
 
+type timerServer struct {
+	name     string
+	interval time.Duration
+	running  bool
+	stopChan chan bool
+	run      func(*bool)
+	start    func()
+	stop     func()
+}
+
+var timerServers = make([]*timerServer, 0)
+
+func NewTimerServer(name string, interval time.Duration, run func(*bool), start func(), stop func()) {
+	timerServers = append(timerServers, &timerServer{name: name, interval: interval, run: run, start: start, stop: stop})
+}
+
+//var initFunc func()
+//var startFunc func() bool
+//var stopFunc func()
+//var waitFunc func()
+//
+//func OnInit(f func()) {
+//	initFunc = f
+//}
+//
+//func OnStart(f func() bool) {
+//	startFunc = f
+//}
+//
+//func OnStop(f func()) {
+//	stopFunc = f
+//}
+//
+//func OnWait(f func()) {
+//	waitFunc = f
+//}
+
 func logInfo(info string, extra ...interface{}) {
 	serverLogger.Server(info, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
 }
@@ -366,6 +403,35 @@ func start(as *AsyncServer) {
 		return
 	}
 
+	for _, ts := range timerServers {
+		logInfo("starting timer server", "name", ts.name, "interval", ts.interval)
+		if ts.start != nil {
+			ts.start()
+		}
+
+		ts.running = true
+		go func() {
+			for {
+				if !ts.running {
+					break
+				}
+
+				if ts.run != nil {
+					ts.run(&ts.running)
+				}
+
+				if !ts.running {
+					break
+				}
+				time.Sleep(ts.interval)
+			}
+
+			if ts.stopChan != nil {
+				ts.stopChan <- true
+			}
+		}()
+	}
+
 	// 信息记录到 pid file
 	serviceInfo.pid = os.Getpid()
 	serviceInfo.httpVersion = Config.HttpVersion
@@ -431,12 +497,28 @@ func start(as *AsyncServer) {
 	logInfo("stopping router")
 	rh.Stop()
 
+	for _, ts := range timerServers {
+		logInfo("stopping timer server", "name", ts.name, "interval", ts.interval)
+		if ts.stop != nil {
+			ts.stop()
+		}
+		ts.running = false
+	}
+
 	logInfo("waiting router")
 	rh.Wait()
 	logInfo("waiting discover")
 	discover.Wait()
-	serviceInfo.remove()
 
+	for _, ts := range timerServers {
+		logInfo("waiting timer server", "name", ts.name, "interval", ts.interval)
+		if ts.stopChan != nil {
+			<-ts.stopChan
+			ts.stopChan = nil
+		}
+	}
+
+	serviceInfo.remove()
 	logInfo("stopped")
 	if as != nil {
 		as.stopChan <- true
