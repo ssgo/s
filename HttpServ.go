@@ -224,7 +224,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				foundArgs := finds[0]
 				for i := 1; i < len(foundArgs); i++ {
 					unescaped, err := url.QueryUnescape(foundArgs[i])
-					//fmt.Println("  >>>>", tmpS.pathArgs[i-1], foundArgs[i], unescaped, err)
 					if err == nil {
 						args[tmpS.pathArgs[i-1]] = unescaped
 					} else {
@@ -552,7 +551,10 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		args2 = map[string]interface{}{}
 	}
 	if result != nil {
-		result = makeLogableData(reflect.ValueOf(result), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+		resultValue := makeLogableData(reflect.ValueOf(result), logOutputFields, Config.LogOutputArrayNum, 1)
+		if resultValue.IsValid() && resultValue.CanInterface() {
+			result = resultValue.Interface()
+		}
 	}
 
 	if extraInfo == nil {
@@ -585,6 +587,10 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 		v = v.Elem()
+	}
+
+	if !v.IsValid() {
+		return reflect.ValueOf(nil)
 	}
 
 	switch t.Kind() {
