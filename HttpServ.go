@@ -355,7 +355,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 			logError(u.String(err))
 			writeLog(requestLogger, "PANIC", out, myResponse.outLen, request, myResponse, args, logHeaders, &startTime, authLevel, Map{
-				"error": err,
+				"error": u.String(err),
 			})
 		}
 
@@ -539,19 +539,16 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		}
 	}
 
-	var loggableRequestArgs map[string]string
+	var loggableRequestArgs map[string]interface{}
 	if args != nil {
 		fixedArgs := makeLogableData(reflect.ValueOf(args), nil, Config.LogInputArrayNum, 1).Interface()
 		if v, ok := fixedArgs.(map[string]interface{}); ok {
-			loggableRequestArgs = make(map[string]string)
-			for kk, vv := range v {
-				loggableRequestArgs[kk] = u.String(vv)
-			}
+			loggableRequestArgs = v
 		} else {
-			loggableRequestArgs = map[string]string{"data": u.String(args)}
+			loggableRequestArgs = map[string]interface{}{"data": args}
 		}
 	} else {
-		loggableRequestArgs = map[string]string{}
+		loggableRequestArgs = map[string]interface{}{}
 	}
 	if result != nil {
 		resultValue := makeLogableData(reflect.ValueOf(result), logOutputFields, Config.LogOutputArrayNum, 1)
