@@ -78,7 +78,7 @@ var encryptLogFields = map[string]bool{}
 var logOutputFields = map[string]bool{}
 
 var serverId = u.ShortUniqueId()
-var serverStartTime = log.MakeLogTime(time.Now())
+var serverStartTime = time.Now()
 var serverLogger = log.New(serverId)
 
 var serverAddr string
@@ -312,6 +312,9 @@ func Start() {
 }
 
 func start(as *AsyncServer) {
+	log.Start()
+	logInfo("logger started")
+
 	// document must after registers
 	if inDocumentMode {
 		if len(os.Args) >= 4 {
@@ -397,6 +400,7 @@ func start(as *AsyncServer) {
 	}
 	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
 
+	logInfo("starting discover")
 	if discover.Start(serverAddr) == false {
 		logError("failed to start discover")
 		_ = listener.Close()
@@ -520,6 +524,12 @@ func start(as *AsyncServer) {
 
 	serviceInfo.remove()
 	logInfo("stopped")
+
+	// 最后关闭日志服务
+	logInfo("logger stopped")
+	log.Stop()
+	log.Wait()
+
 	if as != nil {
 		as.stopChan <- true
 	}
