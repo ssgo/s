@@ -1,7 +1,9 @@
 package s
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
@@ -98,32 +100,12 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 	//	//log.Printf("PROXY	%s	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *proxyToApp, *proxyToPath)
 	//}
 
-	// 注册新的Call，并重启订阅
-	if discover.Config.Calls == nil {
-		discover.Config.Calls = make(map[string]string)
-	}
-	if discover.Config.Calls[*proxyToApp] == "" {
-		//log.Printf("PROXY	add app	%s	for	%s	%s	%s", *proxyToApp, request.Host, request.Method, request.RequestURI)
-		requestLogger.Info("add app on proxy", Map{
-			"app":    proxyToApp,
-			"ip":     getRealIp(request),
-			"host":   request.Host,
-			"method": request.Method,
-			"uri":    request.RequestURI,
-		})
-		discover.Config.Calls[*proxyToApp] = u.String(Config.RewriteTimeout)
-		discover.AddExternalApp(*proxyToApp, u.String(Config.RewriteTimeout))
-		discover.Restart()
-	}
-
-	appConf := discover.Config.Calls[*proxyToApp]
 	requestHeaders := make([]string, 0)
 	if proxyHeaders != nil {
 		for k, v := range proxyHeaders {
 			requestHeaders = append(requestHeaders, k, v)
 		}
 	}
-
 	//if appConf.Headers != nil {
 	//	for k, v := range appConf.Headers {
 	//		requestHeaders = append(requestHeaders, k, v)
@@ -165,21 +147,54 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 	outLen := 0
 	//var outBytes []byte
 
+	// 实现简单的负载均衡
+	app := *proxyToApp
+	if app[0] == '[' && app[len(app)-1] == ']' {
+		apps := make([]string, 0)
+		err := json.Unmarshal([]byte(*proxyToApp), &app)
+		if err == nil {
+			n := u.GlobalRand1.Intn(len(apps))
+			app = apps[n]
+		}
+	}
+
+	if !strings.Contains(app, "://") {
+		// 代理请求到app，注册新的Call，并重启订阅
+		if discover.Config.Calls == nil {
+			discover.Config.Calls = make(map[string]string)
+		}
+		if discover.Config.Calls[app] == "" {
+			//log.Printf("PROXY	add app	%s	for	%s	%s	%s", app, request.Host, request.Method, request.RequestURI)
+			requestLogger.Info("add app on proxy", Map{
+				"app":    app,
+				"ip":     getRealIp(request),
+				"host":   request.Host,
+				"method": request.Method,
+				"uri":    request.RequestURI,
+			})
+			discover.Config.Calls[app] = u.String(Config.RewriteTimeout)
+			discover.AddExternalApp(app, u.String(Config.RewriteTimeout))
+			discover.Restart()
+		}
+	}
+
 	// 处理短连接 Proxy
 	if request.Header.Get("Upgrade") == "websocket" {
-		outLen = proxyWebsocketRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf, requestLogger)
+		outLen = proxyWebsocketRequest(app, *proxyToPath, request, response, requestHeaders, requestLogger)
 	} else {
-		proxyWebRequest(*proxyToApp, *proxyToPath, request, response, requestHeaders, requestLogger)
-		//outLen = proxyWebRequestReverse(*proxyToApp, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
+		proxyWebRequest(app, *proxyToPath, request, response, requestHeaders, requestLogger)
+		//outLen = proxyWebRequestReverse(app, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
 	}
 
 	writeLog(requestLogger, "PROXY", nil, outLen, request, response, nil, logHeaders, startTime, 0, Map{
-		"toApp":        proxyToApp,
+		"toApp":        app,
 		"toPath":       proxyToPath,
 		"proxyHeaders": proxyHeaders,
 	})
 	return true
 }
+
+var httpClientPool *httpclient.ClientPool = nil
 
 func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, requestLogger *log.Logger) {
 	//var bodyBytes []byte = nil
@@ -187,8 +202,18 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 	//	bodyBytes, _ = ioutil.ReadAll(request.Body)
 	//	request.Body.Close()
 	//}
-	caller := &discover.Caller{Request: request, NoBody: true}
-	r := caller.Do(request.Method, app, path, request.Body, requestHeaders...)
+
+	var r *httpclient.Result
+	if !strings.Contains(app, "://") {
+		caller := &discover.Caller{Request: request, NoBody: true}
+		r = caller.Do(request.Method, app, path, request.Body, requestHeaders...)
+	} else {
+		if httpClientPool == nil {
+			httpClientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+			httpClientPool.NoBody = true
+		}
+		r = httpClientPool.DoByRequest(request, request.Method, app+path, request.Body, requestHeaders...)
+	}
 
 	//var statusCode int
 	//var outBytes []byte
@@ -201,12 +226,13 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		response.WriteHeader(r.Response.StatusCode)
 		outLen, err := io.Copy(response.writer, r.Response.Body)
 		if err != nil {
+			logError(err.Error(), "app", app, "path", path)
 			response.WriteHeader(500)
+			response.outLen = int(len(err.Error()))
 			n, err := response.Write([]byte(err.Error()))
 			if err != nil {
 				requestLogger.Error(err.Error(), "wrote", n)
 			}
-			response.outLen = int(len(err.Error()))
 			//statusCode = 500
 			//outBytes = []byte(r.Error.Error())
 		} else {
@@ -215,6 +241,7 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 	} else {
 		//statusCode = 500
 		//outBytes = []byte(r.Error.Error())
+		logError("no response when do proxy", "app", app, "path", path)
 		response.WriteHeader(500)
 		n, err := response.Write([]byte(r.Error.Error()))
 		if err != nil {
@@ -226,7 +253,7 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 
 var updater = websocket.Upgrader{}
 
-func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, appConf string, requestLogger *log.Logger) int {
+func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, requestLogger *log.Logger) int {
 	srcConn, err := updater.Upgrade(response.writer, request, nil)
 	if err != nil {
 		requestLogger.Error(err.Error(), Map{
@@ -244,22 +271,28 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		_ = srcConn.Close()
 	}()
 
-	appClient := discover.AppClient{}
-	var node *discover.NodeInfo
-	for {
-		node = appClient.NextWithNode(app, "", request)
-		if node == nil {
-			break
-		}
+	isHttp := strings.Contains(app, "://")
 
-		// 请求节点
-		node.UsedTimes++
+	appClient := discover.AppClient{}
+	for {
+		addr := ""
+		if !isHttp {
+			node := appClient.NextWithNode(app, "", request)
+			if node == nil {
+				break
+			}
+			// 请求节点
+			node.UsedTimes++
+			addr = node.Addr
+		} else {
+			addr = strings.SplitN(app, "://", 2)[1]
+		}
 
 		scheme := "ws"
 		//if appConf.WithSSL {
 		//	scheme += "s"
 		//}
-		parsedUrl, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, node.Addr, path))
+		parsedUrl, err := url.Parse(fmt.Sprintf("%s://%s%s", scheme, addr, path))
 		if err != nil {
 			requestLogger.Error(err.Error(), Map{
 				"app":    app,
@@ -277,11 +310,11 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		sendHeader := http.Header{}
 		for k, vv := range request.Header {
 			if k != "Connection" && k != "Upgrade" && !strings.Contains(k, "Sec-Websocket-") {
-				for _, v := range vv {
-					sendHeader.Add(k, v)
-				}
+				sendHeader.Set(k, vv[0])
 			}
 		}
+		sendHeader.Set("Host", request.Host)
+
 		for i := 1; i < len(requestHeaders); i += 2 {
 			sendHeader.Set(requestHeaders[i-1], requestHeaders[i])
 		}
@@ -308,11 +341,19 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				"url":    parsedUrl.String(),
 			})
 			//log.Printf("PROXY	opening client websocket connection	%s", err.Error())
-			continue
+			if !isHttp {
+				continue
+			} else {
+				break
+			}
 		}
 		if dstResponse.StatusCode == 502 || dstResponse.StatusCode == 503 || dstResponse.StatusCode == 504 {
 			_ = dstConn.Close()
-			continue
+			if !isHttp {
+				continue
+			} else {
+				break
+			}
 		}
 
 		waits := make(chan bool, 2)

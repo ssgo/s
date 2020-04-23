@@ -46,7 +46,9 @@ func (response *Response) WriteHeader(code int) {
 	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
 		return
 	}
-	response.writer.WriteHeader(code)
+	if code != 200 {
+		response.writer.WriteHeader(code)
+	}
 	if response.ProxyHeader != nil {
 		response.copyProxyHeader()
 	}
