@@ -3,6 +3,7 @@ package s
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
 	"github.com/ssgo/standard"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
 )
 
@@ -172,12 +172,11 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 				"method": request.Method,
 				"uri":    request.RequestURI,
 			})
-			discover.Config.Calls[app] = u.String(Config.RewriteTimeout)
 			discover.AddExternalApp(app, u.String(Config.RewriteTimeout))
 			discover.Restart()
 		}
 	}
-
+	//fmt.Println("    ^^^^%%%%%%%", app, discover.Config.Calls[app])
 	// 处理短连接 Proxy
 	if request.Header.Get("Upgrade") == "websocket" {
 		outLen = proxyWebsocketRequest(app, *proxyToPath, request, response, requestHeaders, requestLogger)
@@ -228,7 +227,7 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		if err != nil {
 			logError(err.Error(), "app", app, "path", path)
 			response.WriteHeader(500)
-			response.outLen = int(len(err.Error()))
+			response.outLen = len(err.Error())
 			n, err := response.Write([]byte(err.Error()))
 			if err != nil {
 				requestLogger.Error(err.Error(), "wrote", n)
@@ -247,7 +246,7 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		if err != nil {
 			requestLogger.Error(err.Error(), "wrote", n)
 		}
-		response.outLen = int(len(r.Error.Error()))
+		response.outLen = len(r.Error.Error())
 	}
 }
 
@@ -301,7 +300,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 				"method": request.Method,
 				"host":   request.Host,
 				"uri":    request.RequestURI,
-				"url":    parsedUrl.String(),
+				"url":    fmt.Sprintf("%s://%s%s", scheme, addr, path),
 			})
 			//log.Printf("PROXY	parsing websocket address	%s", err.Error())
 			return 0
@@ -327,6 +326,14 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		//		},
 		//	}
 		//}
+
+		//dialer := websocket.Dialer{NetDial: func(network, addr string) (conn net.Conn, err error) {
+		//	return net.Dial(network, addr)
+		//}, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Proxy: func(request *http.Request) (u2 *url.URL, err error) {
+		//	u1 := *request.URL
+		//	u1.Scheme = "http"
+		//	return &u1, nil
+		//}}
 
 		dialer := websocket.Dialer{}
 		dstConn, dstResponse, err := dialer.Dial(parsedUrl.String(), sendHeader)
