@@ -39,7 +39,7 @@ var regexWebServices = make([]*webServiceType, 0)
 var inFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 var outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
-var webAuthChecker func(int, *string, map[string]interface{}, *http.Request) bool
+var webAuthChecker func(int, *string, map[string]interface{}, *http.Request, *Response) bool
 var webAuthFailedData interface{}
 var sessionKey string
 var clientKey string
@@ -174,7 +174,7 @@ func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, 
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool) {
+func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) bool) {
 	webAuthChecker = authChecker
 }
 

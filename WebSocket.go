@@ -41,6 +41,7 @@ type websocketServiceType struct {
 	decoder           func(interface{}) (string, map[string]interface{}, error)
 	encoder           func(string, interface{}) interface{}
 	actions           map[string]*websocketActionType
+	isSimple          bool
 }
 
 type websocketActionType struct {
@@ -67,12 +68,20 @@ var regexWebsocketServices = make([]*websocketServiceType, 0)
 var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{}, *http.Request, interface{}) bool
 
 // 注册Websocket服务
+func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
+	RegisterSimpleWebsocketWithPriority(authLevel, 0, path, onOpen)
+}
+
+func RegisterSimpleWebsocketWithPriority(authLevel int, priority int, path string, onOpen interface{}) {
+	RegisterWebsocketWithPriority(authLevel, priority, path, nil, onOpen, nil, nil, nil, true)
+}
+
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithPriority(authLevel, 0, path, updater, onOpen, onClose, decoder, encoder)
+	return RegisterWebsocketWithPriority(authLevel, 0, path, updater, onOpen, onClose, decoder, encoder, false)
 }
 
 // 注册Websocket服务
@@ -80,9 +89,10 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}) *ActionRegister {
+	encoder func(action string, data interface{}) interface{}, isSimple bool) *ActionRegister {
 
 	s := new(websocketServiceType)
+	s.isSimple = isSimple
 	s.authLevel = authLevel
 	s.priority = priority
 	s.path = path
@@ -298,130 +308,133 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			}
 		}
 
-		for {
-			msg := new(interface{})
-			err := client.ReadJSON(msg)
-			if err != nil {
-				break
-			}
-
-			var actionName string
-			var messageData map[string]interface{}
-			if ws.decoder != nil {
-				actionName, messageData, err = ws.decoder(*msg)
+		if !ws.isSimple {
+			for {
+				msg := new(interface{})
+				err := client.ReadJSON(msg)
 				if err != nil {
-					requestLogger.Error(err.Error(), Map{
-						"message": u.String(*msg)[0:1024],
-						"ip":      getRealIp(request),
-						"method":  request.Method,
-						"host":    request.Host,
-						"uri":     request.RequestURI,
-					})
-					//log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
+					break
 				}
-			} else {
-				actionName = ""
-				mapMsg, isMap := (*msg).(map[string]interface{})
-				if isMap {
-					messageData = mapMsg
-					if messageData["action"] != "" {
-						actionName = u.String(messageData["action"])
+
+				var actionName string
+				var messageData map[string]interface{}
+				if ws.decoder != nil {
+					actionName, messageData, err = ws.decoder(*msg)
+					if err != nil {
+						requestLogger.Error(err.Error(), Map{
+							"message": u.String(*msg)[0:1024],
+							"ip":      getRealIp(request),
+							"method":  request.Method,
+							"host":    request.Host,
+							"uri":     request.RequestURI,
+						})
+						//log.Printf("ERROR	Read a bad message	%s	%s	%s", getRealIp(request), request.RequestURI, fmt.Sprint(*msg))
 					}
 				} else {
-					messageData = map[string]interface{}{"data": *msg}
+					actionName = ""
+					mapMsg, isMap := (*msg).(map[string]interface{})
+					if isMap {
+						messageData = mapMsg
+						if messageData["action"] != "" {
+							actionName = u.String(messageData["action"])
+						}
+					} else {
+						messageData = map[string]interface{}{"data": *msg}
+					}
 				}
-			}
-			// 异步调用 action 处理
-			action := ws.actions[actionName]
-			if action == nil {
-				action = ws.actions[""]
-			}
-			if action == nil {
-				continue
-			}
-
-			//printableMsg, _ := json.Marshal(messageData)
-			if webSocketActionAuthChecker != nil {
-				if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-					writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
-						"inAction":  actionName,
-						"inMessage": logInMsg,
-					})
-					response.WriteHeader(403)
+				// 异步调用 action 处理
+				action := ws.actions[actionName]
+				if action == nil {
+					action = ws.actions[""]
+				}
+				if action == nil {
 					continue
 				}
-			}
 
-			actionStartTime := time.Now()
-			outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger)
-			if err == nil {
-				logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				if Config.LogWebsocketAction {
-					writeLog(requestLogger, "WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+				//printableMsg, _ := json.Marshal(messageData)
+				if webSocketActionAuthChecker != nil {
+					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
+						logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+						writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
+							"inAction":  actionName,
+							"inMessage": logInMsg,
+						})
+						response.WriteHeader(403)
+						continue
+					}
+				}
+
+				actionStartTime := time.Now()
+				outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger)
+				if err == nil {
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+					if Config.LogWebsocketAction {
+						writeLog(requestLogger, "WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+							"inAction":   actionName,
+							"inMessage":  logInMsg,
+							"outAction":  outAction,
+							"outMessage": logOutMsg,
+						})
+					}
+					//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
+				} else {
+					logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+					logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
+					writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
 						"inAction":   actionName,
 						"inMessage":  logInMsg,
 						"outAction":  outAction,
 						"outMessage": logOutMsg,
+						"error":      err.Error(),
 					})
+					//log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
 				}
-				//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
-			} else {
-				logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
-				writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
-					"inAction":   actionName,
-					"inMessage":  logInMsg,
-					"outAction":  outAction,
-					"outMessage": logOutMsg,
-					"error":      err.Error(),
-				})
-				//log.Printf("WSERROR	%s	%s	%s	%.6f	%s	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg), err.Error())
-			}
-		}
-
-		// 调用 onClose
-		if ws.closeFuncType != nil {
-			var closeParms = make([]reflect.Value, ws.closeParmsNum)
-			if ws.closeSessionIndex >= 0 {
-				closeParms[ws.closeSessionIndex] = sessionValue
-			}
-			if ws.closeClientIndex >= 0 {
-				closeParms[ws.closeClientIndex] = reflect.ValueOf(client)
-			}
-			if ws.closeRequestIndex >= 0 {
-				closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
-			}
-			if ws.closeLoggerIndex >= 0 {
-				closeParms[ws.closeLoggerIndex] = reflect.ValueOf(requestLogger)
 			}
 
-			for i, parm := range closeParms {
-				if parm.Kind() == reflect.Invalid {
-					st := ws.openFuncType.In(i)
-					isset := false
-					if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
-						injectObj := GetInject(st)
-						if injectObj != nil {
-							injectObjValue := reflect.ValueOf(injectObj)
-							setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
-							if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
-								setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+			// 调用 onClose
+			if ws.closeFuncType != nil {
+				var closeParms = make([]reflect.Value, ws.closeParmsNum)
+				if ws.closeSessionIndex >= 0 {
+					closeParms[ws.closeSessionIndex] = sessionValue
+				}
+				if ws.closeClientIndex >= 0 {
+					closeParms[ws.closeClientIndex] = reflect.ValueOf(client)
+				}
+				if ws.closeRequestIndex >= 0 {
+					closeParms[ws.closeRequestIndex] = reflect.ValueOf(request)
+				}
+				if ws.closeLoggerIndex >= 0 {
+					closeParms[ws.closeLoggerIndex] = reflect.ValueOf(requestLogger)
+				}
+
+				for i, parm := range closeParms {
+					if parm.Kind() == reflect.Invalid {
+						st := ws.openFuncType.In(i)
+						isset := false
+						if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
+							injectObj := GetInject(st)
+							if injectObj != nil {
+								injectObjValue := reflect.ValueOf(injectObj)
+								setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
+								if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+									setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+								}
+								closeParms[i] = injectObjValue
+								isset = true
 							}
-							closeParms[i] = injectObjValue
-							isset = true
+						}
+						if isset == false {
+							closeParms[i] = reflect.New(st).Elem()
 						}
 					}
-					if isset == false {
-						closeParms[i] = reflect.New(st).Elem()
-					}
 				}
-			}
 
-			ws.closeFuncValue.Call(closeParms)
+				ws.closeFuncValue.Call(closeParms)
+			}
 		}
 
+		_ = client.Close()
 		writeLog(requestLogger, "WSCLOSE", nil, 0, request, response, args, headers, startTime, authLevel, nil)
 	}
 }

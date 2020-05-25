@@ -116,7 +116,7 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2)
 	s.Register(2, "/echo2", Echo2)
 
-	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool {
+	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *s.Response) bool {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 1:

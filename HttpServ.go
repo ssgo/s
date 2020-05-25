@@ -22,16 +22,19 @@ type Response struct {
 	writer      http.ResponseWriter
 	status      int
 	outLen      int
+	changed     bool
 	ProxyHeader *http.Header
 }
 
 func (response *Response) Header() http.Header {
+	response.changed = true
 	if response.ProxyHeader != nil {
 		return *response.ProxyHeader
 	}
 	return response.writer.Header()
 }
 func (response *Response) Write(bytes []byte) (int, error) {
+	response.changed = true
 	response.outLen += len(bytes)
 	if response.ProxyHeader != nil {
 		response.copyProxyHeader()
@@ -42,6 +45,7 @@ func (response *Response) WriteString(s string) (int, error) {
 	return response.Write([]byte(s))
 }
 func (response *Response) WriteHeader(code int) {
+	response.changed = true
 	response.status = code
 	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
 		return
@@ -375,19 +379,15 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 	if authLevel > 0 {
-		if webAuthChecker == nil {
-			SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request) bool {
-				settedAuthLevel := accessTokens[request.Header.Get("Access-Token")]
-				return settedAuthLevel != nil && *settedAuthLevel >= authLevel
-			})
-		}
-		if webAuthChecker(authLevel, &request.RequestURI, args, request) == false {
+		if webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
 			if webAuthFailedData == nil {
-				response.WriteHeader(403)
+				if !myResponse.changed {
+					response.WriteHeader(403)
+				}
 				writeLog(requestLogger, "REJECT", result, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
 			} else {
 				outBytes := makeOutput(webAuthFailedData)

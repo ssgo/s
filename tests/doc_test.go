@@ -26,6 +26,13 @@ func TestDoc(tt *testing.T) {
 
 	s.Proxy("/dc1/s1", "a1", "/dc/s1")
 	s.Proxy("/proxy/(.+?)", "a1", "/dc/$1")
+	//func RegisterWebsocket(authLevel int, path string,
+	//	onOpen interface{},
+	//onClose interface{},
+	//decoder func(data interface{}) (action string, request map[string]interface{}, err error),
+	//encoder func(action string, data interface{}) interface{}) *ActionRegister {
+	//return RegisterWebsocketWithPriority(authLevel, 0, path, nil, onOpen, onClose, decoder, encoder, false)
+	//}
 
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)

@@ -138,6 +138,11 @@ func GetServerAddr() string {
 	return serverAddr
 }
 
+func DefaultAuthChecker(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) bool {
+	settedAuthLevel := accessTokens[request.Header.Get("Access-Token")]
+	return settedAuthLevel != nil && *settedAuthLevel >= authLevel
+}
+
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	if request.Header.Get("Pid") != strconv.Itoa(serviceInfo.pid) {
 		response.WriteHeader(ResponseCodeHeartbeatPidError)
@@ -329,6 +334,10 @@ func start(as *AsyncServer) {
 
 	running = true
 
+	if webAuthChecker == nil {
+		SetAuthChecker(DefaultAuthChecker)
+	}
+
 	if len(os.Args) > 1 {
 		for i := 1; i < len(os.Args); i++ {
 			if strings.ContainsRune(os.Args[i], ':') {
@@ -414,26 +423,7 @@ func start(as *AsyncServer) {
 		}
 
 		ts.running = true
-		go func() {
-			for {
-				if !ts.running {
-					break
-				}
-
-				if ts.run != nil {
-					ts.run(&ts.running)
-				}
-
-				if !ts.running {
-					break
-				}
-				time.Sleep(ts.interval)
-			}
-
-			if ts.stopChan != nil {
-				ts.stopChan <- true
-			}
-		}()
+		go runTimerServer(ts)
 	}
 
 	// 信息记录到 pid file
@@ -534,6 +524,37 @@ func start(as *AsyncServer) {
 		as.stopChan <- true
 	}
 	return
+}
+
+func runTimerServer(ts *timerServer) {
+	defer func() {
+		if err := recover(); err != nil {
+			logError(u.String(err))
+			if ts.running {
+				logError("restart timer server", "serverName", ts.name)
+				runTimerServer(ts)
+			}
+		}
+	}()
+
+	for {
+		if !ts.running {
+			break
+		}
+
+		if ts.run != nil {
+			ts.run(&ts.running)
+		}
+
+		if !ts.running {
+			break
+		}
+		time.Sleep(ts.interval)
+	}
+
+	if ts.stopChan != nil {
+		ts.stopChan <- true
+	}
 }
 
 func IsRunning() bool {
