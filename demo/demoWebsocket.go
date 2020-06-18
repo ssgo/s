@@ -59,14 +59,14 @@ func OnWsClose() {
 	fmt.Println("===OnWsClose===")
 }
 
-func WsDecoder(srcData interface{}) (string, *map[string]interface{}, error) {
+func WsDecoder(srcData interface{}) (string, map[string]interface{}, error) {
 	fmt.Println("===WsDecoder===")
 	var a []interface{}
 	var m map[string]interface{}
 	var ok bool
 	if a, ok = srcData.([]interface{}); ok {
 		if m, ok = a[1].(map[string]interface{}); ok {
-			return a[0].(string), &m, nil
+			return a[0].(string), m, nil
 		}
 	}
 	return "", nil, fmt.Errorf("in data err	%s", fmt.Sprint(srcData))
@@ -89,7 +89,7 @@ func main() {
 		OnWsOpen, OnWsClose, WsDecoder, WsEncoder)
 	wsAR.RegisterAction(0, "", OnWsMessage)
 
-	as := s.AsyncStart1()
+	as := s.AsyncStart()
 	defer as.Stop()
 	fmt.Println("websocket dial")
 	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/service/abc-123/99", nil)

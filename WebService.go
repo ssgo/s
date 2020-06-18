@@ -3,6 +3,7 @@ package s
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/log"
 	"github.com/ssgo/u"
@@ -16,6 +17,7 @@ type webServiceType struct {
 	authLevel           int
 	priority            int
 	method              string
+	host                string
 	path                string
 	pathMatcher         *regexp.Regexp
 	pathArgs            []string
@@ -110,6 +112,48 @@ func GetInject(dataType reflect.Type) interface{} {
 	return nil
 }
 
+type HostRegister struct {
+	host string
+}
+
+func Host(host string) HostRegister {
+	return HostRegister{host: host}
+}
+
+func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, 0, "", host.host, path, serviceFunc)
+}
+func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, 0, method, host.host, path, serviceFunc)
+}
+func (host *HostRegister) RegisterWithPriority(authLevel, priority int, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, priority, "", host.host, path, serviceFunc)
+}
+func (host *HostRegister) RestfulWithPriority(authLevel, priority int, method, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, priority, method, host.host, path, serviceFunc)
+}
+func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
+	RegisterSimpleWebsocketWithPriority(authLevel, 0, "", path, onOpen)
+}
+
+func (host *HostRegister) RegisterSimpleWebsocketWithPriority(authLevel int, priority int, path string, onOpen interface{}) {
+	RegisterWebsocketWithPriority(authLevel, priority, host.host, path, nil, onOpen, nil, nil, nil, true)
+}
+func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
+	onOpen interface{},
+	onClose interface{},
+	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
+	encoder func(action string, data interface{}) interface{}) *ActionRegister {
+	return RegisterWebsocketWithPriority(authLevel, 0, host.host, path, updater, onOpen, onClose, decoder, encoder, false)
+}
+func (host *HostRegister) RegisterWebsocketWithPriority(authLevel, priority int, path string, updater *websocket.Upgrader,
+	onOpen interface{},
+	onClose interface{},
+	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
+	encoder func(action string, data interface{}) interface{}, isSimple bool) *ActionRegister {
+	return RegisterWebsocketWithPriority(authLevel, 0, host.host, path, updater, onOpen, onClose, decoder, encoder, false)
+}
+
 // 注册服务
 func Register(authLevel int, path string, serviceFunc interface{}) {
 	Restful(authLevel, "", path, serviceFunc)
@@ -117,16 +161,16 @@ func Register(authLevel int, path string, serviceFunc interface{}) {
 
 // 注册服务
 func Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, 0, method, path, serviceFunc)
+	RestfulWithPriority(authLevel, 0, method, "", path, serviceFunc)
 }
 
 // 注册服务
-func RegisterWithPriority(authLevel, priority int, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, priority, "", path, serviceFunc)
+func RegisterWithPriority(authLevel, priority int, host, path string, serviceFunc interface{}) {
+	RestfulWithPriority(authLevel, priority, "", host, path, serviceFunc)
 }
 
 // 注册服务
-func RestfulWithPriority(authLevel, priority int, method, path string, serviceFunc interface{}) {
+func RestfulWithPriority(authLevel, priority int, method, host, path string, serviceFunc interface{}) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		logError(err.Error(), "authLevel", authLevel, "priority", priority, "path", path, "method", method)
@@ -136,6 +180,7 @@ func RestfulWithPriority(authLevel, priority int, method, path string, serviceFu
 	s.authLevel = authLevel
 	s.priority = priority
 	s.method = method
+	s.host = host
 	s.path = path
 	finder, err := regexp.Compile("{(.*?)}")
 	if err == nil {
@@ -160,7 +205,7 @@ func RestfulWithPriority(authLevel, priority int, method, path string, serviceFu
 		}
 	}
 	if s.pathMatcher == nil {
-		webServices[method+path] = s
+		webServices[fmt.Sprintln(host, method, path)] = s
 	}
 }
 

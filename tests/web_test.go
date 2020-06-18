@@ -1,11 +1,12 @@
 package tests
 
 import (
+	"fmt"
+	"github.com/ssgo/httpclient"
 	"net/http"
 	"os"
 	"testing"
 
-	"github.com/ssgo/httpclient"
 	"github.com/ssgo/s"
 )
 
@@ -47,6 +48,7 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	s.ResetAllSets()
 	s.Restful(0, "GET", "/", Welcome)
 	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture)
+	fmt.Println("000")
 	as := s.AsyncStart()
 
 	r := as.Get("/")
@@ -62,13 +64,15 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	result := r.Bytes()
 	t.Test(r.Error == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, r.Error)
 	t.Test(r.Response.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, r.Error)
-
+	fmt.Println("111")
 	as.Stop()
+	fmt.Println("222")
 }
 
 func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 
+	//_ = os.Setenv("service_httpVersion", "1")
 	_ = os.Setenv("service_httpVersion", "1")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)

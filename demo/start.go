@@ -12,5 +12,7 @@ func main() {
 		return "Hello ssgo\n"
 	})
 	//环境变量设置 service_httpversion=1
-	s.Start()
+	//s.Start()
+	as := s.AsyncStart()
+	as.Wait()
 }

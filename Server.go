@@ -42,6 +42,7 @@ type serviceConfig struct {
 	CompressMaxSize               int
 	CertFile                      string
 	KeyFile                       string
+	CheckDomain                   string
 	AccessTokens                  map[string]*int
 	RewriteTimeout                int
 	AcceptXRealIpWithoutRequestId bool
@@ -138,9 +139,10 @@ func GetServerAddr() string {
 	return serverAddr
 }
 
+//noinspection GoUnusedParameter
 func DefaultAuthChecker(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) bool {
-	settedAuthLevel := accessTokens[request.Header.Get("Access-Token")]
-	return settedAuthLevel != nil && *settedAuthLevel >= authLevel
+	setAuthLevel := accessTokens[request.Header.Get("Access-Token")]
+	return setAuthLevel != nil && *setAuthLevel >= authLevel
 }
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
@@ -177,21 +179,80 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 //	start(2, nil)
 //}
 
+type Listen struct {
+	listener    net.Listener
+	addr        string
+	httpVersion int
+	certFile    string
+	keyFile     string
+}
+
 type AsyncServer struct {
-	startChan  chan bool
-	stopChan   chan bool
-	listener   net.Listener
-	Addr       string
-	clientPool *httpclient.ClientPool
+	startChan    chan bool
+	stopChan     chan bool
+	listens      []Listen
+	Addr         string
+	clientPool   *httpclient.ClientPool
+	routeHandler routeHandler
+	waited       bool
+}
+
+func (as *AsyncServer) Wait() {
+	if !as.waited {
+		for i := len(as.listens) - 1; i >= 0; i-- {
+			<-as.stopChan
+		}
+
+		if discover.IsClient() || discover.IsServer() {
+			logInfo("stopping discover")
+			discover.Stop()
+		}
+		logInfo("stopping router")
+		as.routeHandler.Stop()
+
+		for _, ts := range timerServers {
+			logInfo("stopping timer server", "name", ts.name, "interval", ts.interval)
+			if ts.stop != nil {
+				ts.stop()
+			}
+			ts.running = false
+		}
+
+		as.waited = true
+		logInfo("waiting router")
+		as.routeHandler.Wait()
+		logInfo("waiting discover")
+		discover.Wait()
+
+		for _, ts := range timerServers {
+			logInfo("waiting timer server", "name", ts.name, "interval", ts.interval)
+			if ts.stopChan != nil {
+				<-ts.stopChan
+				ts.stopChan = nil
+			}
+		}
+
+		serviceInfo.remove()
+		logInfo("stopped")
+
+		// 最后关闭日志服务
+		logInfo("logger stopped")
+		log.Stop()
+		log.Wait()
+
+	}
+}
+
+func (as *AsyncServer) stop() {
+	for _, listen := range as.listens {
+		_ = listen.listener.Close()
+	}
+	running = false
 }
 
 func (as *AsyncServer) Stop() {
-	if as.listener != nil {
-		_ = as.listener.Close()
-	}
-	if as.stopChan != nil {
-		<-as.stopChan
-	}
+	as.stop()
+	as.Wait()
 }
 
 func (as *AsyncServer) Get(path string, headers ...string) *httpclient.Result {
@@ -228,8 +289,9 @@ func (as *AsyncServer) SetGlobalHeader(k, v string) {
 //	return asyncStart(1)
 //}
 func AsyncStart() *AsyncServer {
-	as := &AsyncServer{startChan: make(chan bool), stopChan: make(chan bool)}
-	go start(as)
+	as := &AsyncServer{startChan: make(chan bool, 1)}
+	as.Start()
+	//start(as)
 	<-as.startChan
 	if Config.HttpVersion == 1 || Config.CertFile != "" {
 		as.clientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
@@ -266,7 +328,7 @@ func Init() {
 	if Config.NoLogHeaders == "" {
 		Config.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests")
 	}
-	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), ",") {
+	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), "|") {
 		noLogHeaders[strings.TrimSpace(k)] = true
 		noLogHeaders[standard.DiscoverHeaderClientIp] = true
 		noLogHeaders[standard.DiscoverHeaderForwardedFor] = true
@@ -282,7 +344,7 @@ func Init() {
 	if Config.LogOutputFields == "" {
 		Config.LogOutputFields = "ok,code,message"
 	}
-	for _, k := range strings.Split(strings.ToLower(Config.LogOutputFields), ",") {
+	for _, k := range strings.Split(strings.ToLower(Config.LogOutputFields), "|") {
 		logOutputFields[strings.TrimSpace(k)] = true
 	}
 
@@ -309,14 +371,18 @@ func Init() {
 		}
 	}
 
+	if Config.Listen == "" {
+		Config.Listen = "80"
+	}
 	serverAddr = Config.Listen
 }
 
 func Start() {
-	start(nil)
+	//start(nil)
+	AsyncStart().Wait()
 }
 
-func start(as *AsyncServer) {
+func (as *AsyncServer) Start() {
 	log.Start()
 	logInfo("logger started")
 
@@ -356,13 +422,39 @@ func start(as *AsyncServer) {
 		discover.Init()
 	}
 
-	logInfo("starting")
-
-	rh := routeHandler{}
-	srv := &http.Server{
-		Addr:    Config.Listen,
-		Handler: &rh,
+	listenLines := strings.Split(Config.Listen, "|")
+	as.listens = make([]Listen, 0)
+	for _, listenStr := range listenLines {
+		if listenStr == "" {
+			continue
+		}
+		listenArr := strings.Split(listenStr, ",")
+		listen := Listen{httpVersion: Config.HttpVersion, keyFile: Config.KeyFile, certFile: Config.CertFile}
+		keyFileOk := false
+		for i, s := range listenArr {
+			if i == 0 {
+				listen.addr = s
+				if strings.IndexRune(listen.addr, ':') == -1 {
+					listen.addr = ":" + listen.addr
+				}
+			} else {
+				intValue, err := strconv.Atoi(s)
+				if err == nil && (intValue == 1 && intValue <= 2) {
+					listen.httpVersion = intValue
+				} else {
+					if !keyFileOk {
+						keyFileOk = true
+						listen.keyFile = s
+					} else {
+						listen.certFile = s
+					}
+				}
+			}
+		}
+		as.listens = append(as.listens, listen)
 	}
+
+	logInfo("starting")
 
 	//if Config.RwTimeout > 0 {
 	//	srv.ReadTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
@@ -370,30 +462,26 @@ func start(as *AsyncServer) {
 	//	srv.WriteTimeout = time.Duration(Config.RwTimeout) * time.Millisecond
 	//}
 
-	if Config.KeepaliveTimeout > 0 {
-		srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
-	}
-
-	listener, err := net.Listen("tcp", Config.Listen)
-	if as != nil {
-		as.listener = listener
-	}
-	if err != nil {
-		logError(err.Error())
-		if as != nil {
+	for k, listen := range as.listens {
+		listener, err := net.Listen("tcp", listen.addr)
+		if err != nil {
+			logError(err.Error())
 			as.startChan <- false
+			return
 		}
-		return
+		as.listens[k].listener = listener
 	}
 
-	closeChan := make(chan os.Signal, 2)
-	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM)
+	as.stopChan = make(chan bool, len(as.listens))
+
+	closeChan := make(chan os.Signal, 1)
+	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	go func() {
 		<-closeChan
-		_ = listener.Close()
+		as.stop()
 	}()
-
-	addrInfo := listener.Addr().(*net.TCPAddr)
+	//aa
+	addrInfo := as.listens[0].listener.Addr().(*net.TCPAddr)
 	ip := addrInfo.IP
 	port := addrInfo.Port
 	if !ip.IsGlobalUnicast() {
@@ -412,7 +500,7 @@ func start(as *AsyncServer) {
 	logInfo("starting discover")
 	if discover.Start(serverAddr) == false {
 		logError("failed to start discover")
-		_ = listener.Close()
+		as.stop()
 		return
 	}
 
@@ -429,99 +517,78 @@ func start(as *AsyncServer) {
 	// 信息记录到 pid file
 	serviceInfo.pid = os.Getpid()
 	serviceInfo.httpVersion = Config.HttpVersion
+	checkAddr := serverAddr
+	if Config.CheckDomain != "" {
+		checkAddr = fmt.Sprintf("%s:%d", Config.CheckDomain, port)
+	}
 	if Config.CertFile != "" && Config.KeyFile != "" {
-		serviceInfo.baseUrl = "https://" + serverAddr
+		serviceInfo.baseUrl = "https://" + checkAddr
 	} else {
-		serviceInfo.baseUrl = "http://" + serverAddr
+		serviceInfo.baseUrl = "http://" + checkAddr
 	}
 	serviceInfo.save()
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
+	rh := routeHandler{}
+	as.routeHandler = rh
+	srv := &http.Server{
+		//Addr:    listen.addr,
+		Handler: &rh,
+	}
+
 	logInfo("started")
-	//log.Printf("SERVER	%s	Started", serverAddr)
+	as.Addr = serverAddr
+	as.startChan <- true
 
-	if as != nil {
-		as.Addr = serverAddr
-		as.startChan <- true
+	if Config.KeepaliveTimeout > 0 {
+		srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
 	}
-	if Config.HttpVersion == 2 {
-		//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
-		s2 := &http2.Server{}
-		err := http2.ConfigureServer(srv, s2)
-		if err != nil {
-			logError(err.Error())
-			return
-		}
 
-		if Config.CertFile != "" && Config.KeyFile != "" {
-			err := srv.ServeTLS(listener, Config.CertFile, Config.KeyFile)
-			if err != nil {
-				logError(err.Error())
-			}
-		} else {
-			for {
-				conn, err := listener.Accept()
+	for k := range as.listens {
+		listen := as.listens[k]
+		go func() {
+
+			if listen.httpVersion == 2 {
+				//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
+				s2 := &http2.Server{}
+				err := http2.ConfigureServer(srv, s2)
 				if err != nil {
-					if strings.Contains(err.Error(), "use of closed network connection") {
-						break
-					}
 					logError(err.Error())
-					continue
+					return
 				}
-				go s2.ServeConn(conn, &http2.ServeConnOpts{BaseConfig: srv})
+
+				if listen.certFile != "" && listen.keyFile != "" {
+					err := srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+					if err != nil {
+						logError(err.Error())
+					}
+				} else {
+					for {
+						conn, err := listen.listener.Accept()
+						if err != nil {
+							if strings.Contains(err.Error(), "use of closed network connection") {
+								break
+							}
+							logError(err.Error())
+							continue
+						}
+						go s2.ServeConn(conn, &http2.ServeConnOpts{BaseConfig: srv})
+					}
+				}
+			} else {
+				var err error
+				if listen.certFile != "" && listen.keyFile != "" {
+					err = srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+				} else {
+					err = srv.Serve(listen.listener)
+				}
+				if err != nil && strings.Index(err.Error(), "use of closed network connection") == -1 {
+					logError(err.Error())
+				}
 			}
-		}
-	} else {
-		if Config.CertFile != "" && Config.KeyFile != "" {
-			err = srv.ServeTLS(listener, Config.CertFile, Config.KeyFile)
-		} else {
-			err = srv.Serve(listener)
-		}
-		if err != nil && strings.Index(err.Error(), "use of closed network connection") == -1 {
-			logError(err.Error())
-		}
-	}
-	running = false
-
-	if discover.IsClient() || discover.IsServer() {
-		logInfo("stopping discover")
-		discover.Stop()
-	}
-	logInfo("stopping router")
-	rh.Stop()
-
-	for _, ts := range timerServers {
-		logInfo("stopping timer server", "name", ts.name, "interval", ts.interval)
-		if ts.stop != nil {
-			ts.stop()
-		}
-		ts.running = false
-	}
-
-	logInfo("waiting router")
-	rh.Wait()
-	logInfo("waiting discover")
-	discover.Wait()
-
-	for _, ts := range timerServers {
-		logInfo("waiting timer server", "name", ts.name, "interval", ts.interval)
-		if ts.stopChan != nil {
-			<-ts.stopChan
-			ts.stopChan = nil
-		}
-	}
-
-	serviceInfo.remove()
-	logInfo("stopped")
-
-	// 最后关闭日志服务
-	logInfo("logger stopped")
-	log.Stop()
-	log.Wait()
-
-	if as != nil {
-		as.stopChan <- true
+			as.stopChan <- true
+		}()
 	}
 	return
 }

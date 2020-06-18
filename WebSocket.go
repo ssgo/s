@@ -2,6 +2,7 @@ package s
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ssgo/log"
 	"net/http"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 type websocketServiceType struct {
 	authLevel         int
 	priority          int
+	host              string
 	path              string
 	pathMatcher       *regexp.Regexp
 	pathArgs          []string
@@ -69,11 +71,11 @@ var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{
 
 // 注册Websocket服务
 func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithPriority(authLevel, 0, path, onOpen)
+	RegisterSimpleWebsocketWithPriority(authLevel, 0, "", path, onOpen)
 }
 
-func RegisterSimpleWebsocketWithPriority(authLevel int, priority int, path string, onOpen interface{}) {
-	RegisterWebsocketWithPriority(authLevel, priority, path, nil, onOpen, nil, nil, nil, true)
+func RegisterSimpleWebsocketWithPriority(authLevel int, priority int, host, path string, onOpen interface{}) {
+	RegisterWebsocketWithPriority(authLevel, priority, host, path, nil, onOpen, nil, nil, nil, true)
 }
 
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
@@ -81,11 +83,11 @@ func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithPriority(authLevel, 0, path, updater, onOpen, onClose, decoder, encoder, false)
+	return RegisterWebsocketWithPriority(authLevel, 0, "", path, updater, onOpen, onClose, decoder, encoder, false)
 }
 
 // 注册Websocket服务
-func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater *websocket.Upgrader,
+func RegisterWebsocketWithPriority(authLevel, priority int, host, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
@@ -95,6 +97,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 	s.isSimple = isSimple
 	s.authLevel = authLevel
 	s.priority = priority
+	s.host = host
 	s.path = path
 	if updater == nil {
 		s.updater = new(websocket.Upgrader)
@@ -172,7 +175,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 			s.pathArgs = append(s.pathArgs, found[1])
 		}
 		if len(s.pathArgs) > 0 {
-			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
+			s.pathMatcher, err = regexp.Compile("^" + keyName + "$")
 			if err != nil {
 				logError(err.Error(), Map{
 					"authLevel": authLevel,
@@ -186,7 +189,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, path string, updater
 		}
 	}
 	if s.pathMatcher == nil {
-		websocketServices[path] = s
+		websocketServices[fmt.Sprintln(host, path)] = s
 	}
 
 	return &ActionRegister{websocketName: path, websocketServiceType: s}

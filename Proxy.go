@@ -441,6 +441,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 		}()
 
 		<-waits
+		<-waits
 		return totalOutLen
 	}
 

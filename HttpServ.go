@@ -208,11 +208,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 先看缓存中是否有 Service
 	var s *webServiceType
 	var ws *websocketServiceType
-	s = webServices[request.Method+requestPath]
+	s = webServices[fmt.Sprintln(request.Host, request.Method, requestPath)]
 	if s == nil {
-		s = webServices[requestPath]
+		s = webServices[fmt.Sprintln(request.Host, requestPath)]
 		if s == nil {
-			ws = websocketServices[requestPath]
+			s = webServices[fmt.Sprintln(request.Method, requestPath)]
+			if s == nil {
+				s = webServices[requestPath]
+				if s == nil {
+					ws = websocketServices[fmt.Sprintln(request.Host, requestPath)]
+					if s == nil {
+						ws = websocketServices[requestPath]
+					}
+				}
+			}
 		}
 	}
 
@@ -223,6 +232,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		for i := maxRegexWebServicesKey; i >= 0; i-- {
 			tmpS := regexWebServices[i]
 			if tmpS.method != "" && tmpS.method != request.Method {
+				continue
+			}
+			if tmpS.host != "" && tmpS.host != request.Host {
 				continue
 			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
@@ -247,6 +259,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		//for _, tmpS := range regexWebsocketServices {
 		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
 			tmpS := regexWebsocketServices[i]
+			if tmpS.host != "" && tmpS.host != request.Host {
+				continue
+			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
 				foundArgs := finds[0]
