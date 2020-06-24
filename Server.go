@@ -271,7 +271,7 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 	return as.Do("HEAD", path, data, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
-	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(Config.CertFile != "" && Config.KeyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
 		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
 	}
@@ -475,12 +475,13 @@ func (as *AsyncServer) Start() {
 	as.stopChan = make(chan bool, len(as.listens))
 
 	closeChan := make(chan os.Signal, 1)
+	//signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	go func() {
 		<-closeChan
 		as.stop()
 	}()
-	//aa
+
 	addrInfo := as.listens[0].listener.Addr().(*net.TCPAddr)
 	ip := addrInfo.IP
 	port := addrInfo.Port
@@ -521,7 +522,7 @@ func (as *AsyncServer) Start() {
 	if Config.CheckDomain != "" {
 		checkAddr = fmt.Sprintf("%s:%d", Config.CheckDomain, port)
 	}
-	if Config.CertFile != "" && Config.KeyFile != "" {
+	if as.listens[0].certFile != "" && as.listens[0].keyFile != "" {
 		serviceInfo.baseUrl = "https://" + checkAddr
 	} else {
 		serviceInfo.baseUrl = "http://" + checkAddr
@@ -530,24 +531,23 @@ func (as *AsyncServer) Start() {
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
-	rh := routeHandler{}
-	as.routeHandler = rh
-	srv := &http.Server{
-		//Addr:    listen.addr,
-		Handler: &rh,
-	}
-
 	logInfo("started")
 	as.Addr = serverAddr
 	as.startChan <- true
-
-	if Config.KeepaliveTimeout > 0 {
-		srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
-	}
+	// 11
+	rh := routeHandler{}
+	as.routeHandler = rh
 
 	for k := range as.listens {
 		listen := as.listens[k]
 		go func() {
+			srv := &http.Server{
+				//Addr:    listen.addr,
+				Handler: &rh,
+			}
+			if Config.KeepaliveTimeout > 0 {
+				srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
+			}
 
 			if listen.httpVersion == 2 {
 				//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}

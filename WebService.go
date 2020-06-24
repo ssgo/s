@@ -205,7 +205,7 @@ func RestfulWithPriority(authLevel, priority int, method, host, path string, ser
 		}
 	}
 	if s.pathMatcher == nil {
-		webServices[fmt.Sprintln(host, method, path)] = s
+		webServices[fmt.Sprint(host, method, path)] = s
 	}
 }
 

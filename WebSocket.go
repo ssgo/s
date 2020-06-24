@@ -189,7 +189,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, host, path string, u
 		}
 	}
 	if s.pathMatcher == nil {
-		websocketServices[fmt.Sprintln(host, path)] = s
+		websocketServices[fmt.Sprint(host, path)] = s
 	}
 
 	return &ActionRegister{websocketName: path, websocketServiceType: s}
