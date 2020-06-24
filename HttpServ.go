@@ -208,8 +208,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 先看缓存中是否有 Service
 	var s *webServiceType
 	var ws *websocketServiceType
-	fmt.Println(request.Host, request.Method, requestPath)
-	fmt.Println(u.JsonP(webServices))
+	//fmt.Println(request.Host, request.Method, requestPath)
+	//fmt.Println(u.JsonP(webServices))
 	s = webServices[fmt.Sprint(request.Host, request.Method, requestPath)]
 	if s == nil {
 		s = webServices[fmt.Sprint(request.Host, requestPath)]
