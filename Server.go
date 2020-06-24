@@ -372,7 +372,7 @@ func Init() {
 	}
 
 	if Config.Listen == "" {
-		Config.Listen = "80"
+		Config.Listen = ":"
 	}
 	serverAddr = Config.Listen
 }
