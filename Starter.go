@@ -91,6 +91,7 @@ func init() {
 			os.Exit(0)
 		}
 	}
+	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
 }
 
 //func loadPid() (string, int) {
