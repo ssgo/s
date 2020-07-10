@@ -75,26 +75,50 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		filePath += "index.html"
 	}
 
-	fileInfo, err := os.Stat(filePath)
+	//fileInfo, err := os.Stat(filePath)
+	//if err != nil {
+	//	return false
+	//}
+	//
+	////if strings.HasSuffix(filePath, "/index.html") {
+	////	filePath = filePath[len(filePath)-11:]
+	////}
+	//
+	////http.ServeFile(response, request, *rootPath+requestPath)
+	//
+	//if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+	//	zipWriter := NewGzipResponseWriter(response)
+	//	http.ServeFile(zipWriter, request, *rootPath+requestPath)
+	//	zipWriter.Close()
+	//} else {
+	//	http.ServeFile(response, request, *rootPath+requestPath)
+	//}
+
+	//writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
+
+	size, err := ResponseStatic(filePath, request, response)
 	if err != nil {
 		return false
 	}
 
-	if strings.HasSuffix(filePath, "/index.html") {
-		filePath = filePath[len(filePath)-11:]
-	}
+	writeLog(requestLogger, "STATIC", nil, size, request, response, nil, headers, startTime, 0, nil)
 
-	//http.ServeFile(response, request, *rootPath+requestPath)
+	return true
+}
+
+func ResponseStatic(filePath string, request *http.Request, response *Response) (int, error) {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return 0, err
+	}
 
 	if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 		zipWriter := NewGzipResponseWriter(response)
-		http.ServeFile(zipWriter, request, *rootPath+requestPath)
+		http.ServeFile(zipWriter, request, filePath)
 		zipWriter.Close()
 	} else {
-		http.ServeFile(response, request, *rootPath+requestPath)
+		http.ServeFile(response, request, filePath)
 	}
 
-	writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
-
-	return true
+	return int(fileInfo.Size()), nil
 }
