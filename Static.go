@@ -64,6 +64,8 @@ func processStatic(requestPath string, request *http.Request, response *Response
 				break
 			}
 		}
+	} else {
+		requestPath = requestPath[len(requestPath):]
 	}
 
 	if rootPath == nil {
