@@ -19,25 +19,26 @@ import (
 )
 
 type proxyInfo struct {
-	matcher  *regexp.Regexp
-	fromPath string
-	toApp    string
-	toPath   string
+	matcher   *regexp.Regexp
+	authLevel int
+	fromPath  string
+	toApp     string
+	toPath    string
 }
 
 var proxies = make(map[string]*proxyInfo, 0)
 var regexProxies = make([]*proxyInfo, 0)
-var proxyBy func(*http.Request) (*string, *string, map[string]string)
+var proxyBy func(*http.Request) (int, *string, *string, map[string]string)
 
 // 跳转
-func SetProxyBy(by func(request *http.Request) (toApp, toPath *string, headers map[string]string)) {
+func SetProxyBy(by func(request *http.Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
 	//forceDiscoverClient = true // 代理模式强制启动 Discover Client
 	proxyBy = by
 }
 
 // 代理
-func Proxy(path string, toApp, toPath string) {
-	p := &proxyInfo{fromPath: path, toApp: toApp, toPath: toPath}
+func Proxy(authLevel int, path string, toApp, toPath string) {
+	p := &proxyInfo{authLevel: authLevel, fromPath: path, toApp: toApp, toPath: toPath}
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err != nil {
@@ -53,7 +54,7 @@ func Proxy(path string, toApp, toPath string) {
 }
 
 // 查找 Proxy
-func findProxy(request *http.Request) (*string, *string) {
+func findProxy(request *http.Request) (int, *string, *string) {
 	var requestPath string
 	var queryString string
 	pos := strings.LastIndex(request.RequestURI, "?")
@@ -65,7 +66,7 @@ func findProxy(request *http.Request) (*string, *string) {
 	}
 	pi := proxies[requestPath]
 	if pi != nil {
-		return &pi.toApp, &pi.toPath
+		return pi.authLevel, &pi.toApp, &pi.toPath
 	}
 	if len(regexProxies) > 0 {
 		for _, pi := range regexProxies {
@@ -78,22 +79,32 @@ func findProxy(request *http.Request) (*string, *string) {
 				if queryString != "" {
 					toPath += queryString
 				}
-				return &pi.toApp, &toPath
+				return pi.authLevel, &pi.toApp, &toPath
 			}
 		}
 	}
-	return nil, nil
+	return 0, nil, nil
 }
 
 // ProxyBy
 func processProxy(request *http.Request, response *Response, logHeaders map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
-	proxyToApp, proxyToPath := findProxy(request)
+	authLevel, proxyToApp, proxyToPath := findProxy(request)
 	var proxyHeaders map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
-		proxyToApp, proxyToPath, proxyHeaders = proxyBy(request)
+		authLevel, proxyToApp, proxyToPath, proxyHeaders = proxyBy(request)
 	}
 	if proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "" {
 		return false
+	}
+
+	if authLevel > 0 {
+		if webAuthChecker(authLevel, &request.RequestURI, nil, request, response) == false {
+			if !response.changed {
+				response.WriteHeader(403)
+			}
+			writeLog(requestLogger, "REJECT", nil, 0, request, response, nil, logHeaders, startTime, authLevel, nil)
+			return
+		}
 	}
 
 	//if recordLogs {

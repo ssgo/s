@@ -24,8 +24,8 @@ func TestDoc(tt *testing.T) {
 	s.Rewrite("/r3/1", "/echo2")
 	s.Rewrite("/r3\\?name=(\\w+)", "/echo/$1")
 
-	s.Proxy("/dc1/s1", "a1", "/dc/s1")
-	s.Proxy("/proxy/(.+?)", "a1", "/dc/$1")
+	s.Proxy(0, "/dc1/s1", "a1", "/dc/s1")
+	s.Proxy(0, "/proxy/(.+?)", "a1", "/dc/$1")
 	//func RegisterWebsocket(authLevel int, path string,
 	//	onOpen interface{},
 	//onClose interface{},

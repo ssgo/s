@@ -179,14 +179,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	requestLogger := log.New(requestId)
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	finished := processRewrite(request, myResponse, logHeaders, &startTime, requestLogger)
-	if finished {
+	if processRewrite(request, myResponse, logHeaders, &startTime, requestLogger) {
 		return
 	}
 
 	// 处理 ProxyBy
-	finished = processProxy(request, myResponse, logHeaders, &startTime, requestLogger)
-	if finished {
+	if processProxy(request, myResponse, logHeaders, &startTime, requestLogger) {
 		return
 	}
 
@@ -210,16 +208,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var ws *websocketServiceType
 	//fmt.Println(request.Host, request.Method, requestPath)
 	//fmt.Println(u.JsonP(webServices))
-	s = webServices[fmt.Sprint(request.Host, request.Method, requestPath)]
+
+	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
 	if s == nil {
-		s = webServices[fmt.Sprint(request.Host, requestPath)]
+		s = webServices[fmt.Sprint(host, requestPath)]
 		if s == nil {
 			s = webServices[fmt.Sprint(request.Method, requestPath)]
 			if s == nil {
 				s = webServices[requestPath]
 				if s == nil {
-					ws = websocketServices[fmt.Sprint(request.Host, requestPath)]
-					if s == nil {
+					ws = websocketServices[fmt.Sprint(host, requestPath)]
+					if ws == nil {
 						ws = websocketServices[requestPath]
 					}
 				}
@@ -284,7 +283,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 		return
 	}
-	//判定是rewrite
+
+	// 判定是rewrite
 	// rewrite问号后的参数不能被request.Form解析 解析问号后的参数
 	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
 		requestUrl, reqErr := url.Parse(request.RequestURI)
@@ -305,6 +305,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			}
 		}
 	}
+
 	// GET POST
 	err := request.ParseForm()
 	if err != nil {
@@ -395,7 +396,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			break
 		}
 	}
-	if authLevel > 0 {
+	if authLevel > 0 && result == nil {
 		if webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)

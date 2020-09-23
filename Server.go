@@ -50,14 +50,13 @@ type serviceConfig struct {
 
 type Result struct {
 	Ok      bool
+	Argot   string
 	Message string
-	Data    interface{}
 }
 
 type CodeResult struct {
 	Code    int
 	Message string
-	Data    interface{}
 }
 
 var Config = serviceConfig{}
@@ -628,33 +627,37 @@ func IsRunning() bool {
 	return running
 }
 
-func OK(data interface{}) Result {
-	return Result{
-		Ok:      true,
-		Message: "",
-		Data:    data,
+type ttOut struct {
+	Result
+	Data string
+}
+
+func tt() (out ttOut) {
+	out.Data = "hello"
+	out.OK()
+	return
+}
+
+func (r *Result) OK(needArgot ...string) {
+	r.Ok = true
+	if len(needArgot) > 0 {
+		r.Argot = needArgot[0]
 	}
 }
 
-func Failed(message string, data interface{}) Result {
-	return Result{
-		Ok:      false,
-		Message: message,
-		Data:    data,
-	}
-}
-func OK2(data interface{}) CodeResult {
-	return CodeResult{
-		Code:    200,
-		Message: "",
-		Data:    data,
+func (r *Result) Failed(message string, needArgot ...string) {
+	r.Ok = false
+	r.Message = message
+	if len(needArgot) > 0 {
+		r.Argot = needArgot[0]
 	}
 }
 
-func Failed2(code int, message string, data interface{}) CodeResult {
-	return CodeResult{
-		Code:    code,
-		Message: message,
-		Data:    data,
-	}
+func (r *CodeResult) OK() {
+	r.Code = 1
+}
+
+func (r *CodeResult) Failed2(code int, message string) {
+	r.Code = code
+	r.Message = message
 }
