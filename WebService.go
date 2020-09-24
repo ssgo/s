@@ -43,40 +43,44 @@ var outFilters = make([]func(map[string]interface{}, *http.Request, *http.Respon
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
 var webAuthChecker func(int, *string, map[string]interface{}, *http.Request, *Response) bool
 var webAuthFailedData interface{}
-var sessionKey string
-var clientKey string
-var sessionCreator func() string
+var useedSessionIdKey string
+var usedClientIdKey string
+var usedDeviceIdKey string
+var usedClientAppKey string
+
+//var sessionCreator func() string
 var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
-func SetSessionKey(inSessionKey string) {
-	if sessionKey == "" {
-		sessionKey = inSessionKey
-	}
+//func SetSessionKey(inSessionKey string) {
+//	if useedSessionIdKey == "" {
+//		useedSessionIdKey = inSessionKey
+//	}
+//}
+
+func SetClientKeys(clientIdKey, deviceIdKey, clientAppKey, sessionIdKey string) {
+	usedClientIdKey = clientIdKey
+	usedDeviceIdKey = deviceIdKey
+	usedClientAppKey = clientAppKey
+	useedSessionIdKey = sessionIdKey
 }
 
-func SetClientKey(inClientKey string) {
-	if clientKey == "" {
-		clientKey = inClientKey
-	}
-}
-
-// 设置 Session ID 生成器
-func SetSessionCreator(creator func() string) {
-	sessionCreator = creator
-}
-
-// 获取 SessionKey
-func GetSessionKey() string {
-	return sessionKey
-}
-
-// 获取 SessionId
-func GetSessionId(request *http.Request) string {
-	return request.Header.Get(sessionKey)
-}
+//// 设置 Session ID 生成器
+//func SetSessionCreator(creator func() string) {
+//	sessionCreator = creator
+//}
+//
+//// 获取 SessionKey
+//func GetSessionKey() string {
+//	return useedSessionIdKey
+//}
+//
+//// 获取 SessionId
+//func GetSessionId(request *http.Request) string {
+//	return request.Header.Get(useedSessionIdKey)
+//}
 
 // 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
 func SetSessionInject(request *http.Request, obj interface{}) {

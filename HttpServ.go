@@ -102,65 +102,85 @@ func (rh *routeHandler) Wait() {
 	}
 }
 
+func xHeader(headerName string, request *http.Request, maker func() string) string {
+	h := request.Header.Get(headerName)
+	if h == "" {
+		h = maker()
+		request.Header.Set(headerName, h)
+	}
+	return h
+}
+
 func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	var tc *TimeCounter
+	if Config.StatisticTime {
+		tc = StartTimeCounter()
+		defer func() {
+			timeStatistic.Push(tc)
+			//log.DefaultLogger.Info("time count", "request", request.RequestURI, "count", tc.Sprint())
+		}()
+	}
+
 	var myResponse = &Response{writer: writer, status: 200}
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
-	// 产生 X-Request-ID
-	if request.Header.Get(standard.DiscoverHeaderRequestId) == "" {
-		request.Header.Set(standard.DiscoverHeaderRequestId, u.UniqueId())
-		if !Config.AcceptXRealIpWithoutRequestId {
-			// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
-			if request.Header.Get(standard.DiscoverHeaderClientIp) != "" {
-				request.Header.Del(standard.DiscoverHeaderClientIp)
-			}
-		}
+	// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
+	if request.Header.Get(standard.DiscoverHeaderRequestId) == "" && !Config.AcceptXRealIpWithoutRequestId {
+		request.Header.Del(standard.DiscoverHeaderClientIp)
 	}
+
+	// 产生 X-Request-ID
+	requestId := xHeader(standard.DiscoverHeaderRequestId, request, u.UniqueId)
 
 	// 真实的用户IP，通过 X-Real-IP 续传
-	request.Header.Set(standard.DiscoverHeaderClientIp, getRealIp(request))
-
-	// 请求唯一编号，通过 X-Request-ID 续传
-	requestId := request.Header.Get(standard.DiscoverHeaderRequestId)
-	if requestId == "" {
-		requestId = u.UniqueId()
-		request.Header.Set(standard.DiscoverHeaderRequestId, requestId)
-	}
+	xHeader(standard.DiscoverHeaderClientIp, request, func() string {
+		return request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')]
+	})
 
 	// 真实用户请求的Host，通过 X-Host 续传
-	host := request.Header.Get(standard.DiscoverHeaderHost)
-	if host == "" {
-		host = request.Host
-		request.Header.Set(standard.DiscoverHeaderHost, host)
-	}
+	host := xHeader(standard.DiscoverHeaderHost, request, func() string {
+		return request.Host
+	})
 
 	// 真实用户请求的Scheme，通过 X-Scheme 续传
-	scheme := request.Header.Get(standard.DiscoverHeaderScheme)
-	if scheme == "" {
-		scheme = u.StringIf(request.TLS == nil, "http", "https")
-		request.Header.Set(standard.DiscoverHeaderScheme, scheme)
-	}
+	xHeader(standard.DiscoverHeaderScheme, request, func() string {
+		return u.StringIf(request.TLS == nil, "http", "https")
+	})
+
+	// UA
+	xHeader(standard.DiscoverHeaderUserAgent, request, func() string {
+		return request.Header.Get("User-Agent")
+	})
 
 	// SessionId
-	if sessionKey != "" {
-		if request.Header.Get(sessionKey) == "" {
-			var newSessionid string
-			if sessionCreator == nil {
-				newSessionid = u.UniqueId()
-			} else {
-				newSessionid = sessionCreator()
-			}
-			request.Header.Set(sessionKey, newSessionid)
-			response.Header().Set(sessionKey, newSessionid)
+	if useedSessionIdKey != "" {
+		if request.Header.Get(useedSessionIdKey) == "" {
+			newSessionid := u.UniqueId()
+			request.Header.Set(useedSessionIdKey, newSessionid)
+			response.Header().Set(useedSessionIdKey, newSessionid)
 		}
 		// 为了在服务间调用时续传 SessionId
-		request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(sessionKey))
+		request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(useedSessionIdKey))
 	}
 
-	if clientKey != "" {
+	// ClientId
+	if usedClientIdKey != "" {
 		// 为了在服务间调用时续传 ClientId
-		request.Header.Set(standard.DiscoverHeaderClientId, request.Header.Get(clientKey))
+		request.Header.Set(standard.DiscoverHeaderClientId, request.Header.Get(usedClientIdKey))
+	}
+
+	// DeviceId
+	if usedDeviceIdKey != "" {
+		// 为了在服务间调用时续传 DeviceId
+		request.Header.Set(standard.DiscoverHeaderDeviceId, request.Header.Get(usedDeviceIdKey))
+	}
+
+	// ClientAppName、ClientAppVersion
+	if usedClientAppKey != "" {
+		// 为了在服务间调用时续传 ClientAppName、ClientAppVersion
+		request.Header.Set(standard.DiscoverHeaderClientAppName, request.Header.Get(usedClientAppKey+"Name"))
+		request.Header.Set(standard.DiscoverHeaderClientAppVersion, request.Header.Get(usedClientAppKey+"Version"))
 	}
 
 	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
@@ -176,6 +196,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
+	if Config.StatisticTime {
+		tc.Add("Make Headers")
+	}
+
 	requestLogger := log.New(requestId)
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
@@ -183,9 +207,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	if Config.StatisticTime {
+		tc.Add("Check Rewrite")
+	}
+
 	// 处理 ProxyBy
 	if processProxy(request, myResponse, logHeaders, &startTime, requestLogger) {
 		return
+	}
+
+	if Config.StatisticTime {
+		tc.Add("Check Proxy")
 	}
 
 	//var requestPath string
@@ -199,6 +231,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 处理静态文件
 	if processStatic(requestPath, request, myResponse, logHeaders, &startTime, requestLogger) {
 		return
+	}
+
+	if Config.StatisticTime {
+		tc.Add("Check Static")
 	}
 
 	args := make(map[string]interface{})
@@ -284,6 +320,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	if Config.StatisticTime {
+		tc.Add("Find Service")
+	}
+
 	// 判定是rewrite
 	// rewrite问号后的参数不能被request.Form解析 解析问号后的参数
 	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
@@ -359,6 +399,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
+	if Config.StatisticTime {
+		tc.Add("Make Args")
+	}
+
 	// 身份认证
 	var authLevel = 0
 	if ws != nil {
@@ -419,6 +463,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
+	if Config.StatisticTime {
+		tc.Add("In Filter")
+	}
+
 	// 处理 Proxy
 	//var logName string
 	//var statusCode int
@@ -441,6 +489,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		//statusCode = 200
 	}
 	//}
+	if Config.StatisticTime {
+		tc.Add("Do Request")
+	}
 
 	if ws == nil {
 		// 后置过滤器
@@ -453,6 +504,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				break
 			}
 		}
+		if Config.StatisticTime {
+			tc.Add("Out Filter")
+		}
+
 		// 返回结果
 		outBytes := makeOutput(result)
 
@@ -483,8 +538,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if outBytes != nil {
 			outLen = len(outBytes)
 		}
+
+		if Config.StatisticTime {
+			tc.Add("Make Result")
+		}
+
 		if requestPath != "/__CHECK__" {
 			writeLog(requestLogger, "ACCESS", result, outLen, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+		}
+
+		if Config.StatisticTime {
+			tc.Add("Write Log")
 		}
 	}
 }
@@ -596,7 +660,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	//}
 	requestPath := request.URL.Path
 
-	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), u.String(result), extraInfo)
+	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), u.String(result), extraInfo)
 }
 
 func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, level int) reflect.Value {

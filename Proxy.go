@@ -60,13 +60,14 @@ func findProxy(request *http.Request) (int, *string, *string) {
 	pos := strings.LastIndex(request.RequestURI, "?")
 	if pos != -1 {
 		requestPath = request.RequestURI[0:pos]
-		queryString = requestPath[pos:]
+		queryString = request.RequestURI[pos:]
 	} else {
 		requestPath = request.RequestURI
 	}
 	pi := proxies[requestPath]
 	if pi != nil {
-		return pi.authLevel, &pi.toApp, &pi.toPath
+		toPath := pi.toPath + queryString
+		return pi.authLevel, &pi.toApp, &toPath
 	}
 	if len(regexProxies) > 0 {
 		for _, pi := range regexProxies {
@@ -123,37 +124,44 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 	//	}
 	//}
 
-	// 真实的用户IP，通过 X-Real-IP 续传
-	requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
-
-	// 客户端IP列表，通过 X-Forwarded-For 接力续传
-	requestHeaders = append(requestHeaders, standard.DiscoverHeaderForwardedFor, request.Header.Get(standard.DiscoverHeaderForwardedFor)+u.StringIf(request.Header.Get(standard.DiscoverHeaderForwardedFor) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
-
-	// 客户唯一编号，通过 X-Client-ID 续传
-	if request.Header.Get(standard.DiscoverHeaderClientId) != "" {
-		requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientId, request.Header.Get(standard.DiscoverHeaderClientId))
+	// 续传 X-...
+	for _, h := range standard.DiscoverRelayHeaders {
+		if request.Header.Get(h) != "" {
+			requestHeaders = append(requestHeaders, h, request.Header.Get(h))
+		}
 	}
 
-	// 会话唯一编号，通过 X-Session-ID 续传
-	if request.Header.Get(standard.DiscoverHeaderSessionId) != "" {
-		requestHeaders = append(requestHeaders, standard.DiscoverHeaderSessionId, request.Header.Get(standard.DiscoverHeaderSessionId))
-	}
-
-	// 请求唯一编号，通过 X-Request-ID 续传
-	requestId := request.Header.Get(standard.DiscoverHeaderRequestId)
-	if requestId == "" {
-		requestId = u.UniqueId()
-		request.Header.Set(standard.DiscoverHeaderRequestId, requestId)
-	}
-	requestHeaders = append(requestHeaders, standard.DiscoverHeaderRequestId, requestId)
-
-	// 真实用户请求的Host，通过 X-Host 续传
-	host := request.Header.Get(standard.DiscoverHeaderHost)
-	if host == "" {
-		host = request.Host
-		request.Header.Set(standard.DiscoverHeaderHost, host)
-	}
-	requestHeaders = append(requestHeaders, standard.DiscoverHeaderHost, host)
+	//// 真实的用户IP，通过 X-Real-IP 续传
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
+	//
+	//// 客户端IP列表，通过 X-Forwarded-For 接力续传
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderForwardedFor, request.Header.Get(standard.DiscoverHeaderForwardedFor)+u.StringIf(request.Header.Get(standard.DiscoverHeaderForwardedFor) == "", "", ", ")+request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	//
+	//// 客户唯一编号，通过 X-Client-ID 续传
+	//if request.Header.Get(standard.DiscoverHeaderClientId) != "" {
+	//	requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientId, request.Header.Get(standard.DiscoverHeaderClientId))
+	//}
+	//
+	//// 会话唯一编号，通过 X-Session-ID 续传
+	//if request.Header.Get(standard.DiscoverHeaderSessionId) != "" {
+	//	requestHeaders = append(requestHeaders, standard.DiscoverHeaderSessionId, request.Header.Get(standard.DiscoverHeaderSessionId))
+	//}
+	//
+	//// 请求唯一编号，通过 X-Request-ID 续传
+	//requestId := request.Header.Get(standard.DiscoverHeaderRequestId)
+	//if requestId == "" {
+	//	requestId = u.UniqueId()
+	//	request.Header.Set(standard.DiscoverHeaderRequestId, requestId)
+	//}
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderRequestId, requestId)
+	//
+	//// 真实用户请求的Host，通过 X-Host 续传
+	//host := request.Header.Get(standard.DiscoverHeaderHost)
+	//if host == "" {
+	//	host = request.Host
+	//	request.Header.Set(standard.DiscoverHeaderHost, host)
+	//}
+	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderHost, host)
 
 	outLen := 0
 	//var outBytes []byte

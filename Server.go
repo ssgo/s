@@ -46,6 +46,8 @@ type serviceConfig struct {
 	AccessTokens                  map[string]*int
 	RewriteTimeout                int
 	AcceptXRealIpWithoutRequestId bool
+	StatisticTime                 bool
+	StatisticTimeInterval         int
 }
 
 type Result struct {
@@ -271,8 +273,8 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
-	if sessionKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(sessionKey) != "" {
-		as.clientPool.SetGlobalHeader(sessionKey, r.Response.Header.Get(sessionKey))
+	if useedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(useedSessionIdKey) != "" {
+		as.clientPool.SetGlobalHeader(useedSessionIdKey, r.Response.Header.Get(useedSessionIdKey))
 	}
 	return r
 }
@@ -325,13 +327,16 @@ func Init() {
 	}
 
 	if Config.NoLogHeaders == "" {
-		Config.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Accept-Language,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests")
+		Config.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests")
 	}
 	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), "|") {
 		noLogHeaders[strings.TrimSpace(k)] = true
 		noLogHeaders[standard.DiscoverHeaderClientIp] = true
 		noLogHeaders[standard.DiscoverHeaderForwardedFor] = true
 		noLogHeaders[standard.DiscoverHeaderClientId] = true
+		noLogHeaders[standard.DiscoverHeaderDeviceId] = true
+		noLogHeaders[standard.DiscoverHeaderClientAppName] = true
+		noLogHeaders[standard.DiscoverHeaderClientAppVersion] = true
 		noLogHeaders[standard.DiscoverHeaderSessionId] = true
 		noLogHeaders[standard.DiscoverHeaderRequestId] = true
 		noLogHeaders[standard.DiscoverHeaderHost] = true
@@ -375,6 +380,8 @@ func Init() {
 	}
 	serverAddr = Config.Listen
 }
+
+var timeStatistic *TimeStatistician
 
 func Start() {
 	//start(nil)
@@ -531,6 +538,11 @@ func (as *AsyncServer) Start() {
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
 	logInfo("started")
+	if Config.StatisticTime {
+		// 统计请求个阶段的处理时间
+		timeStatistic = NewTimeStatistic(serverLogger)
+	}
+
 	as.Addr = serverAddr
 	as.startChan <- true
 	// 11
