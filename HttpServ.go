@@ -164,12 +164,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(useedSessionIdKey))
 	}
 
-	// ClientId
-	if usedClientIdKey != "" {
-		// 为了在服务间调用时续传 ClientId
-		request.Header.Set(standard.DiscoverHeaderClientId, request.Header.Get(usedClientIdKey))
-	}
-
 	// DeviceId
 	if usedDeviceIdKey != "" {
 		// 为了在服务间调用时续传 DeviceId
@@ -660,7 +654,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	//}
 	requestPath := request.URL.Path
 
-	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderClientId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), u.String(result), extraInfo)
+	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), u.String(result), extraInfo)
 }
 
 func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, level int) reflect.Value {

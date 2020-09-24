@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/log"
+	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"net/http"
 	"reflect"
@@ -44,7 +45,8 @@ var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface
 var webAuthChecker func(int, *string, map[string]interface{}, *http.Request, *Response) bool
 var webAuthFailedData interface{}
 var useedSessionIdKey string
-var usedClientIdKey string
+
+//var usedClientIdKey string
 var usedDeviceIdKey string
 var usedClientAppKey string
 
@@ -60,11 +62,14 @@ var injectFunctions = map[reflect.Type]func() interface{}{}
 //	}
 //}
 
-func SetClientKeys(clientIdKey, deviceIdKey, clientAppKey, sessionIdKey string) {
-	usedClientIdKey = clientIdKey
+func SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
 	usedDeviceIdKey = deviceIdKey
 	usedClientAppKey = clientAppKey
 	useedSessionIdKey = sessionIdKey
+}
+
+func SetUserId(request *http.Request, userId string) {
+	request.Header.Set(standard.DiscoverHeaderUserId, userId)
 }
 
 //// 设置 Session ID 生成器

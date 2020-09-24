@@ -333,7 +333,7 @@ func Init() {
 		noLogHeaders[strings.TrimSpace(k)] = true
 		noLogHeaders[standard.DiscoverHeaderClientIp] = true
 		noLogHeaders[standard.DiscoverHeaderForwardedFor] = true
-		noLogHeaders[standard.DiscoverHeaderClientId] = true
+		noLogHeaders[standard.DiscoverHeaderUserId] = true
 		noLogHeaders[standard.DiscoverHeaderDeviceId] = true
 		noLogHeaders[standard.DiscoverHeaderClientAppName] = true
 		noLogHeaders[standard.DiscoverHeaderClientAppVersion] = true

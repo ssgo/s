@@ -86,7 +86,7 @@ func (t *TimeStatistician) Push(c *TimeCounter) string {
 	}
 
 	cTotal := c.Total()
-	t.total = float64(cTotal)
+	t.total += float64(cTotal)
 	if cTotal < t.totalMinimum || t.totalMinimum == 0 {
 		t.totalMinimum = cTotal
 	}
@@ -95,7 +95,7 @@ func (t *TimeStatistician) Push(c *TimeCounter) string {
 	}
 	t.times++
 	for i, tm := range c.stepTimes {
-		t.stepTotals[i] = float64(tm)
+		t.stepTotals[i] += float64(tm)
 		t.stepTimes[i]++
 		if tm < t.stepMinimums[i] || t.stepMinimums[i] == 0 {
 			t.stepMinimums[i] = tm
