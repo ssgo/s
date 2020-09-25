@@ -125,76 +125,89 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	var response http.ResponseWriter = myResponse
 	startTime := time.Now()
 
-	// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
-	if request.Header.Get(standard.DiscoverHeaderRequestId) == "" && !Config.AcceptXRealIpWithoutRequestId {
-		request.Header.Del(standard.DiscoverHeaderClientIp)
-	}
-
-	// 产生 X-Request-ID
-	requestId := xHeader(standard.DiscoverHeaderRequestId, request, u.UniqueId)
-
-	// 真实的用户IP，通过 X-Real-IP 续传
-	xHeader(standard.DiscoverHeaderClientIp, request, func() string {
-		return request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')]
-	})
-
-	// 真实用户请求的Host，通过 X-Host 续传
-	host := xHeader(standard.DiscoverHeaderHost, request, func() string {
-		return request.Host
-	})
-
-	// 真实用户请求的Scheme，通过 X-Scheme 续传
-	xHeader(standard.DiscoverHeaderScheme, request, func() string {
-		return u.StringIf(request.TLS == nil, "http", "https")
-	})
-
-	// UA
-	xHeader(standard.DiscoverHeaderUserAgent, request, func() string {
-		return request.Header.Get("User-Agent")
-	})
-
-	// SessionId
-	if useedSessionIdKey != "" {
-		if request.Header.Get(useedSessionIdKey) == "" {
-			newSessionid := u.UniqueId()
-			request.Header.Set(useedSessionIdKey, newSessionid)
-			response.Header().Set(useedSessionIdKey, newSessionid)
+	requestId := ""
+	host := ""
+	var logHeaders map[string]string
+	if !Config.Fast {
+		// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
+		if request.Header.Get(standard.DiscoverHeaderRequestId) == "" && !Config.AcceptXRealIpWithoutRequestId {
+			request.Header.Del(standard.DiscoverHeaderClientIp)
 		}
-		// 为了在服务间调用时续传 SessionId
-		request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(useedSessionIdKey))
-	}
 
-	// DeviceId
-	if usedDeviceIdKey != "" {
-		// 为了在服务间调用时续传 DeviceId
-		request.Header.Set(standard.DiscoverHeaderDeviceId, request.Header.Get(usedDeviceIdKey))
-	}
+		// 产生 X-Request-ID
+		requestId = xHeader(standard.DiscoverHeaderRequestId, request, u.UniqueId)
 
-	// ClientAppName、ClientAppVersion
-	if usedClientAppKey != "" {
-		// 为了在服务间调用时续传 ClientAppName、ClientAppVersion
-		request.Header.Set(standard.DiscoverHeaderClientAppName, request.Header.Get(usedClientAppKey+"Name"))
-		request.Header.Set(standard.DiscoverHeaderClientAppVersion, request.Header.Get(usedClientAppKey+"Version"))
-	}
+		// 真实的用户IP，通过 X-Real-IP 续传
+		xHeader(standard.DiscoverHeaderClientIp, request, func() string {
+			return request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')]
+		})
 
-	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-	logHeaders := make(map[string]string)
-	for k, v := range request.Header {
-		if noLogHeaders[strings.ToLower(k)] {
-			continue
+		// 真实用户请求的Host，通过 X-Host 续传
+		host = xHeader(standard.DiscoverHeaderHost, request, func() string {
+			return request.Host
+		})
+
+		// 真实用户请求的Scheme，通过 X-Scheme 续传
+		xHeader(standard.DiscoverHeaderScheme, request, func() string {
+			return u.StringIf(request.TLS == nil, "http", "https")
+		})
+
+		// UA
+		xHeader(standard.DiscoverHeaderUserAgent, request, func() string {
+			return request.Header.Get("User-Agent")
+		})
+
+		// SessionId
+		if useedSessionIdKey != "" {
+			if request.Header.Get(useedSessionIdKey) == "" {
+				newSessionid := u.UniqueId()
+				request.Header.Set(useedSessionIdKey, newSessionid)
+				response.Header().Set(useedSessionIdKey, newSessionid)
+			}
+			// 为了在服务间调用时续传 SessionId
+			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(useedSessionIdKey))
 		}
-		if len(v) > 1 {
-			logHeaders[k] = strings.Join(v, ", ")
-		} else {
-			logHeaders[k] = v[0]
-		}
-	}
 
-	if Config.StatisticTime {
-		tc.Add("Make Headers")
+		// DeviceId
+		if usedDeviceIdKey != "" {
+			// 为了在服务间调用时续传 DeviceId
+			request.Header.Set(standard.DiscoverHeaderDeviceId, request.Header.Get(usedDeviceIdKey))
+		}
+
+		// ClientAppName、ClientAppVersion
+		if usedClientAppKey != "" {
+			// 为了在服务间调用时续传 ClientAppName、ClientAppVersion
+			request.Header.Set(standard.DiscoverHeaderClientAppName, request.Header.Get(usedClientAppKey+"Name"))
+			request.Header.Set(standard.DiscoverHeaderClientAppVersion, request.Header.Get(usedClientAppKey+"Version"))
+		}
+
+		// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
+		logHeaders := make(map[string]string)
+		for k, v := range request.Header {
+			if noLogHeaders[strings.ToLower(k)] {
+				continue
+			}
+			if len(v) > 1 {
+				logHeaders[k] = strings.Join(v, ", ")
+			} else {
+				logHeaders[k] = v[0]
+			}
+		}
+
+		if Config.StatisticTime {
+			tc.Add("Make Headers")
+		}
+	} else {
+		requestId = u.UniqueId()
+		host = request.Host
 	}
 
 	requestLogger := log.New(requestId)
+	if Config.Fast {
+		if Config.StatisticTime {
+			tc.Add("Pre")
+		}
+	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
 	if processRewrite(request, myResponse, logHeaders, &startTime, requestLogger) {
@@ -397,7 +410,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		tc.Add("Make Args")
 	}
 
-	// 身份认证
 	var authLevel = 0
 	if ws != nil {
 		authLevel = ws.authLevel
@@ -434,6 +446,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			break
 		}
 	}
+
+	if Config.StatisticTime {
+		tc.Add("In Filter")
+	}
+
 	if authLevel > 0 && result == nil {
 		if webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse) == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
@@ -458,7 +475,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	if Config.StatisticTime {
-		tc.Add("In Filter")
+		tc.Add("Auth Check")
 	}
 
 	// 处理 Proxy
@@ -566,37 +583,37 @@ func makeOutput(result interface{}) []byte {
 	return outBytes
 }
 
-func requireEncryptField(k string) bool {
-	return encryptLogFields[strings.ToLower(strings.Replace(k, "-", "", 3))]
-}
-
-func encryptField(value interface{}) string {
-	v := u.String(value)
-	if len(v) > 12 {
-		return v[0:3] + "***" + v[len(v)-3:]
-	} else if len(v) > 8 {
-		return v[0:2] + "***" + v[len(v)-2:]
-	} else if len(v) > 4 {
-		return v[0:1] + "***" + v[len(v)-1:]
-	} else if len(v) > 1 {
-		return v[0:1] + "*"
-	} else {
-		return "**"
-	}
-}
+//func requireEncryptField(k string) bool {
+//	return encryptLogFields[strings.ToLower(strings.Replace(k, "-", "", 3))]
+//}
+//
+//func encryptField(value interface{}) string {
+//	v := u.String(value)
+//	if len(v) > 12 {
+//		return v[0:3] + "***" + v[len(v)-3:]
+//	} else if len(v) > 8 {
+//		return v[0:2] + "***" + v[len(v)-2:]
+//	} else if len(v) > 4 {
+//		return v[0:1] + "***" + v[len(v)-1:]
+//	} else if len(v) > 1 {
+//		return v[0:1] + "*"
+//	} else {
+//		return "**"
+//	}
+//}
 
 func writeLog(logger *log.Logger, logName string, result interface{}, outLen int, request *http.Request, response *Response, args map[string]interface{}, headers map[string]string, startTime *time.Time, authLevel int, extraInfo Map) {
 	if Config.NoLogGets && request.Method == "GET" {
 		return
 	}
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
-	if headers != nil {
-		for k, v := range headers {
-			if requireEncryptField(k) {
-				headers[k] = encryptField(v)
-			}
-		}
-	}
+	//if headers != nil {
+	//	for k, v := range headers {
+	//		if requireEncryptField(k) {
+	//			headers[k] = encryptField(v)
+	//		}
+	//	}
+	//}
 
 	outHeaders := make(map[string]string)
 	for k, v := range (*response).Header() {
@@ -612,9 +629,9 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 			outHeaders[k] = v[0]
 		}
 
-		if requireEncryptField(k) {
-			outHeaders[k] = encryptField(outHeaders[k])
-		}
+		//if requireEncryptField(k) {
+		//	outHeaders[k] = encryptField(outHeaders[k])
+		//}
 	}
 
 	var loggableRequestArgs map[string]interface{}
@@ -628,6 +645,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	} else {
 		loggableRequestArgs = map[string]interface{}{}
 	}
+
 	if result != nil {
 		resultValue := makeLogableData(reflect.ValueOf(result), logOutputFields, Config.LogOutputArrayNum, 1)
 		if resultValue.IsValid() && resultValue.CanInterface() {
@@ -645,16 +663,10 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		host = request.Host
 	}
 
-	//var requestPath string
-	//pos := strings.LastIndex(request.RequestURI, "?")
-	//if pos != -1 {
-	//	requestPath = request.RequestURI[0:pos]
-	//} else {
-	//	requestPath = request.RequestURI
-	//}
 	requestPath := request.URL.Path
 
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), u.String(result), extraInfo)
+
 }
 
 func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, level int) reflect.Value {
@@ -679,11 +691,11 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 			if level == 1 && allows != nil && allows[strings.ToLower(k)] == false {
 				continue
 			}
-			if requireEncryptField(k) {
-				v2.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(encryptField(v.Interface())))
-			} else {
-				v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), nil, numArrays, level+1))
-			}
+			//if requireEncryptField(k) {
+			//	v2.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(encryptField(v.Interface())))
+			//} else {
+			//	v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), nil, numArrays, level+1))
+			//}
 		}
 		return v2
 	case reflect.Map:
@@ -693,11 +705,11 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 			if allows != nil && allows[strings.ToLower(k)] == false {
 				continue
 			}
-			if requireEncryptField(k) {
-				v2.SetMapIndex(mk, reflect.ValueOf(encryptField(v.Interface())))
-			} else {
-				v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, level+1))
-			}
+			//if requireEncryptField(k) {
+			//	v2.SetMapIndex(mk, reflect.ValueOf(encryptField(v.Interface())))
+			//} else {
+			//	v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, level+1))
+			//}
 		}
 		return v2
 	case reflect.Slice:

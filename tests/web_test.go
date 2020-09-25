@@ -45,6 +45,7 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	t := s.T(tt)
 
 	_ = os.Setenv("service_httpVersion", "1")
+	_ = os.Setenv("service_fast", "true")
 	s.ResetAllSets()
 	s.Restful(0, "GET", "/", Welcome)
 	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture)

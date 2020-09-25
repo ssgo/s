@@ -282,12 +282,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 					if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
 						injectObj := GetInject(st)
 						if injectObj != nil {
-							injectObjValue := reflect.ValueOf(injectObj)
-							setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
-							if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
-								setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
-							}
-							openParms[i] = injectObjValue
+							openParms[i] = getInjectObjectValueWithLogger(injectObj, requestLogger)
 							isset = true
 						}
 					}
@@ -418,12 +413,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 						if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
 							injectObj := GetInject(st)
 							if injectObj != nil {
-								injectObjValue := reflect.ValueOf(injectObj)
-								setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
-								if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
-									setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
-								}
-								closeParms[i] = injectObjValue
+								closeParms[i] = getInjectObjectValueWithLogger(injectObj, requestLogger)
 								isset = true
 							}
 						}
@@ -470,12 +460,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 				} else {
 					injectObj := GetInject(st)
 					if injectObj != nil {
-						injectObjValue := reflect.ValueOf(injectObj)
-						setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
-						if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
-							setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
-						}
-						messageParms[i] = injectObjValue
+						messageParms[i] = getInjectObjectValueWithLogger(injectObj, requestLogger)
 						isset = true
 					}
 				}

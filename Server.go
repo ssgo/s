@@ -48,6 +48,7 @@ type serviceConfig struct {
 	AcceptXRealIpWithoutRequestId bool
 	StatisticTime                 bool
 	StatisticTimeInterval         int
+	Fast                          bool
 }
 
 type Result struct {

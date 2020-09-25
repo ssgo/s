@@ -121,6 +121,14 @@ func GetInject(dataType reflect.Type) interface{} {
 	return nil
 }
 
+type Context struct {
+	Logger *log.Logger
+}
+
+func (ctx *Context) SetLogger(logger *log.Logger) {
+	ctx.Logger = logger
+}
+
 type HostRegister struct {
 	host string
 }
@@ -397,12 +405,7 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 				} else {
 					injectObj := GetInject(st)
 					if injectObj != nil {
-						injectObjValue := reflect.ValueOf(injectObj)
-						setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger")
-						if found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
-							setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
-						}
-						parms[i] = injectObjValue
+						parms[i] = getInjectObjectValueWithLogger(injectObj, requestLogger)
 						isset = true
 					}
 				}
@@ -419,6 +422,20 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		webResult = ""
 	}
 	return
+}
+
+func getInjectObjectValueWithLogger(injectObj interface{}, requestLogger *log.Logger) reflect.Value {
+	injectObjValue := reflect.ValueOf(injectObj)
+	if setLoggerMethod, found := injectObjValue.Type().MethodByName("CopyByLogger"); found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.NumOut() == 1 && setLoggerMethod.Type.In(1).String() == "*log.Logger" && setLoggerMethod.Type.Out(0).String() == injectObjValue.Type().String() {
+		outs := setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+		injectObjValue = outs[0]
+	} else if setLoggerMethod, found := injectObjValue.Type().MethodByName("SetLogger"); found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.In(1).String() == "*log.Logger" {
+		newInjectObj := injectObjValue.Elem().Interface()
+		injectObjValue = reflect.New(injectObjValue.Type().Elem())
+		injectObjValue.Elem().Set(reflect.ValueOf(newInjectObj))
+		setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
+	}
+	return injectObjValue
 }
 
 //func makePrintable(data []byte) {

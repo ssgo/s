@@ -85,19 +85,19 @@ func TestInject(tt *testing.T) {
 }
 
 type Context struct {
-	logger *log.Logger
-}
-
-func (ctx *Context) SetLogger(logger *log.Logger) {
-	ctx.logger = logger
-}
-
-func (ctx *Context) GetRedis() *redis.Redis {
-	return redis.GetRedis("text", ctx.logger)
+	s.Context
 }
 
 func (ctx *Context) GetDB() *db.DB {
-	return db.GetDB("text", ctx.logger)
+	return db.GetDB("default", ctx.Logger)
+}
+
+func (ctx *Context) GetUserDB() *db.DB {
+	return db.GetDB("user", ctx.Logger)
+}
+
+func (ctx *Context) GetRedis() *redis.Redis {
+	return redis.GetRedis("test", ctx.Logger)
 }
 
 func TestInjectContext(tt *testing.T) {
@@ -114,7 +114,7 @@ func TestInjectContext(tt *testing.T) {
 
 	s.Register(0, "/db", func(request *http.Request, ctx *Context) TestLoggerInjectResult {
 		return TestLoggerInjectResult{
-			TraceId:   ctx.GetDB().GetLogger().GetTraceId(),
+			TraceId:   ctx.GetUserDB().GetLogger().GetTraceId(),
 			RequestId: request.Header.Get(standard.DiscoverHeaderRequestId),
 		}
 	})
