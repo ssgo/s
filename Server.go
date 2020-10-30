@@ -335,21 +335,34 @@ func Init() {
 	if Config.NoLogHeaders == "" {
 		Config.NoLogHeaders = fmt.Sprint("Accept,Accept-Encoding,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests")
 	}
-	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), "|") {
+	for _, k := range strings.Split(strings.ToLower(Config.NoLogHeaders), ",") {
 		noLogHeaders[strings.TrimSpace(k)] = true
-		noLogHeaders[standard.DiscoverHeaderClientIp] = true
-		noLogHeaders[standard.DiscoverHeaderForwardedFor] = true
-		noLogHeaders[standard.DiscoverHeaderUserId] = true
-		noLogHeaders[standard.DiscoverHeaderDeviceId] = true
-		noLogHeaders[standard.DiscoverHeaderClientAppName] = true
-		noLogHeaders[standard.DiscoverHeaderClientAppVersion] = true
-		noLogHeaders[standard.DiscoverHeaderSessionId] = true
-		noLogHeaders[standard.DiscoverHeaderRequestId] = true
-		noLogHeaders[standard.DiscoverHeaderHost] = true
-		noLogHeaders[standard.DiscoverHeaderScheme] = true
-		noLogHeaders[standard.DiscoverHeaderFromApp] = true
-		noLogHeaders[standard.DiscoverHeaderFromNode] = true
 	}
+
+	if usedDeviceIdKey != "" {
+		noLogHeaders[strings.ToLower(usedDeviceIdKey)] = true
+	}
+	if usedClientAppKey != "" {
+		noLogHeaders[strings.ToLower(usedClientAppKey+"Name")] = true
+		noLogHeaders[strings.ToLower(usedClientAppKey+"Version")] = true
+	}
+	if useedSessionIdKey != "" {
+		noLogHeaders[strings.ToLower(useedSessionIdKey)] = true
+	}
+
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderClientIp)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderForwardedFor)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderUserId)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderDeviceId)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderClientAppName)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderClientAppVersion)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderSessionId)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderRequestId)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderHost)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderScheme)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderFromApp)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderFromNode)] = true
+	noLogHeaders[strings.ToLower(standard.DiscoverHeaderUserAgent)] = true
 
 	if Config.LogOutputFields == "" {
 		Config.LogOutputFields = "ok,code,message,argot,data"

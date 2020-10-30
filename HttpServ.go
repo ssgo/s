@@ -182,7 +182,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-		logHeaders := make(map[string]string)
+		logHeaders = make(map[string]string)
 		for k, v := range request.Header {
 			if noLogHeaders[strings.ToLower(k)] {
 				continue
@@ -193,6 +193,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				logHeaders[k] = v[0]
 			}
 		}
+		//fmt.Println(u.JsonP(logHeaders))
 
 		if Config.StatisticTime {
 			tc.Add("Make Headers")
@@ -669,9 +670,9 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	}
 
 	requestPath := request.URL.Path
+	//fmt.Println(u.JsonP(headers))
 
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
-
 }
 
 func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, level int) reflect.Value {
