@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -51,9 +52,11 @@ type serviceConfig struct {
 	Fast                          bool
 }
 
+type Argot string
+
 type Result struct {
 	Ok      bool
-	Argot   string
+	Argot   Argot
 	Message string
 }
 
@@ -61,6 +64,8 @@ type CodeResult struct {
 	Code    int
 	Message string
 }
+
+var _argots = make([]Argot, 0)
 
 var Config = serviceConfig{}
 
@@ -651,18 +656,18 @@ func tt() (out ttOut) {
 	return
 }
 
-func (r *Result) OK(needArgot ...string) {
+func (r *Result) OK(argots ...Argot) {
 	r.Ok = true
-	if len(needArgot) > 0 {
-		r.Argot = needArgot[0]
+	if len(argots) > 0 {
+		r.Argot = argots[0]
 	}
 }
 
-func (r *Result) Failed(message string, needArgot ...string) {
+func (r *Result) Failed(message string, argots ...Argot) {
 	r.Ok = false
 	r.Message = message
-	if len(needArgot) > 0 {
-		r.Argot = needArgot[0]
+	if len(argots) > 0 {
+		r.Argot = argots[0]
 	}
 }
 
@@ -673,4 +678,28 @@ func (r *CodeResult) OK() {
 func (r *CodeResult) Failed2(code int, message string) {
 	r.Code = code
 	r.Message = message
+}
+
+func MakeArgots(argots interface{}) {
+	v := reflect.ValueOf(argots)
+	if v.Kind() != reflect.Ptr {
+		log.DefaultLogger.Error("not point on s.MakeArgots")
+		return
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		log.DefaultLogger.Error("not struct on s.MakeArgots")
+		return
+	}
+
+	for i := v.NumField() - 1; i >= 0; i-- {
+		f := v.Field(i)
+		if f.Type().String() == "s.Argot" {
+			t := v.Type().Field(i)
+			if f.CanSet() {
+				f.SetString(t.Name)
+				_argots = append(_argots, Argot(t.Name))
+			}
+		}
+	}
 }

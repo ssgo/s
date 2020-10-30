@@ -68,7 +68,7 @@
     </style>
 </head>
 <body>
-{{range .list}}
+{{range .api}}
 <header class="{{.Type}}">
     <span>{{.Path}}</span>
 {{if ne .AuthLevel 0}}<label>{{.AuthLevel}}</label>{{end}}

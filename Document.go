@@ -25,7 +25,7 @@ type Api struct {
 }
 
 // 生成文档数据
-func MakeDocument() []Api {
+func MakeDocument() ([]Api, []Argot) {
 	out := make([]Api, 0)
 
 	for _, a := range rewrites {
@@ -141,18 +141,28 @@ func MakeDocument() []Api {
 			out = append(out, api)
 		}
 	}
-	return out
+	return out, _argots
 }
 
 // 生成文档并存储到 json 文件中
+func MakeJsonDocument() string {
+	api, argots := MakeDocument()
+	data, err := json.MarshalIndent(map[string]interface{}{
+		"api":    api,
+		"argots": argots,
+	}, "", "\t")
+
+	if err == nil {
+		return string(data)
+	}
+	return ""
+}
+
 func MakeJsonDocumentFile(file string) {
 	fp, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	var data []byte
-	if err == nil {
-		data, err = json.MarshalIndent(MakeDocument(), "", "\t")
-	}
-	if err == nil {
-		_, err = fp.Write(data)
+	jsonData := MakeJsonDocument()
+	if err == nil && jsonData != "" {
+		_, err = fp.Write([]byte(jsonData))
 		if err != nil {
 			log.DefaultLogger.Error(err.Error())
 		}
@@ -172,7 +182,8 @@ func MakeHtmlDocumentFile(title, toFile string) string {
 
 // 生成文档并存储到 html 文件中，使用指定html模版
 func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
-	data := Map{"title": title, "list": MakeDocument()}
+	api, argots := MakeDocument()
+	data := Map{"title": title, "api": api, "argots": argots}
 
 	realFromFile := fromFile
 	if fi, err := os.Stat(fromFile); err != nil || fi == nil {

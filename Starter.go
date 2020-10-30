@@ -1,7 +1,6 @@
 package s
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -126,8 +125,7 @@ func init() {
 
 func makeDockment(toFile, fromFile string) {
 	if toFile == "" {
-		data, _ := json.MarshalIndent(MakeDocument(), "", "\t")
-		fmt.Println(string(data))
+		fmt.Println(MakeJsonDocument())
 	} else if strings.HasSuffix(toFile, ".html") {
 		if fromFile == "" {
 			MakeHtmlDocumentFile("Api", toFile)

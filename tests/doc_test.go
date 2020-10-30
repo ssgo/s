@@ -42,11 +42,11 @@ func TestDoc(tt *testing.T) {
 		return
 	})
 
-	doc := s.MakeDocument()
+	api, _ := s.MakeDocument()
 	//docBytes, _ := json.MarshalIndent(doc, "", "\t")
 	//fmt.Println(string(docBytes))
 	//t.Test(true, "json doc")
-	t.Test(len(doc) > 0, "json doc")
+	t.Test(len(api) > 0, "json doc")
 
 	s.MakeHtmlDocumentFile("测试文档", "doc.html")
 }
