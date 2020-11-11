@@ -235,7 +235,7 @@ func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *s
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args map[string]interface{}, headers map[string]string, startTime *time.Time, requestLogger *log.Logger) {
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args map[string]interface{}, headers map[string]string, startTime *time.Time, requestLogger *log.Logger, sessionObject interface{}) {
 	//byteArgs, _ := json.Marshal(args)
 	//byteHeaders, _ := json.Marshal(headers)
 
@@ -363,7 +363,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				}
 
 				actionStartTime := time.Now()
-				outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger)
+				outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger, sessionObject)
 				if err == nil {
 					logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
 					logOutMsg := makeLogableData(reflect.ValueOf(outData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
@@ -432,7 +432,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 	}
 }
 
-func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *http.Request, data map[string]interface{}, sess reflect.Value, requestLogger *log.Logger) (string, interface{}, int, error) {
+func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *http.Request, data map[string]interface{}, sess reflect.Value, requestLogger *log.Logger, sessionObject interface{}) (string, interface{}, int, error) {
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
@@ -453,9 +453,8 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 			st := action.funcType.In(i)
 			isset := false
 			if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
-				sessObj := GetSessionInject(request, st)
-				if sessObj != nil {
-					messageParms[i] = reflect.ValueOf(sessObj)
+				if sessionObject != nil && reflect.TypeOf(sessionObject) == st {
+					messageParms[i] = reflect.ValueOf(sessionObject)
 					isset = true
 				} else {
 					injectObj := GetInject(st)

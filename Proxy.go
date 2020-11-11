@@ -99,7 +99,7 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 	}
 
 	if authLevel > 0 {
-		if webAuthChecker(authLevel, &request.RequestURI, nil, request, response) == false {
+		if pass, _ := webAuthChecker(authLevel, &request.RequestURI, nil, request, response); pass == false {
 			if !response.changed {
 				response.WriteHeader(403)
 			}

@@ -147,9 +147,9 @@ func GetServerAddr() string {
 }
 
 //noinspection GoUnusedParameter
-func DefaultAuthChecker(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) bool {
+func DefaultAuthChecker(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) (pass bool, sessionObject interface{}) {
 	setAuthLevel := accessTokens[request.Header.Get("Access-Token")]
-	return setAuthLevel != nil && *setAuthLevel >= authLevel
+	return setAuthLevel != nil && *setAuthLevel >= authLevel, nil
 }
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
@@ -279,8 +279,8 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
-	if useedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(useedSessionIdKey) != "" {
-		as.clientPool.SetGlobalHeader(useedSessionIdKey, r.Response.Header.Get(useedSessionIdKey))
+	if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
+		as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
 	}
 	return r
 }
@@ -346,8 +346,8 @@ func Init() {
 		noLogHeaders[strings.ToLower(usedClientAppKey+"Name")] = true
 		noLogHeaders[strings.ToLower(usedClientAppKey+"Version")] = true
 	}
-	if useedSessionIdKey != "" {
-		noLogHeaders[strings.ToLower(useedSessionIdKey)] = true
+	if usedSessionIdKey != "" {
+		noLogHeaders[strings.ToLower(usedSessionIdKey)] = true
 	}
 
 	noLogHeaders[strings.ToLower(standard.DiscoverHeaderClientIp)] = true

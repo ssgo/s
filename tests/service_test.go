@@ -116,15 +116,15 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2)
 	s.Register(2, "/echo2", Echo2)
 
-	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *s.Response) bool {
+	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *s.Response) (pass bool, sessionObject interface{}) {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 1:
-			return token == "aaa" || token == "bbb"
+			return token == "aaa" || token == "bbb", nil
 		case 2:
-			return token == "bbb"
+			return token == "bbb", nil
 		}
-		return false
+		return false, nil
 	})
 
 	as := s.AsyncStart()

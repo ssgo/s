@@ -33,9 +33,9 @@ func ResetAllSets() {
 	proxies = make(map[string]*proxyInfo, 0)
 	regexProxies = make([]*proxyInfo, 0)
 	statics = make(map[string]*string)
-	useedSessionIdKey = ""
+	usedSessionIdKey = ""
 	//sessionCreator = nil
-	sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+	//sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 	injectObjects = map[reflect.Type]interface{}{}
 
 	webServices = make(map[string]*webServiceType)

@@ -18,6 +18,27 @@ import (
 	"time"
 )
 
+//type Request struct {
+//	http.Request
+//	injects map[reflect.Type]interface{}
+//}
+//
+//// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
+//func (request *Request) SetInject(obj interface{}) {
+//	if request.injects == nil {
+//		request.injects = map[reflect.Type]interface{}{}
+//	}
+//	request.injects[reflect.TypeOf(obj)] = obj
+//}
+//
+//// 获取本生命周期中指定类型的 Session 对象
+//func (request *Request) GetInject(dataType reflect.Type) interface{} {
+//	if request.injects == nil {
+//		return nil
+//	}
+//	return request.injects[dataType]
+//}
+
 type Response struct {
 	writer      http.ResponseWriter
 	status      int
@@ -123,6 +144,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	var myResponse = &Response{writer: writer, status: 200}
 	var response http.ResponseWriter = myResponse
+	var sessionObject interface{} = nil
 	startTime := time.Now()
 
 	requestId := ""
@@ -158,14 +180,14 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		})
 
 		// SessionId
-		if useedSessionIdKey != "" {
-			if request.Header.Get(useedSessionIdKey) == "" {
+		if usedSessionIdKey != "" {
+			if request.Header.Get(usedSessionIdKey) == "" {
 				newSessionid := u.UniqueId()
-				request.Header.Set(useedSessionIdKey, newSessionid)
-				response.Header().Set(useedSessionIdKey, newSessionid)
+				request.Header.Set(usedSessionIdKey, newSessionid)
+				myResponse.Header().Set(usedSessionIdKey, newSessionid)
 			}
 			// 为了在服务间调用时续传 SessionId
-			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(useedSessionIdKey))
+			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(usedSessionIdKey))
 		}
 
 		// DeviceId
@@ -434,9 +456,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			})
 		}
 
-		if sessionObjects[request] != nil {
-			delete(sessionObjects, request)
-		}
+		//if sessionObjects[request] != nil {
+		//	delete(sessionObjects, request)
+		//}
 	}()
 
 	// 前置过滤器
@@ -453,7 +475,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	if authLevel > 0 && result == nil {
-		if webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse) == false {
+		pass := false
+		pass, sessionObject = webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse)
+		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
@@ -494,9 +518,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, myResponse, authLevel, args, logHeaders, &startTime, requestLogger)
+		doWebsocketService(ws, request, myResponse, authLevel, args, logHeaders, &startTime, requestLogger, sessionObject)
 	} else if s != nil || result != nil {
-		result = doWebService(s, request, &response, args, result, requestLogger)
+		result = doWebService(s, request, &response, args, result, requestLogger, sessionObject)
 		//logName = "ACCESS"
 		//statusCode = 200
 	}
@@ -527,7 +551,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if Config.Compress && len(outBytes) >= Config.CompressMinSize && len(outBytes) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 			zipWriter, err := gzip.NewWriterLevel(response, 1)
 			if err == nil {
-				response.Header().Set("Content-Encoding", "gzip")
+				myResponse.Header().Set("Content-Encoding", "gzip")
 				n, err := zipWriter.Write(outBytes)
 				if err != nil {
 					logError(err.Error(), "wrote", n)
@@ -621,9 +645,9 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		if outLen == 0 && k == "Content-Length" {
 			outLen, _ = strconv.Atoi(v[0])
 		}
-		if noLogHeaders[strings.ToLower(k)] {
-			continue
-		}
+		//if noLogHeaders[strings.ToLower(k)] {
+		//	continue
+		//}
 		if len(v) > 1 {
 			outHeaders[k] = strings.Join(v, ", ")
 		} else {

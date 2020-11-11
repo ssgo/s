@@ -42,30 +42,30 @@ var regexWebServices = make([]*webServiceType, 0)
 var inFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
 var outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
-var webAuthChecker func(int, *string, map[string]interface{}, *http.Request, *Response) bool
+var webAuthChecker func(int, *string, map[string]interface{}, *http.Request, *Response) (pass bool, sessionObject interface{})
 var webAuthFailedData interface{}
-var useedSessionIdKey string
+var usedSessionIdKey string
 
 //var usedClientIdKey string
 var usedDeviceIdKey string
 var usedClientAppKey string
 
 //var sessionCreator func() string
-var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+//var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
 //func SetSessionKey(inSessionKey string) {
-//	if useedSessionIdKey == "" {
-//		useedSessionIdKey = inSessionKey
+//	if usedSessionIdKey == "" {
+//		usedSessionIdKey = inSessionKey
 //	}
 //}
 
 func SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
 	usedDeviceIdKey = deviceIdKey
 	usedClientAppKey = clientAppKey
-	useedSessionIdKey = sessionIdKey
+	usedSessionIdKey = sessionIdKey
 }
 
 func SetUserId(request *http.Request, userId string) {
@@ -79,29 +79,29 @@ func SetUserId(request *http.Request, userId string) {
 //
 //// 获取 SessionKey
 //func GetSessionKey() string {
-//	return useedSessionIdKey
+//	return usedSessionIdKey
 //}
 //
 //// 获取 SessionId
 //func GetSessionId(request *http.Request) string {
-//	return request.Header.Get(useedSessionIdKey)
+//	return request.Header.Get(usedSessionIdKey)
 //}
 
-// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-func SetSessionInject(request *http.Request, obj interface{}) {
-	if sessionObjects[request] == nil {
-		sessionObjects[request] = map[reflect.Type]interface{}{}
-	}
-	sessionObjects[request][reflect.TypeOf(obj)] = obj
-}
-
-// 获取本生命周期中指定类型的 Session 对象
-func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {
-	if sessionObjects[request] == nil {
-		return nil
-	}
-	return sessionObjects[request][dataType]
-}
+//// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
+//func SetSessionInject(request *http.Request, obj interface{}) {
+//	if sessionObjects[request] == nil {
+//		sessionObjects[request] = map[reflect.Type]interface{}{}
+//	}
+//	sessionObjects[request][reflect.TypeOf(obj)] = obj
+//}
+//
+//// 获取本生命周期中指定类型的 Session 对象
+//func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {
+//	if sessionObjects[request] == nil {
+//		return nil
+//	}
+//	return sessionObjects[request][dataType]
+//}
 
 // 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
 func SetInject(data interface{}) {
@@ -236,7 +236,7 @@ func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, 
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) bool) {
+func SetAuthChecker(authChecker func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) (pass bool, sessionObject interface{})) {
 	webAuthChecker = authChecker
 }
 
@@ -341,7 +341,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 //}
 
 func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args map[string]interface{},
-	result interface{}, requestLogger *log.Logger) (webResult interface{}) {
+	result interface{}, requestLogger *log.Logger, sessionObject interface{}) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
 		return result
@@ -398,9 +398,8 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 			st := service.funcType.In(i)
 			isset := false
 			if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
-				sessObj := GetSessionInject(request, st)
-				if sessObj != nil {
-					parms[i] = reflect.ValueOf(sessObj)
+				if sessionObject != nil && reflect.TypeOf(sessionObject) == st {
+					parms[i] = reflect.ValueOf(sessionObject)
 					isset = true
 				} else {
 					injectObj := GetInject(st)
