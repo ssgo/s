@@ -119,6 +119,8 @@ func TestAuth(tt *testing.T) {
 	s.SetAuthChecker(func(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *s.Response) (pass bool, sessionObject interface{}) {
 		token := request.Header.Get("Token")
 		switch authLevel {
+		case 0:
+			return true, nil
 		case 1:
 			return token == "aaa" || token == "bbb", nil
 		case 2:

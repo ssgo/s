@@ -148,6 +148,9 @@ func GetServerAddr() string {
 
 //noinspection GoUnusedParameter
 func DefaultAuthChecker(authLevel int, url *string, in map[string]interface{}, request *http.Request, response *Response) (pass bool, sessionObject interface{}) {
+	if authLevel == 0 {
+		return true, nil
+	}
 	setAuthLevel := accessTokens[request.Header.Get("Access-Token")]
 	return setAuthLevel != nil && *setAuthLevel >= authLevel, nil
 }

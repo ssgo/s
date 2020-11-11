@@ -474,7 +474,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		tc.Add("In Filter")
 	}
 
-	if authLevel > 0 && result == nil {
+	if result == nil {
+		// 之前未产生结果，进行验证
 		pass := false
 		pass, sessionObject = webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse)
 		if pass == false {

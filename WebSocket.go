@@ -351,7 +351,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 
 				//printableMsg, _ := json.Marshal(messageData)
 				if webSocketActionAuthChecker != nil {
-					if action.authLevel > 0 && webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
+					if webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
 						logInMsg := makeLogableData(reflect.ValueOf(messageData), logOutputFields, Config.LogOutputArrayNum, 1).Interface()
 						writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
 							"inAction":  actionName,
