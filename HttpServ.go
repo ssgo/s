@@ -749,7 +749,11 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 		if numArrays == 0 {
 			var tStr string
 			if t.Elem().Kind() == reflect.Interface && v.Len() > 0 {
-				tStr = reflect.TypeOf(v.Index(0).Interface()).String()
+				if v.Index(0).CanInterface() {
+					tStr = reflect.TypeOf(v.Index(0).Interface()).String()
+				} else {
+					tStr = "null"
+				}
 			} else {
 				tStr = t.Elem().String()
 			}
@@ -760,7 +764,11 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 			if i >= numArrays {
 				break
 			}
-			v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, level+1))
+			if !v.Index(i).IsNil() {
+				v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, level+1))
+			} else {
+				v2 = reflect.Append(v2, v.Index(i))
+			}
 		}
 		return v2
 	case reflect.Interface:

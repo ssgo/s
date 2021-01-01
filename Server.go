@@ -375,7 +375,7 @@ func Init() {
 	}
 
 	if Config.LogInputArrayNum <= 0 {
-		Config.LogInputArrayNum = 0
+		Config.LogInputArrayNum = 100
 	}
 
 	if Config.LogOutputArrayNum <= 0 {
