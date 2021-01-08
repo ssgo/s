@@ -12,7 +12,7 @@ require (
 	github.com/ssgo/log v0.5.5
 	github.com/ssgo/redis v0.5.5
 	github.com/ssgo/standard v0.5.5
-	github.com/ssgo/u v0.5.5
+	github.com/ssgo/u v0.5.10
 	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 )
 

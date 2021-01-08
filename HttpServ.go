@@ -44,6 +44,7 @@ type Response struct {
 	status      int
 	outLen      int
 	changed     bool
+	dontLog200  bool
 	ProxyHeader *http.Header
 }
 
@@ -100,6 +101,10 @@ func (response *Response) copyProxyHeader() {
 		}
 	}
 	response.ProxyHeader = nil
+}
+
+func (response *Response) DontLog200() {
+	response.dontLog200 = true
 }
 
 type routeHandler struct {
@@ -630,6 +635,9 @@ func makeOutput(result interface{}) []byte {
 
 func writeLog(logger *log.Logger, logName string, result interface{}, outLen int, request *http.Request, response *Response, args map[string]interface{}, headers map[string]string, startTime *time.Time, authLevel int, extraInfo Map) {
 	if Config.NoLogGets && request.Method == "GET" {
+		return
+	}
+	if response.dontLog200 && response.status == 200 {
 		return
 	}
 	usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
