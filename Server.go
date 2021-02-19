@@ -6,6 +6,7 @@ import (
 	"github.com/ssgo/discover"
 	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
+	"github.com/ssgo/redis"
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"golang.org/x/net/http2"
@@ -81,6 +82,8 @@ var accessTokens = map[string]*int{}
 //	WithSSL     bool
 //}
 
+var _rd *redis.Redis
+
 var noLogHeaders = map[string]bool{}
 var encryptLogFields = map[string]bool{}
 var logOutputFields = map[string]bool{}
@@ -92,6 +95,12 @@ var serverLogger = log.New(serverId)
 var serverAddr string
 var serverProto string
 var checker func(request *http.Request) bool
+
+var shutdownHooks = make([]func(), 0)
+
+func AddShutdownHook(f func()) {
+	shutdownHooks = append(shutdownHooks, f)
+}
 
 type timerServer struct {
 	name     string
@@ -240,6 +249,13 @@ func (as *AsyncServer) Wait() {
 				<-ts.stopChan
 				ts.stopChan = nil
 			}
+		}
+
+		if len(shutdownHooks) > 0 {
+			for _, f := range shutdownHooks {
+				f()
+			}
+			logInfo("shutdownHooks stopped", "shutdownHooksNum", len(shutdownHooks))
 		}
 
 		serviceInfo.remove()
@@ -400,6 +416,7 @@ func Init() {
 	if Config.Listen == "" {
 		Config.Listen = ":"
 	}
+
 	serverAddr = Config.Listen
 }
 
