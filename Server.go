@@ -36,7 +36,7 @@ type serviceConfig struct {
 	NoLogHeaders                  string
 	NoLogInputFields              bool
 	LogInputArrayNum              int
-	LogOutputFields               string
+	NoLogOutputFields             string
 	LogOutputArrayNum             int
 	LogWebsocketAction            bool
 	Compress                      bool
@@ -85,8 +85,9 @@ var accessTokens = map[string]*int{}
 var _rd *redis.Redis
 
 var noLogHeaders = map[string]bool{}
-var encryptLogFields = map[string]bool{}
-var logOutputFields = map[string]bool{}
+
+//var encryptLogFields = map[string]bool{}
+var noLogOutputFields = map[string]bool{}
 
 var serverId = u.ShortUniqueId()
 var serverStartTime = time.Now()
@@ -383,11 +384,11 @@ func Init() {
 	noLogHeaders[strings.ToLower(standard.DiscoverHeaderFromNode)] = true
 	noLogHeaders[strings.ToLower(standard.DiscoverHeaderUserAgent)] = true
 
-	if Config.LogOutputFields == "" {
-		Config.LogOutputFields = "ok,code,message,argot,data"
+	if Config.NoLogOutputFields == "" {
+		Config.NoLogOutputFields = ""
 	}
-	for _, k := range strings.Split(strings.ToLower(Config.LogOutputFields), ",") {
-		logOutputFields[strings.TrimSpace(k)] = true
+	for _, k := range strings.Split(strings.ToLower(Config.NoLogOutputFields), ",") {
+		noLogOutputFields[strings.TrimSpace(k)] = true
 	}
 
 	if Config.LogInputArrayNum <= 0 {
@@ -678,16 +679,16 @@ func IsRunning() bool {
 	return running
 }
 
-type ttOut struct {
-	Result
-	Data string
-}
+//type ttOut struct {
+//	Result
+//	Data string
+//}
 
-func tt() (out ttOut) {
-	out.Data = "hello"
-	out.OK()
-	return
-}
+//func tt() (out ttOut) {
+//	out.Data = "hello"
+//	out.OK()
+//	return
+//}
 
 func (r *Result) OK(argots ...Argot) {
 	r.Ok = true

@@ -682,7 +682,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 
 	fixedResult := ""
 	if result != nil {
-		resultValue := makeLogableData(reflect.ValueOf(result), logOutputFields, Config.LogOutputArrayNum, 1)
+		resultValue := makeLogableData(reflect.ValueOf(result), noLogOutputFields, Config.LogOutputArrayNum, 1)
 		if resultValue.IsValid() && resultValue.CanInterface() {
 			resultBytes, err := json.Marshal(resultValue.Interface())
 			if err == nil {
@@ -708,7 +708,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
 }
 
-func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, level int) reflect.Value {
+func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, level int) reflect.Value {
 	t := v.Type()
 	if t == nil {
 		return reflect.ValueOf(nil)
@@ -729,25 +729,25 @@ func makeLogableData(v reflect.Value, allows map[string]bool, numArrays int, lev
 			k := t.Field(i).Name
 			if t.Field(i).Anonymous {
 				// 继承的结构
-				v3 := makeLogableData(v.Field(i), allows, numArrays, level)
+				v3 := makeLogableData(v.Field(i), notAllows, numArrays, level)
 				for _, mk := range v3.MapKeys() {
-					v2.SetMapIndex(mk, makeLogableData(v3.MapIndex(mk), allows, numArrays, level+1))
+					v2.SetMapIndex(mk, makeLogableData(v3.MapIndex(mk), notAllows, numArrays, level+1))
 				}
 				continue
 			}
 
 			//log.DefaultLogger.Info("  ========!!!", "level", level, "k", k, "allow", allows[strings.ToLower(k)])
-			if allows != nil && allows[strings.ToLower(k)] == false {
+			if notAllows != nil && notAllows[strings.ToLower(k)] {
 				continue
 			}
-			v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), allows, numArrays, level+1))
+			v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), notAllows, numArrays, level+1))
 		}
 		return v2
 	case reflect.Map:
 		v2 := reflect.MakeMap(t)
 		for _, mk := range v.MapKeys() {
 			k := mk.String()
-			if allows != nil && allows[strings.ToLower(k)] == false {
+			if notAllows != nil && notAllows[strings.ToLower(k)] {
 				continue
 			}
 			v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, level+1))
