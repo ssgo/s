@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/ssgo/config v0.5.18
 	github.com/ssgo/discover v0.5.18
-	github.com/ssgo/httpclient v0.5.18
+	github.com/ssgo/httpclient v0.5.19
 	github.com/ssgo/log v0.5.18
 	github.com/ssgo/redis v0.5.18
 	github.com/ssgo/standard v0.5.18
