@@ -494,12 +494,14 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				}
 				writeLog(requestLogger, "REJECT", result, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
 			} else {
-				outBytes := makeOutput(webAuthFailedData)
-				n, err := response.Write(outBytes)
-				if err != nil {
-					logError(err.Error(), "wrote", n)
+				if !myResponse.changed {
+					outBytes := makeOutput(webAuthFailedData)
+					n, err := response.Write(outBytes)
+					if err != nil {
+						logError(err.Error(), "wrote", n)
+					}
 				}
-				writeLog(requestLogger, "ACCESS", webAuthFailedData, len(outBytes), request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+				writeLog(requestLogger, "ACCESS", webAuthFailedData, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
 			}
 			return
 		}
