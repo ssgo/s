@@ -2,10 +2,10 @@ package s
 
 import (
 	"bytes"
-	"html/template"
 	"io"
 	"strings"
 	"sync"
+	"text/template"
 )
 
 var templates = make(map[string]*template.Template)

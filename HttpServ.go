@@ -48,6 +48,10 @@ type Response struct {
 	ProxyHeader *http.Header
 }
 
+func MakeUrl(request *http.Request, path string) string {
+	return fmt.Sprint(request.Header.Get(standard.DiscoverHeaderScheme), "://", request.Header.Get(standard.DiscoverHeaderHost), path)
+}
+
 func (response *Response) Header() http.Header {
 	response.changed = true
 	if response.ProxyHeader != nil {
