@@ -3,16 +3,15 @@ package s
 import (
 	"bytes"
 	"io"
-	"strings"
-	"sync"
+	"path"
 	"text/template"
 )
 
-var templates = make(map[string]*template.Template)
-var templatesLock = sync.Mutex{}
+//var templates = make(map[string]*template.Template)
+//var templatesLock = sync.Mutex{}
 
-func Tpl(data interface{}, files ...string) string {
-	t := getTpl(files...)
+func Tpl(data interface{}, functions template.FuncMap, files ...string) string {
+	t := getTpl(functions, files...)
 	if t != nil {
 		buf := bytes.NewBuffer(make([]byte, 0))
 		err := t.Execute(buf, data)
@@ -24,8 +23,8 @@ func Tpl(data interface{}, files ...string) string {
 	return ""
 }
 
-func TplOut(writer io.Writer, data interface{}, files ...string) {
-	t := getTpl(files...)
+func TplOut(writer io.Writer, data interface{}, functions template.FuncMap, files ...string) {
+	t := getTpl(functions, files...)
 	if t != nil {
 		err := t.Execute(writer, data)
 		if err != nil {
@@ -34,19 +33,25 @@ func TplOut(writer io.Writer, data interface{}, files ...string) {
 	}
 }
 
-func getTpl(files ...string) *template.Template {
-	templatesLock.Lock()
-	filesKey := strings.Join(files, ",")
-	t := templates[filesKey]
+func getTpl(functions template.FuncMap, files ...string) *template.Template {
+	//templatesLock.Lock()
+	//filesKey := strings.Join(files, ",")
+	//t := templates[filesKey]
 	//if t == nil {
-	tt, err := template.ParseFiles(files...)
+	tpl := template.New(path.Base(files[0]))
+	if functions != nil {
+		tpl = tpl.Funcs(functions)
+	}
+	tt, err := tpl.ParseFiles(files...)
 	if err == nil {
-		t = tt
-		templates[filesKey] = t
+		//t = tt
+		//templates[filesKey] = t
 	} else {
 		logError(err.Error(), "tplFile", files)
 	}
 	//}
-	templatesLock.Unlock()
-	return t
+	//templatesLock.Unlock()
+	//return t
+
+	return tt
 }

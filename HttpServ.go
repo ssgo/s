@@ -757,7 +757,7 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 		}
 		return v2
 	case reflect.Map:
-		v2 := reflect.MakeMap(t)
+		v2 := reflect.MakeMap(reflect.TypeOf(Map{}))
 		for _, mk := range v.MapKeys() {
 			k := mk.String()
 			if notAllows != nil && notAllows[strings.ToLower(k)] {
