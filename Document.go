@@ -147,13 +147,18 @@ func MakeDocument() ([]Api, []Argot) {
 // 生成文档并存储到 json 文件中
 func MakeJsonDocument() string {
 	api, argots := MakeDocument()
-	data, err := json.MarshalIndent(map[string]interface{}{
+	data, err := json.Marshal(map[string]interface{}{
 		"api":    api,
 		"argots": argots,
-	}, "", "\t")
+	})
+
+	u.FixUpperCase(data, nil)
+	api2 := Map{}
+	json.Unmarshal(data, &api2)
+	data2, _ := json.MarshalIndent(api2, "", "\t")
 
 	if err == nil {
-		return string(data)
+		return string(data2)
 	}
 	return ""
 }
@@ -183,6 +188,34 @@ func MakeHtmlDocumentFile(title, toFile string) string {
 // 生成文档并存储到 html 文件中，使用指定html模版
 func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	api, argots := MakeDocument()
+
+	for i, a := range api {
+		data2, _ := json.Marshal(a.In)
+		u.FixUpperCase(data2, nil)
+		var in2 interface{}
+		_ = json.Unmarshal(data2, &in2)
+		api[i].In = in2
+
+		if out4, ok := a.Out.(Map); ok {
+			//fmt.Println("============", out4)
+			if out4["Result"] != nil {
+				result4 := out4["Result"].(Map)
+				for k, v := range result4 {
+					out4[k] = v
+				}
+				delete(out4, "Result")
+			}
+			a.Out = out4
+		}else{
+			//fmt.Println(">>>>>>>", a.Out)
+		}
+		data3, _ := json.Marshal(a.Out)
+		u.FixUpperCase(data3, nil)
+		var out3 interface{}
+		_ = json.Unmarshal(data3, &out3)
+		api[i].Out = out3
+	}
+
 	data := Map{"title": title, "api": api, "argots": argots}
 
 	realFromFile := fromFile

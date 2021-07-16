@@ -43,10 +43,13 @@ func TestDoc(tt *testing.T) {
 	})
 
 	api, _ := s.MakeDocument()
-	//docBytes, _ := json.MarshalIndent(doc, "", "\t")
+	//docBytes, _ := json.MarshalIndent(api, "", "\t")
+	//docBytes, _ := json.Marshal(api)
+	//u.FixUpperCase(docBytes, nil)
 	//fmt.Println(string(docBytes))
 	//t.Test(true, "json doc")
 	t.Test(len(api) > 0, "json doc")
 
-	s.MakeHtmlDocumentFile("测试文档", "doc.html")
+	s.MakeHtmlDocumentFromFile("测试文档", "doc.html", "/Volumes/Data/Case/com.isstar/ssgo/s/DocTpl.html")
+	//fmt.Println(u.ReadFile("doc.html", 10240))
 }
