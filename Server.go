@@ -104,19 +104,24 @@ func AddShutdownHook(f func()) {
 }
 
 type timerServer struct {
-	name     string
-	interval time.Duration
-	running  bool
-	stopChan chan bool
-	run      func(*bool)
-	start    func()
-	stop     func()
+	name             string
+	intervalDuration time.Duration
+	intervalTimes    int
+	running          bool
+	stopChan         chan bool
+	run              func(*bool)
+	start            func()
+	stop             func()
 }
 
 var timerServers = make([]*timerServer, 0)
 
 func NewTimerServer(name string, interval time.Duration, run func(*bool), start func(), stop func()) {
-	timerServers = append(timerServers, &timerServer{name: name, interval: interval, run: run, start: start, stop: stop})
+	if interval < time.Millisecond*500 {
+		interval = time.Millisecond * 500
+	}
+	intervalTimes := int(interval / time.Millisecond * 500)
+	timerServers = append(timerServers, &timerServer{name: name, intervalDuration: interval, intervalTimes: intervalTimes, run: run, start: start, stop: stop})
 }
 
 //var initFunc func()
@@ -231,7 +236,7 @@ func (as *AsyncServer) Wait() {
 		as.routeHandler.Stop()
 
 		for _, ts := range timerServers {
-			logInfo("stopping timer server", "name", ts.name, "interval", ts.interval)
+			logInfo("stopping timer server", "name", ts.name, "interval", ts.intervalDuration)
 			if ts.stop != nil {
 				ts.stop()
 			}
@@ -245,7 +250,7 @@ func (as *AsyncServer) Wait() {
 		discover.Wait()
 
 		for _, ts := range timerServers {
-			logInfo("waiting timer server", "name", ts.name, "interval", ts.interval)
+			logInfo("waiting timer server", "name", ts.name, "interval", ts.intervalDuration)
 			if ts.stopChan != nil {
 				<-ts.stopChan
 				ts.stopChan = nil
@@ -552,7 +557,7 @@ func (as *AsyncServer) Start() {
 	}
 
 	for _, ts := range timerServers {
-		logInfo("starting timer server", "name", ts.name, "interval", ts.interval)
+		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration)
 		if ts.start != nil {
 			ts.start()
 		}
@@ -667,7 +672,15 @@ func runTimerServer(ts *timerServer) {
 		if !ts.running {
 			break
 		}
-		time.Sleep(ts.interval)
+		for i:=0; i<ts.intervalTimes; i++ {
+			time.Sleep(time.Millisecond * 500)
+			if !ts.running {
+				break
+			}
+		}
+		if !ts.running {
+			break
+		}
 	}
 
 	if ts.stopChan != nil {
