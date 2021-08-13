@@ -73,3 +73,18 @@ func StartMemoryCacheCleaner() {
 		}
 	}, nil, nil)
 }
+
+func ClearMemoryCache(key string) {
+	memoryCacheLocker.Lock()
+	cache := memoryCaches[key]
+	memoryCacheLocker.Unlock()
+
+	if cache == nil {
+		return
+	}
+
+	cache.locker.Lock()
+	cache.value = nil
+	cache.cacheTime = 0
+	cache.locker.Unlock()
+}

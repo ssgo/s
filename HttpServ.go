@@ -486,7 +486,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if result == nil {
 		// 之前未产生结果，进行验证
 		pass := false
-		pass, sessionObject = webAuthChecker(authLevel, &request.RequestURI, args, request, myResponse)
+		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, myResponse)
 		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
