@@ -51,6 +51,7 @@ type serviceConfig struct {
 	StatisticTime                 bool
 	StatisticTimeInterval         int
 	Fast                          bool
+	MaxUploadSize                 int64
 }
 
 type Argot string
@@ -404,6 +405,10 @@ func Init() {
 		Config.LogOutputArrayNum = 2
 	}
 
+	if Config.MaxUploadSize <= 0 {
+		Config.MaxUploadSize = 1024 * 1024 * 10
+	}
+
 	if Config.HttpVersion == 1 {
 		if Config.CertFile == "" {
 			serverProto = "http"
@@ -672,7 +677,7 @@ func runTimerServer(ts *timerServer) {
 		if !ts.running {
 			break
 		}
-		for i:=0; i<ts.intervalTimes; i++ {
+		for i := 0; i < ts.intervalTimes; i++ {
 			time.Sleep(time.Millisecond * 500)
 			if !ts.running {
 				break

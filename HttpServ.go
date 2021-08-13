@@ -40,12 +40,13 @@ import (
 //}
 
 type Response struct {
-	writer      http.ResponseWriter
-	status      int
-	outLen      int
-	changed     bool
-	dontLog200  bool
-	ProxyHeader *http.Header
+	writer        http.ResponseWriter
+	status        int
+	outLen        int
+	changed       bool
+	headerWritten bool
+	dontLog200    bool
+	ProxyHeader   *http.Header
 }
 
 func MakeUrl(request *http.Request, path string) string {
@@ -60,6 +61,7 @@ func (response *Response) Header() http.Header {
 	return response.writer.Header()
 }
 func (response *Response) Write(bytes []byte) (int, error) {
+	response.checkWriteHeader()
 	response.changed = true
 	response.outLen += len(bytes)
 	if response.ProxyHeader != nil {
@@ -76,13 +78,20 @@ func (response *Response) WriteHeader(code int) {
 	if response.ProxyHeader != nil && (response.status == 502 || response.status == 503 || response.status == 504) {
 		return
 	}
-	if code != 200 {
-		response.writer.WriteHeader(code)
-	}
 	if response.ProxyHeader != nil {
 		response.copyProxyHeader()
 	}
 }
+func (response *Response) checkWriteHeader() {
+	if !response.headerWritten {
+		if response.status != 200 {
+			response.writer.WriteHeader(response.status)
+		}
+		return
+	}
+	response.headerWritten = true
+}
+
 func (response *Response) Flush() {
 	if flusher, ok := response.writer.(http.Flusher); ok {
 		flusher.Flush()
@@ -151,8 +160,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}()
 	}
 
-	var myResponse = &Response{writer: writer, status: 200}
-	var response http.ResponseWriter = myResponse
+	var response = &Response{writer: writer, status: 200}
+	defer response.checkWriteHeader()
+
 	var sessionObject interface{} = nil
 	startTime := time.Now()
 
@@ -193,7 +203,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			if request.Header.Get(usedSessionIdKey) == "" {
 				newSessionid := u.UniqueId()
 				request.Header.Set(usedSessionIdKey, newSessionid)
-				myResponse.Header().Set(usedSessionIdKey, newSessionid)
+				response.Header().Set(usedSessionIdKey, newSessionid)
 			}
 			// 为了在服务间调用时续传 SessionId
 			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(usedSessionIdKey))
@@ -242,7 +252,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	if processRewrite(request, myResponse, logHeaders, &startTime, requestLogger) {
+	if processRewrite(request, response, logHeaders, &startTime, requestLogger) {
 		return
 	}
 
@@ -251,7 +261,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理 ProxyBy
-	if processProxy(request, myResponse, logHeaders, &startTime, requestLogger) {
+	if processProxy(request, response, logHeaders, &startTime, requestLogger) {
 		return
 	}
 
@@ -268,7 +278,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//}
 	requestPath := request.URL.Path
 	// 处理静态文件
-	if processStatic(requestPath, request, myResponse, logHeaders, &startTime, requestLogger) {
+	if processStatic(requestPath, request, response, logHeaders, &startTime, requestLogger) {
 		return
 	}
 
@@ -354,7 +364,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog(requestLogger, "FAIL", nil, 0, request, myResponse, args, logHeaders, &startTime, 0, nil)
+			writeLog(requestLogger, "FAIL", nil, 0, request, response, args, logHeaders, &startTime, 0, nil)
 		}
 		return
 	}
@@ -418,20 +428,31 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				if err != nil {
 					serverLogger.Error(err.Error())
 					response.WriteHeader(400)
-					writeLog(requestLogger, "FAIL", nil, 0, request, myResponse, args, logHeaders, &startTime, 0, nil)
+					writeLog(requestLogger, "FAIL", nil, 0, request, response, args, logHeaders, &startTime, 0, nil)
 					return
 				}
 			}
-		} else if contentType == "application/x-www-form-urlencoded" {
+		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
 			bodyBytes, _ := ioutil.ReadAll(request.Body)
 			_ = request.Body.Close()
 			argsBody, err := url.ParseQuery(string(bodyBytes))
 			if err == nil && len(argsBody) > 0 {
-				for aKey, aBody := range argsBody {
-					if len(aBody) > 1 {
-						args[aKey] = aBody
+				for aKey, aValue := range argsBody {
+					if len(aValue) > 1 {
+						args[aKey] = aValue
 					} else {
-						args[aKey] = aBody[0]
+						args[aKey] = aValue[0]
+					}
+				}
+			}
+		} else if strings.HasPrefix(contentType, "multipart/form-data") {
+			err := request.ParseMultipartForm(Config.MaxUploadSize)
+			if err == nil {
+				for aKey, aValue := range request.MultipartForm.Value {
+					if len(aValue) > 1 {
+						args[aKey] = aValue
+					} else {
+						args[aKey] = aValue[0]
 					}
 				}
 			}
@@ -453,14 +474,14 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if err := recover(); err != nil {
 			var out interface{}
 			if errorHandle != nil {
-				out = errorHandle(err, request, &response)
+				out = errorHandle(err, request, response)
 			} else {
 				response.WriteHeader(ResponseCodePanicError)
 				out = ""
 			}
 
 			logError(u.String(err))
-			writeLog(requestLogger, "PANIC", out, myResponse.outLen, request, myResponse, args, logHeaders, &startTime, authLevel, Map{
+			writeLog(requestLogger, "PANIC", out, response.outLen, request, response, args, logHeaders, &startTime, authLevel, Map{
 				"error": u.String(err),
 			})
 		}
@@ -473,7 +494,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 前置过滤器
 	var result interface{} = nil
 	for _, filter := range inFilters {
-		result = filter(args, request, &response)
+		result = filter(args, request, response)
 		if result != nil {
 			break
 		}
@@ -486,21 +507,21 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if result == nil {
 		// 之前未产生结果，进行验证
 		pass := false
-		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, myResponse)
+		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response)
 		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
 			if webAuthFailedData == nil {
-				if !myResponse.changed {
+				if !response.changed {
 					response.WriteHeader(403)
 				}
-				writeLog(requestLogger, "REJECT", result, 0, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+				writeLog(requestLogger, "REJECT", result, 0, request, response, args, logHeaders, &startTime, authLevel, nil)
 			} else {
 				var outData interface{}
 				var outLen int
-				if !myResponse.changed {
+				if !response.changed {
 					outBytes := makeOutput(webAuthFailedData)
 					n, err := response.Write(outBytes)
 					if err != nil {
@@ -510,9 +531,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 					outLen = len(outBytes)
 				} else {
 					outData = nil
-					outLen = myResponse.outLen
+					outLen = response.outLen
 				}
-				writeLog(requestLogger, "ACCESS", outData, outLen, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, logHeaders, &startTime, authLevel, nil)
 			}
 			return
 		}
@@ -537,9 +558,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, myResponse, authLevel, args, logHeaders, &startTime, requestLogger, sessionObject)
+		doWebsocketService(ws, request, response, authLevel, args, logHeaders, &startTime, requestLogger, sessionObject)
 	} else if s != nil || result != nil {
-		result = doWebService(s, request, &response, args, result, requestLogger, sessionObject)
+		result = doWebService(s, request, response, args, result, requestLogger, sessionObject)
 		//logName = "ACCESS"
 		//statusCode = 200
 	}
@@ -551,7 +572,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if ws == nil {
 		// 后置过滤器
 		for _, filter := range outFilters {
-			newResult, done := filter(args, request, &response, result)
+			newResult, done := filter(args, request, response, result)
 			if newResult != nil {
 				result = newResult
 			}
@@ -570,7 +591,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		if Config.Compress && len(outBytes) >= Config.CompressMinSize && len(outBytes) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
 			zipWriter, err := gzip.NewWriterLevel(response, 1)
 			if err == nil {
-				myResponse.Header().Set("Content-Encoding", "gzip")
+				response.Header().Set("Content-Encoding", "gzip")
 				n, err := zipWriter.Write(outBytes)
 				if err != nil {
 					logError(err.Error(), "wrote", n)
@@ -599,7 +620,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		if requestPath != "/__CHECK__" {
-			writeLog(requestLogger, "ACCESS", result, outLen, request, myResponse, args, logHeaders, &startTime, authLevel, nil)
+			writeLog(requestLogger, "ACCESS", result, outLen, request, response, args, logHeaders, &startTime, authLevel, nil)
 		}
 
 		if Config.StatisticTime {

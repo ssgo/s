@@ -56,10 +56,10 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	t.Test(r.Error == nil && r.String() == "Hello World!", "Get", r.Error, r.String())
 
 	r = as.Post("/", nil)
-	t.Test(r.Response.StatusCode == 404, "Post", r.Error, r.String())
+	t.Test(r.Response.StatusCode == 404, "Post", r.Response.StatusCode, r.Error, r.String())
 
 	r = as.Get("/w/abc.png")
-	t.Test(r.Response.StatusCode == 404, "Post", r.Error, r.String())
+	t.Test(r.Response.StatusCode == 404, "Post", r.Response.StatusCode, r.Error, r.String())
 
 	r = as.Do("PULL", "/w/abc.png", nil)
 	result := r.Bytes()

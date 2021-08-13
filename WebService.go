@@ -39,9 +39,9 @@ type webServiceType struct {
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make([]*webServiceType, 0)
 
-var inFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter) interface{}, 0)
-var outFilters = make([]func(map[string]interface{}, *http.Request, *http.ResponseWriter, interface{}) (interface{}, bool), 0)
-var errorHandle func(interface{}, *http.Request, *http.ResponseWriter) interface{}
+var inFilters = make([]func(map[string]interface{}, *http.Request, *Response) interface{}, 0)
+var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}) (interface{}, bool), 0)
+var errorHandle func(interface{}, *http.Request, *Response) interface{}
 var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response) (pass bool, sessionObject interface{})
 var webAuthFailedData interface{}
 var usedSessionIdKey string
@@ -227,12 +227,12 @@ func RestfulWithPriority(authLevel, priority int, method, host, path string, ser
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {
+func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *Response) (out interface{})) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, out interface{}) (newOut interface{}, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
@@ -244,7 +244,7 @@ func SetAuthFailedData(data interface{}) {
 	webAuthFailedData = data
 }
 
-func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{}) {
+func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *Response) interface{}) {
 	errorHandle = myErrorHandle
 }
 
@@ -340,7 +340,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 //	}
 //}
 
-func doWebService(service *webServiceType, request *http.Request, response *http.ResponseWriter, args map[string]interface{},
+func doWebService(service *webServiceType, request *http.Request, response *Response, args map[string]interface{},
 	result interface{}, requestLogger *log.Logger, sessionObject interface{}) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
@@ -379,12 +379,10 @@ func doWebService(service *webServiceType, request *http.Request, response *http
 		parms[service.requestIndex] = reflect.ValueOf(request)
 	}
 	if service.responseIndex >= 0 {
-		if r, ok := (*response).(*Response); ok {
-			parms[service.responseIndex] = reflect.ValueOf(r)
-		}
+		parms[service.responseIndex] = reflect.ValueOf(response)
 	}
 	if service.responseWriterIndex >= 0 {
-		parms[service.responseWriterIndex] = reflect.ValueOf(*response)
+		parms[service.responseWriterIndex] = reflect.ValueOf(response.writer)
 	}
 	if service.loggerIndex >= 0 {
 		parms[service.loggerIndex] = reflect.ValueOf(requestLogger)
