@@ -28,6 +28,7 @@ type webServiceType struct {
 	headersType         reflect.Type
 	headersIndex        int
 	requestIndex        int
+	uploaderIndex       int
 	responseIndex       int
 	responseWriterIndex int
 	loggerIndex         int
@@ -378,6 +379,9 @@ func doWebService(service *webServiceType, request *http.Request, response *Resp
 	if service.requestIndex >= 0 {
 		parms[service.requestIndex] = reflect.ValueOf(request)
 	}
+	if service.uploaderIndex >= 0 {
+		parms[service.uploaderIndex] = reflect.ValueOf(&Uploader{request: request})
+	}
 	if service.responseIndex >= 0 {
 		parms[service.responseIndex] = reflect.ValueOf(response)
 	}
@@ -461,6 +465,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.inIndex = -1
 	targetService.headersIndex = -1
 	targetService.requestIndex = -1
+	targetService.uploaderIndex = -1
 	targetService.responseIndex = -1
 	targetService.responseWriterIndex = -1
 	targetService.loggerIndex = -1
@@ -469,6 +474,8 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 		t := funcType.In(i)
 		if t.String() == "*http.Request" {
 			targetService.requestIndex = i
+		} else if t.String() == "*s.Uploader" {
+			targetService.uploaderIndex = i
 		} else if t.String() == "*s.Response" {
 			targetService.responseIndex = i
 		} else if t.String() == "http.ResponseWriter" {

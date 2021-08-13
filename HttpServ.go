@@ -9,9 +9,13 @@ import (
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"golang.org/x/net/websocket"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -38,6 +42,87 @@ import (
 //	}
 //	return request.injects[dataType]
 //}
+
+type Uploader struct {
+	request *http.Request
+}
+
+type UploadFile struct {
+	fileHeader *multipart.FileHeader
+	Filename   string
+	Header     textproto.MIMEHeader
+	Size       int64
+}
+
+func (uploader *Uploader) Fields() []string {
+	fields := make([]string, 0)
+	if uploader.request.MultipartForm != nil {
+		for field := range uploader.request.MultipartForm.File {
+			fields = append(fields, field)
+		}
+	}
+	return fields
+}
+
+func (uploader *Uploader) File(field string) *UploadFile {
+	uploadFiles := uploader.Files(field)
+	if len(uploadFiles) > 0 {
+		return uploadFiles[0]
+	}
+	return nil
+}
+
+func (uploader *Uploader) Files(field string) []*UploadFile {
+	uploadFiles := make([]*UploadFile, 0)
+	if uploader.request.MultipartForm != nil {
+		if fileHeaders := uploader.request.MultipartForm.File[field]; fileHeaders != nil {
+			for _, fileHeader := range fileHeaders {
+				uploadFiles = append(uploadFiles, &UploadFile{
+					fileHeader: fileHeader,
+					Filename:   fileHeader.Filename,
+					Header:     fileHeader.Header,
+					Size:       fileHeader.Size,
+				})
+			}
+		}
+	}
+	return uploadFiles
+}
+
+func (uploadFile *UploadFile) Open() (multipart.File, error) {
+	return uploadFile.fileHeader.Open()
+}
+
+func (uploadFile *UploadFile) Save(filename string) error {
+	if dstFile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
+		if srcFile, err := uploadFile.fileHeader.Open(); err == nil {
+			defer srcFile.Close()
+			io.Copy(dstFile, srcFile)
+			return nil
+		} else {
+			return err
+		}
+	} else {
+		return err
+	}
+}
+
+func (uploadFile *UploadFile) Content() ([]byte, error) {
+	if file, err := uploadFile.fileHeader.Open(); err == nil {
+		buf := make([]byte, uploadFile.Size)
+		n, err := file.Read(buf)
+		if n != int(uploadFile.Size) {
+			logError("file read not full", "size", uploadFile.Size, "readSize", n)
+		}
+		if err == nil {
+			return buf, nil
+		} else {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+}
 
 type Response struct {
 	writer        http.ResponseWriter
@@ -118,6 +203,36 @@ func (response *Response) copyProxyHeader() {
 
 func (response *Response) DontLog200() {
 	response.dontLog200 = true
+}
+
+func (response *Response) SendFile(contentType, filename string, data interface{}) {
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	response.Header().Set("Content-Type", contentType)
+
+	if filename != "" {
+		response.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	}
+
+	var outBytes []byte = nil
+	var reader io.Reader = nil
+	if v, ok := data.([]byte); ok {
+		outBytes = v
+	} else if v, ok := data.(string); ok {
+		outBytes = []byte(v)
+	} else if v, ok := data.(io.Reader); ok {
+		reader = v
+	} else {
+		outBytes = []byte(u.Json(data))
+	}
+
+	if outBytes != nil {
+		response.Header().Set("Content-Length", u.String(len(outBytes)))
+		response.Write(outBytes)
+	} else if reader != nil {
+		io.Copy(response, reader)
+	}
 }
 
 type routeHandler struct {
@@ -448,6 +563,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		} else if strings.HasPrefix(contentType, "multipart/form-data") {
 			err := request.ParseMultipartForm(Config.MaxUploadSize)
 			if err == nil {
+				defer request.MultipartForm.RemoveAll()
 				for aKey, aValue := range request.MultipartForm.Value {
 					if len(aValue) > 1 {
 						args[aKey] = aValue
