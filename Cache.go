@@ -1,6 +1,7 @@
 package s
 
 import (
+	"github.com/ssgo/discover"
 	"sync"
 	"time"
 )
@@ -14,6 +15,7 @@ type memoryCache struct {
 
 var memoryCaches = map[string]*memoryCache{}
 var memoryCacheLocker = sync.Mutex{}
+var memoryCacheStarted bool
 
 func CacheByMemory(key string, seconds int64, maker func() interface{}) interface{} {
 	memoryCacheLocker.Lock()
@@ -25,12 +27,14 @@ func CacheByMemory(key string, seconds int64, maker func() interface{}) interfac
 			cacheTime: 0,
 			locker:    sync.Mutex{},
 		}
+		memoryCaches[key] = cache
 	}
 	memoryCacheLocker.Unlock()
 
 	cache.locker.Lock()
 	value := cache.value
 	nowTime := time.Now().Unix()
+	//fmt.Println("   >>>>>>>>>", value == nil, nowTime-cache.cacheTime, seconds)
 	if value == nil || nowTime-cache.cacheTime > seconds {
 		// 需要生成缓存
 		value = maker()
@@ -44,7 +48,7 @@ func CacheByMemory(key string, seconds int64, maker func() interface{}) interfac
 }
 
 func StartMemoryCacheCleaner() {
-	NewTimerServer("memoryCacheCleaner", time.Minute*5, func(isRunning *bool) {
+	NewTimerServer("memoryCacheCleaner", time.Minute, func(isRunning *bool) {
 		cleanList := make([]*memoryCache, 0)
 		nowTime := time.Now().Unix()
 		memoryCacheLocker.Lock()
@@ -61,6 +65,7 @@ func StartMemoryCacheCleaner() {
 
 		for _, cache := range cleanList {
 			cache.locker.Lock()
+			//fmt.Println("   !!!!!>>>>", cache.value != nil, nowTime-cache.cacheTime, cache.seconds)
 			if cache.value != nil && nowTime-cache.cacheTime > cache.seconds {
 				cache.value = nil
 				cache.cacheTime = 0
@@ -71,10 +76,33 @@ func StartMemoryCacheCleaner() {
 				return
 			}
 		}
-	}, nil, nil)
+	}, func() {
+		Subscribe("S_ClearMemoryCache_"+discover.Config.App, func() {
+			// 连接重置时清除所有缓存
+			//fmt.Println("######## 2.1")
+			clearAllMemoryCache()
+		}, func(msgBytes []byte) {
+			clearMemoryCache(string(msgBytes))
+		})
+		memoryCacheStarted = true
+	}, func() {
+		//fmt.Println("######## 2.2")
+		clearAllMemoryCache()
+	})
 }
 
 func ClearMemoryCache(key string) {
+	if memoryCacheStarted {
+		// 清除服务启动时，通过订阅通知进行缓存清理
+		//fmt.Println("######## Publish ", key)
+		Publish("S_ClearMemoryCache_"+discover.Config.App, key)
+	} else {
+		clearMemoryCache(key)
+	}
+}
+
+func clearMemoryCache(key string) {
+	//fmt.Println("######## 1")
 	memoryCacheLocker.Lock()
 	cache := memoryCaches[key]
 	memoryCacheLocker.Unlock()
@@ -87,4 +115,10 @@ func ClearMemoryCache(key string) {
 	cache.value = nil
 	cache.cacheTime = 0
 	cache.locker.Unlock()
+}
+
+func clearAllMemoryCache() {
+	memoryCacheLocker.Lock()
+	memoryCaches = map[string]*memoryCache{}
+	memoryCacheLocker.Unlock()
 }

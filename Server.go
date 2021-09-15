@@ -52,6 +52,7 @@ type serviceConfig struct {
 	StatisticTimeInterval         int
 	Fast                          bool
 	MaxUploadSize                 int64
+	IpPrefix                      string // 指定使用的IP网段，默认排除 172.17
 }
 
 type Argot string
@@ -84,6 +85,26 @@ var accessTokens = map[string]*int{}
 //}
 
 var _rd *redis.Redis
+var _rd2 *redis.Redis
+var _rdStarted bool
+
+func getRedis() *redis.Redis {
+	if _rd == nil {
+		_rd = redis.GetRedis(discover.Config.Registry, serverLogger)
+	}
+	return _rd
+}
+
+func getPubSubRedis() *redis.Redis {
+	if _rd2 == nil {
+		rd := getRedis()
+		confForPubSub := *rd.Config
+		confForPubSub.IdleTimeout = -1
+		confForPubSub.ReadTimeout = -1
+		_rd2 = redis.NewRedis(&confForPubSub, serverLogger)
+	}
+	return _rd2
+}
 
 var noLogHeaders = map[string]bool{}
 
@@ -229,6 +250,7 @@ func (as *AsyncServer) Wait() {
 			<-as.stopChan
 		}
 
+		// 停止发现服务
 		if discover.IsClient() || discover.IsServer() {
 			logInfo("stopping discover")
 			discover.Stop()
@@ -236,12 +258,18 @@ func (as *AsyncServer) Wait() {
 		logInfo("stopping router")
 		as.routeHandler.Stop()
 
+		// 停止计时器服务
 		for _, ts := range timerServers {
 			logInfo("stopping timer server", "name", ts.name, "interval", ts.intervalDuration)
 			if ts.stop != nil {
 				ts.stop()
 			}
 			ts.running = false
+		}
+
+		// 停止Redis推送服务
+		if _rd != nil && _rdStarted {
+			_rd.Stop()
 		}
 
 		as.waited = true
@@ -546,7 +574,13 @@ func (as *AsyncServer) Start() {
 		addrs, _ := net.InterfaceAddrs()
 		for _, a := range addrs {
 			an := a.(*net.IPNet)
-			// 忽略 Docker 私有网段
+			// 显式匹配网段
+			if Config.IpPrefix != "" && strings.HasPrefix(an.IP.To4().String(), Config.IpPrefix) {
+				ip = an.IP.To4()
+				break
+			}
+
+			// 忽略 Docker 私有网段，匹配最后一个
 			if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
 				ip = an.IP.To4()
 			}
@@ -754,4 +788,27 @@ func MakeArgots(argots interface{}) {
 			}
 		}
 	}
+}
+
+//var redisLock = sync.Mutex{}
+func Subscribe(channel string, reset func(), received func([]byte)) bool {
+	if !_rdStarted {
+		//redisLock.Lock()
+		_rdStarted = true
+		//redisLock.Unlock()
+		getPubSubRedis().Start()
+	}
+
+	return getPubSubRedis().Subscribe(channel, reset, received)
+}
+
+func Publish(channel, data string) bool {
+	if !_rdStarted {
+		//redisLock.Lock()
+		_rdStarted = true
+		//redisLock.Unlock()
+		getPubSubRedis().Start()
+	}
+
+	return getPubSubRedis().PUBLISH(channel, data)
 }

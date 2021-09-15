@@ -242,22 +242,27 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 		response.WriteHeader(r.Response.StatusCode)
 		outLen, err := io.Copy(response.writer, r.Response.Body)
 		if err != nil {
-			logError(err.Error(), "app", app, "path", path)
-			response.WriteHeader(500)
-			response.outLen = len(err.Error())
-			n, err := response.Write([]byte(err.Error()))
-			if err != nil {
-				requestLogger.Error(err.Error(), "wrote", n)
+			if strings.Contains(err.Error(), "stream closed") {
+				requestLogger.Warning(err.Error(), "app", app, "path", path, "responseSize", outLen)
+				response.outLen = int(outLen)
+			} else {
+				requestLogger.Error(err.Error(), "app", app, "path", path)
+				response.WriteHeader(500)
+				response.outLen = len(err.Error())
+				n, err := response.Write([]byte(err.Error()))
+				if err != nil {
+					requestLogger.Error(err.Error(), "wrote", n)
+				}
+				//statusCode = 500
+				//outBytes = []byte(r.Error.Error())
 			}
-			//statusCode = 500
-			//outBytes = []byte(r.Error.Error())
 		} else {
 			response.outLen = int(outLen)
 		}
 	} else {
 		//statusCode = 500
 		//outBytes = []byte(r.Error.Error())
-		logError("no response when do proxy", "app", app, "path", path)
+		requestLogger.Error("no response when do proxy", "app", app, "path", path)
 		response.WriteHeader(500)
 		n, err := response.Write([]byte(r.Error.Error()))
 		if err != nil {

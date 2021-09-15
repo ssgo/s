@@ -205,7 +205,20 @@ func (response *Response) DontLog200() {
 	response.dontLog200 = true
 }
 
-func (response *Response) SendFile(contentType, filename string, data interface{}) {
+func (response *Response) Location(location string) {
+	response.WriteHeader(302)
+	response.Header().Set("Location", location)
+}
+
+func (response *Response) SendFile(contentType, filename string) {
+	response.Header().Set("Content-Type", contentType)
+	if fd, err := os.Open(filename); err == nil {
+		defer fd.Close()
+		_, _ = io.Copy(response, fd)
+	}
+}
+
+func (response *Response) DownloadFile(contentType, filename string, data interface{}) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}

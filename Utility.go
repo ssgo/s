@@ -3,8 +3,6 @@ package s
 import (
 	"fmt"
 	redigo "github.com/gomodule/redigo/redis"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/redis"
 	"github.com/ssgo/u"
 	"os"
 	"sync"
@@ -35,11 +33,7 @@ func uniqueId() []byte {
 	date := tm.Format("0102")
 	// 检查每天重新排列的服务器编号
 	if date != uidServerDate {
-		if _rd == nil {
-			_rd = redis.GetRedis(discover.Config.Registry, serverLogger)
-		}
-
-		rdConn := _rd.GetConnection()
+		rdConn := getRedis().GetConnection()
 		makeServerIndexTimes := 0
 		makeServerIndexOk := false
 		uidLock.Lock()
@@ -188,7 +182,7 @@ func uniqueId() []byte {
 				if makeServerIndexOk && !uidShutdownHookSet {
 					uidShutdownHookSet = true
 					AddShutdownHook(func() {
-						_rd.HDEL("USI"+uidServerDate, u.String(uidServerIndex))
+						getRedis().HDEL("USI"+uidServerDate, u.String(uidServerIndex))
 					})
 				}
 			}
@@ -264,23 +258,45 @@ func uniqueId() []byte {
 
 	// 添加序号
 	uid = u.AppendInt(uid, uint64(secIndex))
-	for len(uid) < 11 {
-		uid = append(uid, '9')
-	}
 
 	return uid
+}
+
+func catUniqueId(size int) string {
+	id := uniqueId()
+	if len(id) > size {
+		return string(id[0:size])
+	}
+
+	for i := size - len(id); i > 0; i-- {
+		var c int
+		if i%2 == 0 {
+			c = u.GlobalRand1.Intn(62)
+		} else {
+			c = u.GlobalRand2.Intn(62)
+		}
+		id = append(id, u.EncodeInt(uint64(c))[0])
+	}
+
+	return string(id)
 }
 
 func UniqueId() string {
 	return string(uniqueId())
 }
 
-func UniqueIdX() string {
-	buf := u.AppendInt(nil, uint64(u.GlobalRand1.Intn(62)))
-	buf = u.AppendInt(buf, uint64(u.GlobalRand2.Intn(62)))
-	buf = append(buf, uniqueId()...)
-	buf = u.AppendInt(buf, uint64(u.GlobalRand1.Intn(62)))
-	buf = u.AppendInt(buf, uint64(u.GlobalRand2.Intn(62)))
-	buf = u.AppendInt(buf, uint64(u.GlobalRand1.Intn(62)))
-	return string(buf)
+func UniqueId12() string {
+	return catUniqueId(12)
+}
+
+func UniqueId14() string {
+	return catUniqueId(14)
+}
+
+func UniqueId16() string {
+	return catUniqueId(16)
+}
+
+func UniqueId20() string {
+	return catUniqueId(20)
 }
