@@ -757,11 +757,21 @@ func (r *Result) Failed(message string, argots ...Argot) {
 	}
 }
 
+func (r *Result) Done(ok bool, failedMessage string, argots ...Argot) {
+	r.Ok = ok
+	if !ok {
+		r.Message = failedMessage
+		if len(argots) > 0 {
+			r.Argot = argots[0]
+		}
+	}
+}
+
 func (r *CodeResult) OK() {
 	r.Code = 1
 }
 
-func (r *CodeResult) Failed2(code int, message string) {
+func (r *CodeResult) Failed(code int, message string) {
 	r.Code = code
 	r.Message = message
 }

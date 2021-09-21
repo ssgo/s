@@ -73,6 +73,11 @@ func SetUserId(request *http.Request, userId string) {
 	request.Header.Set(standard.DiscoverHeaderUserId, userId)
 }
 
+func SetSessionId(request *http.Request, sessionId string) {
+	request.Header.Set(usedSessionIdKey, sessionId)
+	request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
+}
+
 //// 设置 Session ID 生成器
 //func SetSessionCreator(creator func() string) {
 //	sessionCreator = creator
@@ -82,11 +87,15 @@ func SetUserId(request *http.Request, userId string) {
 //func GetSessionKey() string {
 //	return usedSessionIdKey
 //}
-//
-//// 获取 SessionId
-//func GetSessionId(request *http.Request) string {
-//	return request.Header.Get(usedSessionIdKey)
-//}
+
+// 获取 SessionId
+func GetSessionId(request *http.Request) string {
+	sessionId := request.Header.Get(usedSessionIdKey)
+	if sessionId == "" {
+		sessionId = request.Header.Get(standard.DiscoverHeaderSessionId)
+	}
+	return sessionId
+}
 
 //// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
 //func SetSessionInject(request *http.Request, obj interface{}) {

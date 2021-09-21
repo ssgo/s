@@ -139,6 +139,9 @@ func MakeUrl(request *http.Request, path string) string {
 }
 
 func (response *Response) Header() http.Header {
+	if response.headerWritten {
+		return nil
+	}
 	response.changed = true
 	if response.ProxyHeader != nil {
 		return *response.ProxyHeader
@@ -169,12 +172,12 @@ func (response *Response) WriteHeader(code int) {
 }
 func (response *Response) checkWriteHeader() {
 	if !response.headerWritten {
+		response.headerWritten = true
 		if response.status != 200 {
 			response.writer.WriteHeader(response.status)
 		}
 		return
 	}
-	response.headerWritten = true
 }
 
 func (response *Response) Flush() {
@@ -279,6 +282,8 @@ func xHeader(headerName string, request *http.Request, maker func() string) stri
 }
 
 func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	startTime := time.Now()
+
 	var tc *TimeCounter
 	if Config.StatisticTime {
 		tc = StartTimeCounter()
@@ -290,9 +295,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	var response = &Response{writer: writer, status: 200}
 	defer response.checkWriteHeader()
-
 	var sessionObject interface{} = nil
-	startTime := time.Now()
 
 	requestId := ""
 	host := ""
@@ -328,19 +331,43 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 		// SessionId
 		if usedSessionIdKey != "" {
-			if request.Header.Get(usedSessionIdKey) == "" {
-				newSessionid := u.UniqueId()
-				request.Header.Set(usedSessionIdKey, newSessionid)
-				response.Header().Set(usedSessionIdKey, newSessionid)
-			}
+			//if request.Header.Get(usedSessionIdKey) == "" {
+			//	newSessionid := u.UniqueId()
+			//	request.Header.Set(usedSessionIdKey, newSessionid)
+			//	response.Header().Set(usedSessionIdKey, newSessionid)
+			//}
 			// 为了在服务间调用时续传 SessionId
 			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(usedSessionIdKey))
 		}
 
 		// DeviceId
 		if usedDeviceIdKey != "" {
+			deviceId := request.Header.Get(usedDeviceIdKey)
+			if deviceId == "" {
+				// 尝试从 Cookie 中读取
+				if cookie, err := request.Cookie(usedDeviceIdKey); err == nil {
+					deviceId = cookie.Value
+				}
+			}
+			if deviceId == "" {
+				// 自动生成基于 Cookie 的 DeviceId
+				deviceId = UniqueId20()
+				domain := strings.SplitN(host, ":", 2)[0]
+				domainParts := strings.Split(domain, ".")
+				if len(domainParts) >= 2 {
+					domain = domainParts[len(domainParts)-1] + "." + domainParts[len(domainParts)-1]
+				}
+				http.SetCookie(response, &http.Cookie{
+					Name:     usedDeviceIdKey,
+					Value:    deviceId,
+					Path:     "/",
+					Domain:   domain,
+					Expires:  time.Now().AddDate(10, 0, 0),
+					HttpOnly: true,
+				})
+			}
 			// 为了在服务间调用时续传 DeviceId
-			request.Header.Set(standard.DiscoverHeaderDeviceId, request.Header.Get(usedDeviceIdKey))
+			request.Header.Set(standard.DiscoverHeaderDeviceId, deviceId)
 		}
 
 		// ClientAppName、ClientAppVersion
