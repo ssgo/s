@@ -62,8 +62,8 @@ func uniqueId() []byte {
 				}
 
 				// 尝试文件中保存的ServerId
-				if !makeServerIndexOk && u.FileExists("/tmp/server_id") {
-					serverIdInFile, err := u.ReadFile("/tmp/server_id", 6)
+				if !makeServerIndexOk && u.FileExists(".server_id") {
+					serverIdInFile, err := u.ReadFile(".server_id", 6)
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
@@ -108,8 +108,8 @@ func uniqueId() []byte {
 				}
 
 				// 尝试文件中保存的ServerId
-				if !makeServerIndexOk && u.FileExists("/tmp/server_id") {
-					serverIdInFile, err := u.ReadFile("/tmp/server_id", 6)
+				if !makeServerIndexOk && u.FileExists(".server_id") {
+					serverIdInFile, err := u.ReadFile(".server_id", 6)
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
@@ -127,7 +127,7 @@ func uniqueId() []byte {
 						uidServerIndex = u.GlobalRand1.Int63n(238328)
 						if ok, err := trySetServerId(rdConn, hkey, uidServerIndex); ok {
 							makeServerIndexOk = true
-							_ = u.WriteFile("/tmp/server_id", u.String(uidServerIndex))
+							_ = u.WriteFile(".server_id", u.String(uidServerIndex))
 							logInfo("get server id for unique id over hit", "uidServerId", uidServerIndex)
 							break
 						} else if err != nil {
@@ -155,7 +155,7 @@ func uniqueId() []byte {
 								uidServerIndex = i
 								if ok, err := trySetServerId(rdConn, hkey, uidServerIndex); ok {
 									makeServerIndexOk = true
-									_ = u.WriteFile("/tmp/server_id", u.String(uidServerIndex))
+									_ = u.WriteFile(".server_id", u.String(uidServerIndex))
 									logInfo("get server id for unique id over incr", "uidServerId", uidServerIndex)
 									break
 								} else if err != nil {

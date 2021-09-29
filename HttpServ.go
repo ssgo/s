@@ -355,7 +355,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				domain := strings.SplitN(host, ":", 2)[0]
 				domainParts := strings.Split(domain, ".")
 				if len(domainParts) >= 2 {
-					domain = domainParts[len(domainParts)-1] + "." + domainParts[len(domainParts)-1]
+					domain = domainParts[len(domainParts)-2] + "." + domainParts[len(domainParts)-1]
 				}
 				http.SetCookie(response, &http.Cookie{
 					Name:     usedDeviceIdKey,

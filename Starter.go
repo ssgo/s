@@ -65,7 +65,7 @@ var serviceInfo serviceInfoType
 var inDocumentMode = false
 
 func init() {
-	serviceInfo = serviceInfoType{pidFile: "/tmp/" + strings.Replace(os.Args[0], "/", "_", 100) + ".pid"}
+	serviceInfo = serviceInfoType{pidFile: "." + strings.Replace(os.Args[0], "/", "_", 100) + ".pid"}
 	serviceInfo.load()
 
 	if len(os.Args) > 1 {
