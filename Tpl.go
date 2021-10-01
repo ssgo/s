@@ -51,7 +51,7 @@ func getTpl(functions template.FuncMap, files ...string) *template.Template {
 	//filesKey := strings.Join(files, ",")
 	//t := templates[filesKey]
 	//if t == nil {
-	tpl := template.New(path.Base(files[0]))
+	tpl := template.New(path.Base(files[len(files)-1]))
 	if functions != nil {
 		tpl = tpl.Funcs(functions)
 	}
