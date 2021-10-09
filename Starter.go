@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
@@ -65,6 +66,8 @@ var serviceInfo serviceInfoType
 var inDocumentMode = false
 
 func init() {
+	//os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
+	os.Chdir(path.Dir("/opt/bb/server"))
 	serviceInfo = serviceInfoType{pidFile: "." + strings.Replace(os.Args[0], "/", "_", 100) + ".pid"}
 	serviceInfo.load()
 
@@ -91,15 +94,15 @@ func init() {
 		}
 	}
 
-	//os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
-	pos := strings.LastIndexByte(os.Args[0], os.PathSeparator)
-	if pos == -1 {
-		pos = strings.LastIndexByte(os.Args[0], '/')
-	}
-
-	if pos != -1 {
-		os.Chdir(os.Args[0][0:pos])
-	}
+	////os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
+	//pos := strings.LastIndexByte(os.Args[0], os.PathSeparator)
+	//if pos == -1 {
+	//	pos = strings.LastIndexByte(os.Args[0], '/')
+	//}
+	//
+	//if pos != -1 {
+	//	os.Chdir(os.Args[0][0:pos])
+	//}
 }
 
 //func loadPid() (string, int) {
@@ -138,8 +141,6 @@ func makeDockment(toFile, fromFile string) {
 }
 
 func startProcess() {
-	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
-
 	if serviceInfo.pid > 0 {
 		fmt.Printf("%s	%d	is already running, stopping ...\n", os.Args[0], serviceInfo.pid)
 		stopProcess()
@@ -164,7 +165,6 @@ func startProcess() {
 }
 
 func stopProcess() {
-	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
 	if serviceInfo.pid <= 0 {
 		fmt.Printf("%s	not run\n", os.Args[0])
 		return
@@ -180,7 +180,6 @@ func stopProcess() {
 }
 
 func statusProcess() {
-	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
 	if serviceInfo.pid <= 0 {
 		fmt.Printf("%s	not run\n", os.Args[0])
 		return
@@ -194,7 +193,6 @@ func statusProcess() {
 }
 
 func checkProcess() {
-	os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
 	if serviceInfo.pid <= 0 {
 		fmt.Printf("%s	not run\n", os.Args[0])
 		os.Exit(1)
