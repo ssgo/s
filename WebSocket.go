@@ -16,7 +16,6 @@ import (
 
 type websocketServiceType struct {
 	authLevel         int
-	host              string
 	path              string
 	pathMatcher       *regexp.Regexp
 	pathArgs          []string
@@ -71,11 +70,11 @@ var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{
 
 // 注册Websocket服务
 func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithOptions(authLevel, "", path, onOpen, WebServiceOptions{})
+	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, WebServiceOptions{})
 }
 
-func RegisterSimpleWebsocketWithOptions(authLevel int, host, path string, onOpen interface{}, options WebServiceOptions) {
-	RegisterWebsocketWithOptions(authLevel, host, path, nil, onOpen, nil, nil, nil, true, options)
+func RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
+	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, options)
 }
 
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
@@ -83,11 +82,11 @@ func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, "", path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
 }
 
 // 注册Websocket服务
-func RegisterWebsocketWithOptions(authLevel int, host, path string, updater *websocket.Upgrader,
+func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
@@ -97,7 +96,6 @@ func RegisterWebsocketWithOptions(authLevel int, host, path string, updater *web
 	s.isSimple = isSimple
 	s.authLevel = authLevel
 	s.options = options
-	s.host = host
 	s.path = path
 	if updater == nil {
 		s.updater = new(websocket.Upgrader)
@@ -189,7 +187,7 @@ func RegisterWebsocketWithOptions(authLevel int, host, path string, updater *web
 		}
 	}
 	if s.pathMatcher == nil {
-		websocketServices[fmt.Sprint(host, path)] = s
+		websocketServices[fmt.Sprint(options.Host, path)] = s
 	}
 
 	return &ActionRegister{websocketName: path, websocketServiceType: s}

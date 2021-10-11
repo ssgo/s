@@ -18,12 +18,12 @@ type WebServiceOptions struct {
 	Priority int
 	NoBody   bool
 	NoLog200 bool
+	Host     string
 }
 
 type webServiceType struct {
 	authLevel           int
 	method              string
-	host                string
 	path                string
 	pathMatcher         *regexp.Regexp
 	pathArgs            []string
@@ -154,37 +154,37 @@ func Host(host string) HostRegister {
 }
 
 func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, "", host.host, path, serviceFunc, WebServiceOptions{})
+	RestfulWithOptions(authLevel, "", path, serviceFunc, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, method, host.host, path, serviceFunc, WebServiceOptions{})
+	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, options WebServiceOptions) {
-	RestfulWithOptions(authLevel, "", host.host, path, serviceFunc, WebServiceOptions{})
+	RestfulWithOptions(authLevel, "", path, serviceFunc, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, options WebServiceOptions) {
-	RestfulWithOptions(authLevel, method, host.host, path, serviceFunc, WebServiceOptions{})
+	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithOptions(authLevel, "", path, onOpen, WebServiceOptions{})
+	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, WebServiceOptions{Host: host.host})
 }
 
 func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
-	RegisterWebsocketWithOptions(authLevel, host.host, path, nil, onOpen, nil, nil, nil, true, options)
+	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, options)
 }
 func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, host.host, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}, isSimple bool, options WebServiceOptions) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, host.host, path, updater, onOpen, onClose, decoder, encoder, false, options)
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, options)
 }
 
 // 注册服务
@@ -194,16 +194,16 @@ func Register(authLevel int, path string, serviceFunc interface{}) {
 
 // 注册服务
 func Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, method, "", path, serviceFunc, WebServiceOptions{})
+	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{})
 }
 
 // 注册服务
 func RegisterWithOptions(authLevel int, host, path string, serviceFunc interface{}, options WebServiceOptions) {
-	RestfulWithOptions(authLevel, "", host, path, serviceFunc, options)
+	RestfulWithOptions(authLevel, "", path, serviceFunc, options)
 }
 
 // 注册服务
-func RestfulWithOptions(authLevel int, method, host, path string, serviceFunc interface{}, options WebServiceOptions) {
+func RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, options WebServiceOptions) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		logError(err.Error(), "authLevel", authLevel, "priority", options.Priority, "path", path, "method", method)
@@ -213,7 +213,6 @@ func RestfulWithOptions(authLevel int, method, host, path string, serviceFunc in
 	s.authLevel = authLevel
 	s.options = options
 	s.method = method
-	s.host = host
 	s.path = path
 	finder, err := regexp.Compile("{(.*?)}")
 	if err == nil {
@@ -238,7 +237,7 @@ func RestfulWithOptions(authLevel int, method, host, path string, serviceFunc in
 		}
 	}
 	if s.pathMatcher == nil {
-		webServices[fmt.Sprint(host, method, path)] = s
+		webServices[fmt.Sprint(options.Host, method, path)] = s
 	}
 }
 

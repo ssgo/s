@@ -475,7 +475,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			if tmpS.method != "" && tmpS.method != request.Method {
 				continue
 			}
-			if tmpS.host != "" && tmpS.host != request.Host {
+			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
 				continue
 			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
@@ -500,7 +500,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		//for _, tmpS := range regexWebsocketServices {
 		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
 			tmpS := regexWebsocketServices[i]
-			if tmpS.host != "" && tmpS.host != request.Host {
+			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
 				continue
 			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
