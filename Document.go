@@ -65,7 +65,7 @@ func MakeDocument() ([]Api, []Argot) {
 			Type:      "Web",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
-			Priority:  a.priority,
+			Priority:  a.options.Priority,
 			Method:    a.method,
 			In:        "",
 			Out:       "",
@@ -84,7 +84,7 @@ func MakeDocument() ([]Api, []Argot) {
 			Type:      "Web",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
-			Priority:  a.priority,
+			Priority:  a.options.Priority,
 			Method:    a.method,
 			In:        "",
 			Out:       "",
@@ -111,7 +111,7 @@ func MakeDocument() ([]Api, []Argot) {
 			Type:      "WebSocket",
 			Path:      a.path,
 			AuthLevel: a.authLevel,
-			Priority:  a.priority,
+			Priority:  a.options.Priority,
 			In:        "",
 			Out:       "",
 		}
@@ -206,7 +206,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 				delete(out4, "Result")
 			}
 			a.Out = out4
-		}else{
+		} else {
 			//fmt.Println(">>>>>>>", a.Out)
 		}
 		data3, _ := json.Marshal(a.Out)
@@ -240,6 +240,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 			}
 		}
 	}
+
 	t := template.New(title)
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
 	_, err := t.ParseFiles(realFromFile)

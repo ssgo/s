@@ -16,7 +16,6 @@ import (
 
 type websocketServiceType struct {
 	authLevel         int
-	priority          int
 	host              string
 	path              string
 	pathMatcher       *regexp.Regexp
@@ -44,6 +43,7 @@ type websocketServiceType struct {
 	encoder           func(string, interface{}) interface{}
 	actions           map[string]*websocketActionType
 	isSimple          bool
+	options           WebServiceOptions
 }
 
 type websocketActionType struct {
@@ -71,11 +71,11 @@ var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{
 
 // 注册Websocket服务
 func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithPriority(authLevel, 0, "", path, onOpen)
+	RegisterSimpleWebsocketWithOptions(authLevel, "", path, onOpen, WebServiceOptions{})
 }
 
-func RegisterSimpleWebsocketWithPriority(authLevel int, priority int, host, path string, onOpen interface{}) {
-	RegisterWebsocketWithPriority(authLevel, priority, host, path, nil, onOpen, nil, nil, nil, true)
+func RegisterSimpleWebsocketWithOptions(authLevel int, host, path string, onOpen interface{}, options WebServiceOptions) {
+	RegisterWebsocketWithOptions(authLevel, host, path, nil, onOpen, nil, nil, nil, true, options)
 }
 
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
@@ -83,20 +83,20 @@ func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithPriority(authLevel, 0, "", path, updater, onOpen, onClose, decoder, encoder, false)
+	return RegisterWebsocketWithOptions(authLevel, "", path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
 }
 
 // 注册Websocket服务
-func RegisterWebsocketWithPriority(authLevel, priority int, host, path string, updater *websocket.Upgrader,
+func RegisterWebsocketWithOptions(authLevel int, host, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool) *ActionRegister {
+	encoder func(action string, data interface{}) interface{}, isSimple bool, options WebServiceOptions) *ActionRegister {
 
 	s := new(websocketServiceType)
 	s.isSimple = isSimple
 	s.authLevel = authLevel
-	s.priority = priority
+	s.options = options
 	s.host = host
 	s.path = path
 	if updater == nil {
@@ -179,7 +179,7 @@ func RegisterWebsocketWithPriority(authLevel, priority int, host, path string, u
 			if err != nil {
 				logError(err.Error(), Map{
 					"authLevel": authLevel,
-					"priority":  priority,
+					"priority":  options.Priority,
 					"path":      path,
 				})
 				//log.Print("RegisterWebsocket	Compile	", err)

@@ -14,9 +14,14 @@ import (
 	"strings"
 )
 
+type WebServiceOptions struct {
+	Priority int
+	NoBody   bool
+	NoLog200 bool
+}
+
 type webServiceType struct {
 	authLevel           int
-	priority            int
 	method              string
 	host                string
 	path                string
@@ -35,6 +40,7 @@ type webServiceType struct {
 	callerIndex         int
 	funcType            reflect.Type
 	funcValue           reflect.Value
+	options             WebServiceOptions
 }
 
 var webServices = make(map[string]*webServiceType)
@@ -148,37 +154,37 @@ func Host(host string) HostRegister {
 }
 
 func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, 0, "", host.host, path, serviceFunc)
+	RestfulWithOptions(authLevel, "", host.host, path, serviceFunc, WebServiceOptions{})
 }
 func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, 0, method, host.host, path, serviceFunc)
+	RestfulWithOptions(authLevel, method, host.host, path, serviceFunc, WebServiceOptions{})
 }
-func (host *HostRegister) RegisterWithPriority(authLevel, priority int, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, priority, "", host.host, path, serviceFunc)
+func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, options WebServiceOptions) {
+	RestfulWithOptions(authLevel, "", host.host, path, serviceFunc, WebServiceOptions{})
 }
-func (host *HostRegister) RestfulWithPriority(authLevel, priority int, method, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, priority, method, host.host, path, serviceFunc)
+func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, options WebServiceOptions) {
+	RestfulWithOptions(authLevel, method, host.host, path, serviceFunc, WebServiceOptions{})
 }
 func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithPriority(authLevel, 0, "", path, onOpen)
+	RegisterSimpleWebsocketWithOptions(authLevel, "", path, onOpen, WebServiceOptions{})
 }
 
-func (host *HostRegister) RegisterSimpleWebsocketWithPriority(authLevel int, priority int, path string, onOpen interface{}) {
-	RegisterWebsocketWithPriority(authLevel, priority, host.host, path, nil, onOpen, nil, nil, nil, true)
+func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
+	RegisterWebsocketWithOptions(authLevel, host.host, path, nil, onOpen, nil, nil, nil, true, options)
 }
 func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithPriority(authLevel, 0, host.host, path, updater, onOpen, onClose, decoder, encoder, false)
+	return RegisterWebsocketWithOptions(authLevel, host.host, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
 }
-func (host *HostRegister) RegisterWebsocketWithPriority(authLevel, priority int, path string, updater *websocket.Upgrader,
+func (host *HostRegister) RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool) *ActionRegister {
-	return RegisterWebsocketWithPriority(authLevel, 0, host.host, path, updater, onOpen, onClose, decoder, encoder, false)
+	encoder func(action string, data interface{}) interface{}, isSimple bool, options WebServiceOptions) *ActionRegister {
+	return RegisterWebsocketWithOptions(authLevel, host.host, path, updater, onOpen, onClose, decoder, encoder, false, options)
 }
 
 // 注册服务
@@ -188,24 +194,24 @@ func Register(authLevel int, path string, serviceFunc interface{}) {
 
 // 注册服务
 func Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, 0, method, "", path, serviceFunc)
+	RestfulWithOptions(authLevel, method, "", path, serviceFunc, WebServiceOptions{})
 }
 
 // 注册服务
-func RegisterWithPriority(authLevel, priority int, host, path string, serviceFunc interface{}) {
-	RestfulWithPriority(authLevel, priority, "", host, path, serviceFunc)
+func RegisterWithOptions(authLevel int, host, path string, serviceFunc interface{}, options WebServiceOptions) {
+	RestfulWithOptions(authLevel, "", host, path, serviceFunc, options)
 }
 
 // 注册服务
-func RestfulWithPriority(authLevel, priority int, method, host, path string, serviceFunc interface{}) {
+func RestfulWithOptions(authLevel int, method, host, path string, serviceFunc interface{}, options WebServiceOptions) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
-		logError(err.Error(), "authLevel", authLevel, "priority", priority, "path", path, "method", method)
+		logError(err.Error(), "authLevel", authLevel, "priority", options.Priority, "path", path, "method", method)
 		return
 	}
 
 	s.authLevel = authLevel
-	s.priority = priority
+	s.options = options
 	s.method = method
 	s.host = host
 	s.path = path
@@ -222,7 +228,7 @@ func RestfulWithPriority(authLevel, priority int, method, host, path string, ser
 			if err != nil {
 				logError(err.Error(), Map{
 					"authLevel": authLevel,
-					"priority":  priority,
+					"priority":  options.Priority,
 					"path":      path,
 					"method":    method,
 				})

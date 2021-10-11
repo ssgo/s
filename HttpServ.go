@@ -565,8 +565,22 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 	}
 
+	noBody := false
+	noLog200 := false
+	if s != nil {
+		noBody = s.options.NoBody
+		noLog200 = s.options.NoLog200
+	} else if ws != nil {
+		noBody = ws.options.NoBody
+		noLog200 = ws.options.NoLog200
+	}
+
+	if noLog200 {
+		response.dontLog200 = true
+	}
+
 	// POST
-	if request.Body != nil {
+	if request.Body != nil && !noBody {
 		contentType := request.Header.Get("Content-Type")
 		if strings.HasPrefix(contentType, "application/json") {
 			bodyBytes, _ := ioutil.ReadAll(request.Body)
