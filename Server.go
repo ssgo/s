@@ -2,6 +2,8 @@ package s
 
 import (
 	"fmt"
+	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/process"
 	"github.com/ssgo/config"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/httpclient"
@@ -10,11 +12,13 @@ import (
 	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"golang.org/x/net/http2"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,15 +40,17 @@ type serviceConfig struct {
 	NoLogHeaders                  string
 	NoLogInputFields              bool
 	LogInputArrayNum              int
+	LogInputFieldSize             int
 	NoLogOutputFields             string
 	LogOutputArrayNum             int
+	LogOutputFieldSize            int
 	LogWebsocketAction            bool
 	Compress                      bool
 	CompressMinSize               int
 	CompressMaxSize               int
 	CertFile                      string
 	KeyFile                       string
-	CheckDomain                   string
+	CheckDomain                   string // 心跳检测时使用域名
 	AccessTokens                  map[string]*int
 	RewriteTimeout                int
 	AcceptXRealIpWithoutRequestId bool
@@ -53,6 +59,11 @@ type serviceConfig struct {
 	Fast                          bool
 	MaxUploadSize                 int64
 	IpPrefix                      string // 指定使用的IP网段，默认排除 172.17
+	Cpu                           int    // CPU占用的核数，默认为0，即不做限制
+	Memory                        int    // 内存（单位M），默认为0，即不做限制
+	CpuMonitor                    bool
+	MemoryMonitor                 bool
+	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
 }
 
 type Argot string
@@ -73,6 +84,13 @@ var _argots = make([]Argot, 0)
 var Config = serviceConfig{}
 
 var accessTokens = map[string]*int{}
+
+var _cpuOverTimes uint = 0
+var _memoryOutTimes uint = 0
+
+func GetCPUMemoryStat() (uint, uint) {
+	return _cpuOverTimes, _memoryOutTimes
+}
 
 //var callTokens = map[string]*string{}
 
@@ -142,7 +160,7 @@ func NewTimerServer(name string, interval time.Duration, run func(*bool), start 
 	if interval < time.Millisecond*500 {
 		interval = time.Millisecond * 500
 	}
-	intervalTimes := int(interval / time.Millisecond * 500)
+	intervalTimes := int(interval / (time.Millisecond * 500))
 	timerServers = append(timerServers, &timerServer{name: name, intervalDuration: interval, intervalTimes: intervalTimes, run: run, start: start, stop: stop})
 }
 
@@ -193,7 +211,8 @@ func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[s
 }
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
-	if request.Header.Get("Pid") != strconv.Itoa(serviceInfo.pid) {
+	pid := request.Header.Get("Pid")
+	if pid != "" && pid != strconv.Itoa(serviceInfo.pid) {
 		response.WriteHeader(ResponseCodeHeartbeatPidError)
 		return
 	}
@@ -203,6 +222,16 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 		ok = running && checker(request)
 	} else {
 		ok = running
+	}
+
+	cpuOverTimes, memoryOutTimes := GetCPUMemoryStat()
+	if ok && Config.CpuMonitor && cpuOverTimes >= 10 {
+		// CPU连续10分钟达到 100%
+		ok = false
+	}
+	if ok && Config.MemoryMonitor && memoryOutTimes >= 10 {
+		// 内存连续10分钟达到 100%
+		ok = false
 	}
 
 	if ok {
@@ -430,7 +459,15 @@ func Init() {
 	}
 
 	if Config.LogOutputArrayNum <= 0 {
-		Config.LogOutputArrayNum = 2
+		Config.LogOutputArrayNum = 10
+	}
+
+	if Config.LogInputFieldSize <= 0 {
+		Config.LogInputFieldSize = 10240
+	}
+
+	if Config.LogOutputFieldSize <= 0 {
+		Config.LogOutputFieldSize = 1024
 	}
 
 	if Config.MaxUploadSize <= 0 {
@@ -457,6 +494,140 @@ func Init() {
 	}
 
 	serverAddr = Config.Listen
+
+	if Config.CookieScope == "" {
+		Config.CookieScope = "host"
+	}
+
+	// CPU和内存限制
+	if Config.Cpu > 0 {
+		if runtime.NumCPU() < Config.Cpu {
+			Config.Cpu = runtime.NumCPU()
+		}
+		runtime.GOMAXPROCS(Config.Cpu)
+	} else {
+		Config.Cpu = runtime.NumCPU()
+	}
+
+	if Config.Memory <= 0 {
+		if memoryInfo, err := mem.VirtualMemory(); err == nil {
+			Config.Memory = int(memoryInfo.Total / 1024 / 1024)
+		} else {
+			Config.Memory = 8192
+		}
+	}
+	if Config.Memory < 256 {
+		Config.Memory = 256
+	}
+	//ms := runtime.MemStats{}
+	//runtime.ReadMemStats(&ms)
+
+	if Config.CpuMonitor || Config.MemoryMonitor {
+		var serviceProcess *process.Process
+		var cpuCounter *Counter
+		var memoryCounter *Counter
+		var memoryStat = runtime.MemStats{}
+		NewTimerServer("serverMonitor", time.Minute, func(serverRunning *bool) {
+			if Config.MemoryMonitor {
+				runtime.ReadMemStats(&memoryStat)
+				memoryUsed := byteToM(memoryStat.Sys)
+				memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
+				if memoryPercent >= 60 {
+					memoryCounter.AddFailed(memoryPercent)
+				} else {
+					memoryCounter.Add(memoryPercent)
+				}
+
+				if memoryPercent >= 100 {
+					_memoryOutTimes++
+				} else {
+					_memoryOutTimes = 0
+				}
+
+				if memoryCounter.Times >= 10 {
+					memoryCounter.Count()
+					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					if memoryPercent >= 100 {
+						logError("out of memory", memoryInfo...)
+					} else if memoryPercent >= 80 {
+						logError("memory danger", memoryInfo...)
+					} else if memoryPercent >= 60 {
+						logError("memory warning", memoryInfo...)
+					}
+					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					memoryCounter.Reset()
+				}
+			}
+
+			if Config.CpuMonitor && serviceProcess != nil {
+				if cpuPercent, err := serviceProcess.CPUPercent(); err == nil {
+					if cpuPercent >= 60 {
+						cpuCounter.AddFailed(cpuPercent)
+					} else {
+						cpuCounter.Add(cpuPercent)
+					}
+
+					if cpuPercent >= 100 {
+						_cpuOverTimes++
+					} else {
+						_cpuOverTimes = 0
+					}
+
+					if cpuCounter.Times >= 10 {
+						cpuCounter.Count()
+						numThreads, _ := serviceProcess.NumThreads()
+						cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+						if cpuPercent >= 100 {
+							logError("over load of cpu", cpuInfo...)
+						} else if cpuPercent >= 80 {
+							logError("cpu danger", cpuInfo...)
+						} else if cpuPercent >= 60 {
+							logError("cpu warning", cpuInfo...)
+						}
+						serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+						cpuCounter.Reset()
+					}
+				}
+			}
+		}, func() {
+			if Config.MemoryMonitor {
+				memoryCounter = NewCounter()
+			}
+
+			if Config.CpuMonitor {
+				var err error
+				serviceProcess, err = process.NewProcess(int32(os.Getpid()))
+				if err != nil {
+					logError(err.Error())
+					serviceProcess = nil
+				}
+				cpuCounter = NewCounter()
+			}
+		}, func() {
+			if Config.MemoryMonitor {
+				if memoryCounter.Times >= 1 {
+					memoryUsed := byteToM(memoryStat.Sys)
+					memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
+					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					memoryCounter.Reset()
+				}
+			}
+
+			if Config.CpuMonitor && serviceProcess != nil {
+				if cpuCounter.Times >= 1 {
+					numThreads, _ := serviceProcess.NumThreads()
+					cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+					serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+					cpuCounter.Reset()
+				}
+			}
+		})
+	}
+}
+
+func byteToM(n uint64) int {
+	return int(math.Round(float64(n) / 1024 / 1024))
 }
 
 var timeStatistic *TimeStatistician
@@ -596,7 +767,7 @@ func (as *AsyncServer) Start() {
 	}
 
 	for _, ts := range timerServers {
-		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration)
+		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration/time.Second)
 		if ts.start != nil {
 			ts.start()
 		}
@@ -621,7 +792,7 @@ func (as *AsyncServer) Start() {
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
 
-	logInfo("started")
+	logInfo("started", "cpuCoreNum", Config.Cpu, "maxMemory", Config.Memory)
 	if Config.StatisticTime {
 		// 统计请求个阶段的处理时间
 		timeStatistic = NewTimeStatistic(serverLogger)
@@ -704,19 +875,20 @@ func runTimerServer(ts *timerServer) {
 			break
 		}
 
-		if ts.run != nil {
-			ts.run(&ts.running)
-		}
-
-		if !ts.running {
-			break
-		}
 		for i := 0; i < ts.intervalTimes; i++ {
 			time.Sleep(time.Millisecond * 500)
 			if !ts.running {
 				break
 			}
 		}
+		if !ts.running {
+			break
+		}
+
+		if ts.run != nil {
+			ts.run(&ts.running)
+		}
+
 		if !ts.running {
 			break
 		}

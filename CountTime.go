@@ -15,12 +15,12 @@ type TimeStatistician struct {
 	stepNames    []string
 	stepTotals   []float64
 	stepTimes    []int
-	stepMinimums []float32
-	stepMaxes    []float32
+	stepMinimums []float64
+	stepMaxes    []float64
 	total        float64
 	times        int
-	totalMinimum float32
-	totalMax     float32
+	totalMinimum float64
+	totalMax     float64
 	lock         sync.Mutex
 	logger       *log.Logger
 }
@@ -29,8 +29,8 @@ type TimeCounter struct {
 	start     int64
 	last      int64
 	stepNames []string
-	stepTimes []float32
-	total     float32
+	stepTimes []float64
+	total     float64
 }
 
 func StartTimeCounter() *TimeCounter {
@@ -38,18 +38,18 @@ func StartTimeCounter() *TimeCounter {
 	return &TimeCounter{start: now, last: now}
 }
 
-func (t *TimeCounter) Add(name string) float32 {
+func (t *TimeCounter) Add(name string) float64 {
 	now := time.Now().UnixNano()
-	used := float32(now-t.last) / float32(time.Millisecond)
+	used := float64(now-t.last) / float64(time.Millisecond)
 	t.last = now
 	t.stepNames = append(t.stepNames, name)
 	t.stepTimes = append(t.stepTimes, used)
 	return used
 }
 
-func (t *TimeCounter) Total() float32 {
+func (t *TimeCounter) Total() float64 {
 	if t.total == 0 {
-		t.total = float32(t.last-t.start) / float32(time.Millisecond)
+		t.total = float64(t.last-t.start) / float64(time.Millisecond)
 	}
 	return t.total
 }
@@ -68,7 +68,7 @@ func (t *TimeCounter) Print() {
 }
 
 func NewTimeStatistic(logger *log.Logger) *TimeStatistician {
-	return &TimeStatistician{logger: logger, lock: sync.Mutex{}, startTime: time.Now(), stepNames: make([]string, 0), stepMinimums: make([]float32, 0), stepMaxes: make([]float32, 0), stepTotals: make([]float64, 0), stepTimes: make([]int, 0)}
+	return &TimeStatistician{logger: logger, lock: sync.Mutex{}, startTime: time.Now(), stepNames: make([]string, 0), stepMinimums: make([]float64, 0), stepMaxes: make([]float64, 0), stepTotals: make([]float64, 0), stepTimes: make([]int, 0)}
 }
 
 func (t *TimeStatistician) Push(c *TimeCounter) string {
@@ -132,7 +132,7 @@ func (t *TimeStatistician) Push(c *TimeCounter) string {
 func (t *TimeStatistician) Log() {
 	for i, name := range t.stepNames {
 		avg := t.stepTotals[i] / float64(t.stepTimes[i])
-		t.logger.Statistic(serverId, discover.Config.App, "s-request-"+name, t.startTime, t.endTime, uint(t.times), 0, float32(avg), t.stepMinimums[i], t.stepMaxes[i])
+		t.logger.Statistic(serverId, discover.Config.App, "s-request-"+name, t.startTime, t.endTime, uint(t.times), 0, avg, t.stepMinimums[i], t.stepMaxes[i])
 	}
-	t.logger.Statistic(serverId, discover.Config.App, "s-request-Total", t.startTime, t.endTime, uint(t.times), 0, float32(t.total/float64(t.times)), t.totalMinimum, t.totalMax)
+	t.logger.Statistic(serverId, discover.Config.App, "s-request-Total", t.startTime, t.endTime, uint(t.times), 0, t.total/float64(t.times), t.totalMinimum, t.totalMax)
 }

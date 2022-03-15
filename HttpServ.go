@@ -251,6 +251,22 @@ func (response *Response) DownloadFile(contentType, filename string, data interf
 	}
 }
 
+func GetDomainWithScope(request *http.Request, scope string) string {
+	host := request.Header.Get(standard.DiscoverHeaderHost)
+	if scope == "domain" {
+		return strings.SplitN(host, ":", 2)[0]
+	} else if scope == "topDomain" {
+		domain := strings.SplitN(host, ":", 2)[0]
+		domainParts := strings.Split(domain, ".")
+		if len(domainParts) >= 2 {
+			domain = domainParts[len(domainParts)-2] + "." + domainParts[len(domainParts)-1]
+		}
+		return domain
+	} else {
+		return host
+	}
+}
+
 type routeHandler struct {
 	webRequestingNum int64
 	wsConns          map[string]*websocket.Conn
@@ -331,17 +347,33 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 		// SessionId
 		if usedSessionIdKey != "" {
-			//if request.Header.Get(usedSessionIdKey) == "" {
-			//	newSessionid := u.UniqueId()
-			//	request.Header.Set(usedSessionIdKey, newSessionid)
-			//	response.Header().Set(usedSessionIdKey, newSessionid)
-			//}
+			// 优先从 Header 中读取
+			sessionId := request.Header.Get(usedSessionIdKey)
+			if sessionId == "" {
+				// 尝试从 Cookie 中读取
+				if cookie, err := request.Cookie(usedSessionIdKey); err == nil {
+					sessionId = cookie.Value
+				}
+			}
+			if sessionId == "" {
+				// 自动生成 SessionId
+				sessionId = UniqueId20()
+				http.SetCookie(response, &http.Cookie{
+					Name:     usedSessionIdKey,
+					Value:    sessionId,
+					Domain:   GetDomainWithScope(request, Config.CookieScope),
+					Path:     "/",
+					HttpOnly: true,
+				})
+				response.Header().Set(usedSessionIdKey, sessionId)
+			}
 			// 为了在服务间调用时续传 SessionId
-			request.Header.Set(standard.DiscoverHeaderSessionId, request.Header.Get(usedSessionIdKey))
+			request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
 		}
 
 		// DeviceId
 		if usedDeviceIdKey != "" {
+			// 优先从 Header 中读取
 			deviceId := request.Header.Get(usedDeviceIdKey)
 			if deviceId == "" {
 				// 尝试从 Cookie 中读取
@@ -350,21 +382,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				}
 			}
 			if deviceId == "" {
-				// 自动生成基于 Cookie 的 DeviceId
+				// 自动生成 DeviceId
 				deviceId = UniqueId20()
-				domain := strings.SplitN(host, ":", 2)[0]
-				domainParts := strings.Split(domain, ".")
-				if len(domainParts) >= 2 {
-					domain = domainParts[len(domainParts)-2] + "." + domainParts[len(domainParts)-1]
-				}
 				http.SetCookie(response, &http.Cookie{
 					Name:     usedDeviceIdKey,
 					Value:    deviceId,
+					Domain:   GetDomainWithScope(request, Config.CookieScope),
 					Path:     "/",
-					Domain:   domain,
 					Expires:  time.Now().AddDate(10, 0, 0),
 					HttpOnly: true,
 				})
+				response.Header().Set(usedDeviceIdKey, deviceId)
 			}
 			// 为了在服务间调用时续传 DeviceId
 			request.Header.Set(standard.DiscoverHeaderDeviceId, deviceId)
@@ -449,17 +477,29 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//fmt.Println(request.Host, request.Method, requestPath)
 	//fmt.Println(u.JsonP(webServices))
 
+	webServicesLock.RLock()
 	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
+	webServicesLock.RUnlock()
 	if s == nil {
+		webServicesLock.RLock()
 		s = webServices[fmt.Sprint(host, requestPath)]
+		webServicesLock.RUnlock()
 		if s == nil {
+			webServicesLock.RLock()
 			s = webServices[fmt.Sprint(request.Method, requestPath)]
+			webServicesLock.RUnlock()
 			if s == nil {
+				webServicesLock.RLock()
 				s = webServices[requestPath]
+				webServicesLock.RUnlock()
 				if s == nil {
+					websocketServicesLock.RLock()
 					ws = websocketServices[fmt.Sprint(host, requestPath)]
+					websocketServicesLock.RUnlock()
 					if ws == nil {
+						websocketServicesLock.RLock()
 						ws = websocketServices[requestPath]
+						websocketServicesLock.RUnlock()
 					}
 				}
 			}
@@ -691,18 +731,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			} else {
 				var outData interface{}
 				var outLen int
-				if !response.changed {
-					outBytes := makeOutput(webAuthFailedData)
-					n, err := response.Write(outBytes)
-					if err != nil {
-						logError(err.Error(), "wrote", n)
-					}
-					outData = webAuthFailedData
-					outLen = len(outBytes)
-				} else {
-					outData = nil
-					outLen = response.outLen
+				outBytes := makeOutput(webAuthFailedData)
+				n, err := response.Write(outBytes)
+				if err != nil {
+					logError(err.Error(), "wrote", n)
 				}
+				outData = webAuthFailedData
+				outLen = len(outBytes)
 				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, logHeaders, &startTime, authLevel, nil)
 			}
 			return
@@ -874,7 +909,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 
 	var loggableRequestArgs map[string]interface{}
 	if args != nil {
-		fixedArgs := makeLogableData(reflect.ValueOf(args), nil, Config.LogInputArrayNum, 1).Interface()
+		fixedArgs := makeLogableData(reflect.ValueOf(args), nil, Config.LogInputArrayNum, Config.LogInputFieldSize, 1).Interface()
 		if v, ok := fixedArgs.(map[string]interface{}); ok {
 			loggableRequestArgs = v
 		} else {
@@ -886,7 +921,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 
 	fixedResult := ""
 	if result != nil {
-		resultValue := makeLogableData(reflect.ValueOf(result), noLogOutputFields, Config.LogOutputArrayNum, 1)
+		resultValue := makeLogableData(reflect.ValueOf(result), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1)
 		if resultValue.IsValid() && resultValue.CanInterface() {
 			resultBytes, err := json.Marshal(resultValue.Interface())
 			if err == nil {
@@ -912,7 +947,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
 }
 
-func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, level int) reflect.Value {
+func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, fieldSize int, level int) reflect.Value {
 	t := v.Type()
 	if t == nil {
 		return reflect.ValueOf(nil)
@@ -931,20 +966,27 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 		v2 := reflect.MakeMap(reflect.TypeOf(Map{}))
 		for i := 0; i < v.NumField(); i++ {
 			k := t.Field(i).Name
+			if k[0] < 'A' || k[0] > 'Z' {
+				continue
+			}
+			if t.Field(i).Tag.Get("log") == "no" {
+				continue
+			}
+
 			if t.Field(i).Anonymous {
 				// 继承的结构
-				v3 := makeLogableData(v.Field(i), notAllows, numArrays, level)
+				v3 := makeLogableData(v.Field(i), notAllows, numArrays, fieldSize, level)
 				for _, mk := range v3.MapKeys() {
-					v2.SetMapIndex(mk, makeLogableData(v3.MapIndex(mk), notAllows, numArrays, level+1))
+					v2.SetMapIndex(mk, makeLogableData(v3.MapIndex(mk), notAllows, numArrays, fieldSize, level+1))
 				}
 				continue
 			}
 
-			//log.DefaultLogger.Info("  ========!!!", "level", level, "k", k, "allow", allows[strings.ToLower(k)])
+			//log.DefaultLogger.Info("  ========!!!", "level", level, "k", k)
 			if notAllows != nil && notAllows[strings.ToLower(k)] {
 				continue
 			}
-			v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), notAllows, numArrays, level+1))
+			v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), notAllows, numArrays, fieldSize, level+1))
 		}
 		return v2
 	case reflect.Map:
@@ -954,11 +996,12 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 			if notAllows != nil && notAllows[strings.ToLower(k)] {
 				continue
 			}
-			v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, level+1))
+			v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, fieldSize, level+1))
 		}
 		return v2
 	case reflect.Slice:
 		if numArrays == 0 {
+			// 不记录数组内容
 			var tStr string
 			if t.Elem().Kind() == reflect.Interface && v.Len() > 0 {
 				if v.Index(0).CanInterface() {
@@ -977,7 +1020,7 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 				break
 			}
 			if v.Index(i).Kind() == reflect.Ptr && !v.Index(i).IsNil() {
-				v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, level+1))
+				v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, fieldSize, level+1))
 			} else {
 				v2 = reflect.Append(v2, v.Index(i))
 			}
@@ -989,10 +1032,15 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 			return reflect.ValueOf(nil)
 		}
 		if v2.Type().Kind() != reflect.Interface {
-			return makeLogableData(v2, nil, numArrays, level)
+			return makeLogableData(v2, nil, numArrays, fieldSize, level)
 		} else {
 			return v2
 		}
+	case reflect.String:
+		if fieldSize == 0 || fieldSize > v.Len() {
+			return v
+		}
+		return reflect.ValueOf(v.String()[0:fieldSize])
 	default:
 		return v
 	}

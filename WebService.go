@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type WebServiceOptions struct {
@@ -45,6 +46,9 @@ type webServiceType struct {
 
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make([]*webServiceType, 0)
+var webServicesLock = sync.RWMutex{}
+
+//var regexWebServicesLock = sync.RWMutex{}
 
 var inFilters = make([]func(map[string]interface{}, *http.Request, *Response) interface{}, 0)
 var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}) (interface{}, bool), 0)
@@ -159,16 +163,18 @@ func (host *HostRegister) Register(authLevel int, path string, serviceFunc inter
 func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}) {
 	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, options WebServiceOptions) {
+func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, options WebServiceOptions) {
+func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}) {
 	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
+}
+func (host *HostRegister) Unregister(method, path string) {
+	unregister(method, path, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
 	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, WebServiceOptions{Host: host.host})
 }
-
 func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
 	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, options)
 }
@@ -237,8 +243,22 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 		}
 	}
 	if s.pathMatcher == nil {
+		webServicesLock.Lock()
 		webServices[fmt.Sprint(options.Host, method, path)] = s
+		webServicesLock.Unlock()
 	}
+}
+
+// 注册服务
+func Unregister(method, path string) {
+	unregister(method, path, WebServiceOptions{})
+}
+
+// 注册服务
+func unregister(method, path string, options WebServiceOptions) {
+	webServicesLock.Lock()
+	delete(webServices, fmt.Sprint(options.Host, method, path))
+	webServicesLock.Unlock()
 }
 
 // 设置前置过滤器

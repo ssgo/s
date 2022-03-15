@@ -2,6 +2,7 @@ package s
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"github.com/ssgo/log"
@@ -185,6 +186,9 @@ func MakeHtmlDocumentFile(title, toFile string) string {
 	return MakeHtmlDocumentFromFile(title, toFile, "DocTpl.html")
 }
 
+//go:embed DocTpl.html
+var defaultDocTpl string
+
 // 生成文档并存储到 html 文件中，使用指定html模版
 func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	api, argots := MakeDocument()
@@ -233,8 +237,9 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 					}
 					realFromFile = gopath + "/src/github.com/ssgo/" + fromFile
 					if fi, err := os.Stat(realFromFile); err != nil || fi == nil {
-						log.DefaultLogger.Error("template file is bad: " + err.Error())
-						return ""
+						realFromFile = ""
+						//log.DefaultLogger.Error("template file is bad: " + err.Error())
+						//return ""
 					}
 				}
 			}
@@ -243,7 +248,12 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 
 	t := template.New(title)
 	t.Funcs(template.FuncMap{"isMap": isMap, "toText": toText})
-	_, err := t.ParseFiles(realFromFile)
+	var err error
+	if realFromFile != "" {
+		_, err = t.ParseFiles(realFromFile)
+	} else {
+		_, err = t.Parse(defaultDocTpl)
+	}
 	if err != nil {
 		log.DefaultLogger.Error("template file is bad: " + err.Error())
 		return ""

@@ -66,8 +66,7 @@ var serviceInfo serviceInfoType
 var inDocumentMode = false
 
 func init() {
-	//os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
-	os.Chdir(path.Dir("/opt/bb/server"))
+	_ = os.Chdir(path.Dir(os.Args[0]))
 	serviceInfo = serviceInfoType{pidFile: "." + strings.Replace(os.Args[0], "/", "_", 100) + ".pid"}
 	serviceInfo.load()
 

@@ -69,7 +69,7 @@ func uniqueId() []byte {
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
 							if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
 								makeServerIndexOk = true
-								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex)
+								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex, "uidFile", serverIdInFile)
 							}
 						}
 					}
@@ -115,7 +115,7 @@ func uniqueId() []byte {
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
 							if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
 								makeServerIndexOk = true
-								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex)
+								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex, "uidFile", serverIdInFile)
 							}
 						}
 					}
