@@ -1,6 +1,8 @@
 package s
 
 import (
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/shirou/gopsutil/process"
@@ -33,8 +35,9 @@ var inited = false
 var running = false
 
 type serviceConfig struct {
-	Listen                        string
-	HttpVersion                   int
+	Listen string
+	SSL    map[string]*CertSet
+	//HttpVersion                   int
 	KeepaliveTimeout              int
 	NoLogGets                     bool
 	NoLogHeaders                  string
@@ -64,6 +67,11 @@ type serviceConfig struct {
 	CpuMonitor                    bool
 	MemoryMonitor                 bool
 	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
+}
+
+type CertSet struct {
+	CertFile string
+	KeyFile  string
 }
 
 type Argot string
@@ -129,12 +137,13 @@ var noLogHeaders = map[string]bool{}
 //var encryptLogFields = map[string]bool{}
 var noLogOutputFields = map[string]bool{}
 
-var serverId = u.ShortUniqueId()
+var serverId = u.UniqueId()
 var serverStartTime = time.Now()
 var serverLogger = log.New(serverId)
 
 var serverAddr string
-var serverProto string
+var serverProto = "http"
+var serverProtoName = "http"
 var checker func(request *http.Request) bool
 
 var shutdownHooks = make([]func(), 0)
@@ -256,11 +265,12 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 //}
 
 type Listen struct {
-	listener    net.Listener
-	addr        string
-	httpVersion int
-	certFile    string
-	keyFile     string
+	listener net.Listener
+	addr     string
+	protocol string
+	//httpVersion int
+	//certFile    string
+	//keyFile     string
 }
 
 type AsyncServer struct {
@@ -361,7 +371,8 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 	return as.Do("HEAD", path, data, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
-	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
 	if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
 		as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
 	}
@@ -383,7 +394,8 @@ func AsyncStart() *AsyncServer {
 	as.Start()
 	//start(as)
 	<-as.startChan
-	if Config.HttpVersion == 1 || Config.CertFile != "" {
+	//if Config.HttpVersion == 1 || Config.CertFile != "" {
+	if as.listens[0].protocol != "h2c" {
 		as.clientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 	} else {
 		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.RewriteTimeout) * time.Millisecond)
@@ -472,21 +484,6 @@ func Init() {
 
 	if Config.MaxUploadSize <= 0 {
 		Config.MaxUploadSize = 1024 * 1024 * 10
-	}
-
-	if Config.HttpVersion == 1 {
-		if Config.CertFile == "" {
-			serverProto = "http"
-		} else {
-			serverProto = "https"
-		}
-	} else {
-		Config.HttpVersion = 2
-		if Config.CertFile == "" {
-			serverProto = "h2c"
-		} else {
-			serverProto = "h2"
-		}
 	}
 
 	if Config.Listen == "" {
@@ -683,31 +680,61 @@ func (as *AsyncServer) Start() {
 		if listenStr == "" {
 			continue
 		}
-		listenArr := strings.Split(listenStr, ",")
-		listen := Listen{httpVersion: Config.HttpVersion, keyFile: Config.KeyFile, certFile: Config.CertFile}
-		keyFileOk := false
+		listenArr := u.SplitWithoutNone(listenStr, ",")
+		//listen := Listen{httpVersion: Config.HttpVersion, keyFile: Config.KeyFile, certFile: Config.CertFile}
+		listen := Listen{addr: "", protocol: "http"}
+		//keyFileOk := false
 		for i, s := range listenArr {
 			if i == 0 {
 				listen.addr = s
 				if strings.IndexRune(listen.addr, ':') == -1 {
 					listen.addr = ":" + listen.addr
 				}
-			} else {
-				intValue, err := strconv.Atoi(s)
-				if err == nil && (intValue == 1 && intValue <= 2) {
-					listen.httpVersion = intValue
-				} else {
-					if !keyFileOk {
-						keyFileOk = true
-						listen.keyFile = s
-					} else {
-						listen.certFile = s
-					}
+				if listen.addr == ":" {
+					// 未指定监听，默认使用h2c协议运行在随机端口
+					listen.protocol = "h2c"
+				} else if strings.HasSuffix(s, "443") {
+					// 尾号为443的端口，默认使用https协议
+					listen.protocol = "https"
 				}
+			} else if s == "http" || s == "https" || s == "h2" || s == "h2c" {
+				listen.protocol = s
 			}
+			//} else {
+			//	intValue, err := strconv.Atoi(s)
+			//	if err == nil && (intValue == 1 && intValue <= 2) {
+			//		listen.httpVersion = intValue
+			//	//} else {
+			//	//	if !keyFileOk {
+			//	//		keyFileOk = true
+			//	//		listen.keyFile = s
+			//	//	} else {
+			//	//		listen.certFile = s
+			//	//	}
+			//	}
+			//}
 		}
 		as.listens = append(as.listens, listen)
 	}
+
+	serverProto = as.listens[0].protocol
+	if serverProto == "https" || serverProto == "h2" {
+		serverProtoName = "https"
+	}
+	//if Config.HttpVersion == 1 {
+	//	if Config.CertFile == "" {
+	//		serverProto = "http"
+	//	} else {
+	//		serverProto = "https"
+	//	}
+	//} else {
+	//	Config.HttpVersion = 2
+	//	if Config.CertFile == "" {
+	//		serverProto = "h2c"
+	//	} else {
+	//		serverProto = "h2"
+	//	}
+	//}
 
 	logInfo("starting")
 
@@ -778,12 +805,13 @@ func (as *AsyncServer) Start() {
 
 	// 信息记录到 pid file
 	serviceInfo.pid = os.Getpid()
-	serviceInfo.httpVersion = Config.HttpVersion
+	serviceInfo.protocol = serverProto
 	checkAddr := serverAddr
 	if Config.CheckDomain != "" {
 		checkAddr = fmt.Sprintf("%s:%d", Config.CheckDomain, port)
 	}
-	if as.listens[0].certFile != "" && as.listens[0].keyFile != "" {
+	//if as.listens[0].certFile != "" && as.listens[0].keyFile != "" {
+	if strings.Contains(as.listens[0].addr, "443") {
 		serviceInfo.baseUrl = "https://" + checkAddr
 	} else {
 		serviceInfo.baseUrl = "http://" + checkAddr
@@ -810,12 +838,26 @@ func (as *AsyncServer) Start() {
 			srv := &http.Server{
 				//Addr:    listen.addr,
 				Handler: &rh,
+				TLSConfig: &tls.Config{
+					GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+						if certSet := Config.SSL[info.ServerName]; certSet != nil {
+							cert, err := tls.LoadX509KeyPair(certSet.CertFile, certSet.KeyFile)
+							if err == nil {
+								return &cert, nil
+							} else {
+								return nil, err
+							}
+						} else {
+							return nil, errors.New("no cert configured for " + info.ServerName)
+						}
+					},
+				},
 			}
 			if Config.KeepaliveTimeout > 0 {
 				srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
 			}
 
-			if listen.httpVersion == 2 {
+			if listen.protocol == "h2" || listen.protocol == "h2c" {
 				//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
 				s2 := &http2.Server{}
 				err := http2.ConfigureServer(srv, s2)
@@ -824,8 +866,11 @@ func (as *AsyncServer) Start() {
 					return
 				}
 
-				if listen.certFile != "" && listen.keyFile != "" {
-					err := srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+				//if listen.certFile != "" && listen.keyFile != "" {
+				//if listen.certFile != "" && listen.keyFile != "" {
+				if listen.protocol == "h2" {
+					//err := srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+					err := srv.ServeTLS(listen.listener, "", "")
 					if err != nil {
 						logError(err.Error())
 					}
@@ -844,8 +889,9 @@ func (as *AsyncServer) Start() {
 				}
 			} else {
 				var err error
-				if listen.certFile != "" && listen.keyFile != "" {
-					err = srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+				if listen.protocol == "https" {
+					//err = srv.ServeTLS(listen.listener, listen.certFile, listen.keyFile)
+					err = srv.ServeTLS(listen.listener, "", "")
 				} else {
 					err = srv.Serve(listen.listener)
 				}

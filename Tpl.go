@@ -36,6 +36,29 @@ func TplOut(writer io.Writer, data interface{}, functions template.FuncMap, file
 	}
 }
 
+func MakeTpl(data interface{}, functions template.FuncMap, text string) string {
+	t := makeTpl(functions, text)
+	if t != nil {
+		buf := bytes.NewBuffer(make([]byte, 0))
+		err := t.Execute(buf, data)
+		if err != nil {
+			logError(err.Error(), "tplText", text)
+		}
+		return buf.String()
+	}
+	return ""
+}
+
+func MakeTplOut(writer io.Writer, data interface{}, functions template.FuncMap, text string) {
+	t := makeTpl(functions, text)
+	if t != nil {
+		err := t.Execute(writer, data)
+		if err != nil {
+			logError(err.Error(), "tplText", text)
+		}
+	}
+}
+
 func IgnoreTplTags(functions template.FuncMap, tags ...string) template.FuncMap {
 	if functions == nil {
 		functions = template.FuncMap{}
@@ -66,6 +89,18 @@ func getTpl(functions template.FuncMap, files ...string) *template.Template {
 	//templatesLock.Unlock()
 	//return t
 
+	return tt
+}
+
+func makeTpl(functions template.FuncMap, text string) *template.Template {
+	tpl := template.New("main")
+	if functions != nil {
+		tpl = tpl.Funcs(functions)
+	}
+	tt, err := tpl.Parse(text)
+	if err != nil {
+		logError(err.Error(), "tplText", text)
+	}
 	return tt
 }
 

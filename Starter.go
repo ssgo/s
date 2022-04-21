@@ -12,10 +12,10 @@ import (
 )
 
 type serviceInfoType struct {
-	pidFile     string
-	pid         int
-	httpVersion int
-	baseUrl     string
+	pidFile  string
+	pid      int
+	protocol string
+	baseUrl  string
 }
 
 func (si *serviceInfoType) exists() bool {
@@ -30,7 +30,7 @@ func (si *serviceInfoType) remove() {
 func (si *serviceInfoType) save() {
 	pidFile, err := os.OpenFile(si.pidFile, os.O_CREATE|os.O_WRONLY, 0600)
 	if err == nil {
-		_, _ = pidFile.Write([]byte(fmt.Sprintf("%d,%d,%s", si.pid, si.httpVersion, si.baseUrl)))
+		_, _ = pidFile.Write([]byte(fmt.Sprintf("%d,%s,%s", si.pid, si.protocol, si.baseUrl)))
 		_ = pidFile.Close()
 	}
 }
@@ -46,13 +46,14 @@ func (si *serviceInfoType) load() {
 				si.pid = pid
 			}
 			if len(a) > 1 {
-				httpVersion, err := strconv.Atoi(a[1])
-				if err == nil {
-					si.httpVersion = httpVersion
-				}
-				if si.httpVersion != 1 {
-					si.httpVersion = 2
-				}
+				si.protocol = a[1]
+				//httpVersion, err := strconv.Atoi(a[1])
+				//if err == nil {
+				//	si.httpVersion = httpVersion
+				//}
+				//if si.httpVersion != 1 {
+				//	si.httpVersion = 2
+				//}
 			}
 			if len(a) > 2 {
 				si.baseUrl = a[2]
@@ -219,7 +220,7 @@ func checkProcess() {
 	}
 
 	var client *httpclient.ClientPool
-	if serviceInfo.httpVersion == 1 {
+	if serviceInfo.protocol != "h2c" {
 		client = httpclient.GetClient(3000)
 	} else {
 		client = httpclient.GetClientH2C(3000)
