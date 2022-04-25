@@ -12,7 +12,8 @@ func TestEchoWS(tt *testing.T) {
 	t := s.T(tt)
 
 	_ = os.Setenv("LOG_FILE", os.DevNull)
-	_ = os.Setenv("service_httpVersion", "1")
+	//_ = os.Setenv("service_httpVersion", "1")
+	_ = os.Setenv("service_listen", ":,http")
 	s.ResetAllSets()
 	echoAR := s.RegisterWebsocket(0, "/echoService/{token}/{roomId}", nil, OnEchoOpen, OnEchoClose, EchoDecoder, EchoEncoder)
 	echoAR.RegisterAction(0, "", OnEchoMessage)

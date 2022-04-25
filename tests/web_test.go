@@ -44,7 +44,8 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 func TestWelcomeWithRestful(tt *testing.T) {
 	t := s.T(tt)
 
-	_ = os.Setenv("service_httpVersion", "1")
+	//_ = os.Setenv("service_httpVersion", "1")
+	_ = os.Setenv("service_listen", ":,http")
 	_ = os.Setenv("service_fast", "true")
 	s.ResetAllSets()
 	s.Restful(0, "GET", "/", Welcome)
@@ -74,7 +75,7 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 
 	//_ = os.Setenv("service_httpVersion", "1")
-	_ = os.Setenv("service_httpVersion", "1")
+	_ = os.Setenv("service_listen", ":,http")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
 	as := s.AsyncStart()
@@ -89,7 +90,8 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 func TestWelcomeWithHttp2(tt *testing.T) {
 	t := s.T(tt)
 
-	_ = os.Unsetenv("service_httpVersion")
+	//_ = os.Unsetenv("service_httpVersion")
+	_ = os.Setenv("service_listen", ":,h2c")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome)
 	as := s.AsyncStart()

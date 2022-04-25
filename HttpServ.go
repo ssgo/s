@@ -961,6 +961,7 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 		return reflect.ValueOf(nil)
 	}
 
+	//fmt.Println(strings.Repeat("    ", level), "  ====", t.Kind(), t.Name())
 	switch t.Kind() {
 	case reflect.Struct:
 		v2 := reflect.MakeMap(reflect.TypeOf(Map{}))
@@ -987,6 +988,8 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 				continue
 			}
 			v2.SetMapIndex(reflect.ValueOf(k), makeLogableData(v.Field(i), notAllows, numArrays, fieldSize, level+1))
+			//fmt.Println("       &&>>>> ", t.Field(i).Name, k, v2.MapIndex(reflect.ValueOf(k)).Type())
+			//fmt.Println(strings.Repeat("    ", level), "    ->-> ", t.Field(i).Name, v2.MapIndex(reflect.ValueOf(k)).Type())
 		}
 		return v2
 	case reflect.Map:
@@ -997,6 +1000,7 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 				continue
 			}
 			v2.SetMapIndex(mk, makeLogableData(v.MapIndex(mk), nil, numArrays, fieldSize, level+1))
+			//fmt.Println(strings.Repeat("    ", level), "    >>>> ", mk, v2.MapIndex(mk).Type())
 		}
 		return v2
 	case reflect.Slice:
@@ -1019,15 +1023,18 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 			if i >= numArrays {
 				break
 			}
-			if v.Index(i).Kind() == reflect.Ptr && !v.Index(i).IsNil() {
+			if v.Index(i).Kind() == reflect.Ptr && !v.Index(i).IsNil() || v.Index(i).IsValid() {
 				v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, fieldSize, level+1))
 			} else {
+				//v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, fieldSize, level+1))
 				v2 = reflect.Append(v2, v.Index(i))
 			}
+			//fmt.Println(strings.Repeat("    ", level), "    -]-] ", i, v.Index(i).Type())
 		}
 		return v2
 	case reflect.Interface:
 		v2 := reflect.ValueOf(v.Interface())
+		//fmt.Println(strings.Repeat("    ", level), "        **** Interface", v2.Type())
 		if v2.Kind() == reflect.Invalid {
 			return reflect.ValueOf(nil)
 		}

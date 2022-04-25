@@ -467,19 +467,19 @@ func Init() {
 	}
 
 	if Config.LogInputArrayNum <= 0 {
-		Config.LogInputArrayNum = 100
+		Config.LogInputArrayNum = 10
 	}
 
 	if Config.LogOutputArrayNum <= 0 {
-		Config.LogOutputArrayNum = 10
+		Config.LogOutputArrayNum = 3
 	}
 
 	if Config.LogInputFieldSize <= 0 {
-		Config.LogInputFieldSize = 10240
+		Config.LogInputFieldSize = 500
 	}
 
 	if Config.LogOutputFieldSize <= 0 {
-		Config.LogOutputFieldSize = 1024
+		Config.LogOutputFieldSize = 100
 	}
 
 	if Config.MaxUploadSize <= 0 {
