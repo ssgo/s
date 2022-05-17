@@ -2,11 +2,14 @@ package s
 
 import (
 	"fmt"
+	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 	"os"
 	"os/exec"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ssgo/httpclient"
 )
@@ -17,6 +20,31 @@ type serviceInfoType struct {
 	protocol string
 	baseUrl  string
 }
+
+type StartCmd struct {
+	Name    string
+	Comment string
+	Func    func()
+}
+
+var startCmds = []StartCmd{
+	{"start", "Start server", startProcess},
+	{"stop", "Stop server", stopProcess},
+	{"restart", "Restart server", restartProcess},
+	{"status", "Show status", statusProcess},
+	{"check", "Check server over http request", checkProcess},
+	{"doc", `Make Document
+  ./server doc - print api doc with json format
+  ./server doc output.json - save api doc with json format
+  ./server doc output.html - save api doc with html format (default template is DocTpl.html)
+  ./server doc output.html tpl.html - save api doc with html format (template is special file tpl.html)`, cmdMakeDocument},
+}
+
+// 			makeDockment(os.Args[2], os.Args[3])
+//		} else if len(os.Args) >= 3 {
+//			makeDockment(os.Args[2], "")
+//		} else {
+//			makeDockment("", "")
 
 func (si *serviceInfoType) exists() bool {
 	fi, err := os.Stat(si.pidFile)
@@ -64,7 +92,7 @@ func (si *serviceInfoType) load() {
 }
 
 var serviceInfo serviceInfoType
-var inDocumentMode = false
+//var inDocumentMode = false
 
 func init() {
 	_ = os.Chdir(path.Dir(os.Args[0]))
@@ -72,26 +100,56 @@ func init() {
 	serviceInfo.load()
 
 	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "start", "1":
-			startProcess()
+		log.DefaultLogger.SetLevel(log.CLOSE)
+	}
+}
+
+func AddCmd(name, comment string, function func()) {
+	startCmds = append(startCmds, StartCmd{name, comment, function})
+}
+
+func CheckCmd() {
+	if len(os.Args) > 1 {
+		log.DefaultLogger.SetLevel(log.INFO)
+
+		cmd := os.Args[1]
+		if cmd == "help" || cmd == "--help" {
+			fmt.Printf("%s (%s)\n\n", u.Cyan(name), version)
+			for _, cmdInfo := range startCmds {
+				fmt.Printf("%s\t%s\n", u.Cyan(cmdInfo.Name), cmdInfo.Comment)
+			}
+			fmt.Println()
 			os.Exit(0)
-		case "stop", "0":
-			stopProcess()
-			os.Exit(0)
-		case "restart", "2":
-			stopProcess()
-			startProcess()
-			os.Exit(0)
-		case "status", "s":
-			statusProcess()
-			os.Exit(0)
-		case "doc":
-			inDocumentMode = true
-		case "check", "c":
-			checkProcess()
-			os.Exit(0)
+		} else {
+			// 匹配到命令行命令
+			for _, cmdInfo := range startCmds {
+				if cmd == cmdInfo.Name {
+					cmdInfo.Func()
+					os.Exit(0)
+				}
+			}
 		}
+
+		//switch os.Args[1] {
+		//case "start", "1":
+		//	startProcess()
+		//	os.Exit(0)
+		//case "stop", "0":
+		//	stopProcess()
+		//	os.Exit(0)
+		//case "restart", "2":
+		//	stopProcess()
+		//	startProcess()
+		//	os.Exit(0)
+		//case "status", "s":
+		//	statusProcess()
+		//	os.Exit(0)
+		//case "doc":
+		//	inDocumentMode = true
+		//case "check", "c":
+		//	checkProcess()
+		//	os.Exit(0)
+		//}
 	}
 
 	////os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
@@ -125,6 +183,17 @@ func init() {
 
 //func savePid(app string, pid int) {
 //}
+
+func cmdMakeDocument() {
+	//inDocumentMode = true
+	if len(os.Args) >= 4 {
+		makeDockment(os.Args[2], os.Args[3])
+	} else if len(os.Args) >= 3 {
+		makeDockment(os.Args[2], "")
+	} else {
+		makeDockment("", "")
+	}
+}
 
 func makeDockment(toFile, fromFile string) {
 	if toFile == "" {
@@ -179,7 +248,14 @@ func stopProcess() {
 	fmt.Printf("%s	%d	stopped\n", os.Args[0], cmd.Process.Pid)
 }
 
+func restartProcess() {
+	stopProcess()
+	time.Sleep(time.Second)
+	startProcess()
+}
+
 func statusProcess() {
+	fmt.Printf("%s (%s)\n\n", u.Cyan(name), version)
 	if serviceInfo.pid <= 0 {
 		fmt.Printf("%s	not run\n", os.Args[0])
 		return

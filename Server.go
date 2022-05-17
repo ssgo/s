@@ -31,6 +31,8 @@ type Arr = []interface{}
 
 type Map = map[string]interface{}
 
+var name = "Noname Server"
+var version = "unset version"
 var inited = false
 var running = false
 
@@ -113,6 +115,14 @@ func GetCPUMemoryStat() (uint, uint) {
 var _rd *redis.Redis
 var _rd2 *redis.Redis
 var _rdStarted bool
+
+func SetName(serverName string){
+	name = serverName
+}
+
+func SetVersion(serverVersion string){
+	version = serverVersion
+}
 
 func getRedis() *redis.Redis {
 	if _rd == nil {
@@ -635,20 +645,22 @@ func Start() {
 }
 
 func (as *AsyncServer) Start() {
+	CheckCmd()
+
 	log.Start()
 	logInfo("logger started")
 
 	// document must after registers
-	if inDocumentMode {
-		if len(os.Args) >= 4 {
-			makeDockment(os.Args[2], os.Args[3])
-		} else if len(os.Args) >= 3 {
-			makeDockment(os.Args[2], "")
-		} else {
-			makeDockment("", "")
-		}
-		os.Exit(0)
-	}
+	//if inDocumentMode {
+	//	if len(os.Args) >= 4 {
+	//		makeDockment(os.Args[2], os.Args[3])
+	//	} else if len(os.Args) >= 3 {
+	//		makeDockment(os.Args[2], "")
+	//	} else {
+	//		makeDockment("", "")
+	//	}
+	//	os.Exit(0)
+	//}
 
 	running = true
 

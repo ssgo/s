@@ -10,7 +10,7 @@ require (
 	github.com/ssgo/config v0.5.42
 	github.com/ssgo/discover v0.5.43
 	github.com/ssgo/httpclient v0.5.42
-	github.com/ssgo/log v0.5.42
+	github.com/ssgo/log v0.5.43
 	github.com/ssgo/redis v0.5.44
 	github.com/ssgo/standard v0.5.42
 	github.com/ssgo/u v0.5.42
