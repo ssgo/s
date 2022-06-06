@@ -23,6 +23,10 @@ type Api struct {
 	Method    string
 	In        interface{}
 	Out       interface{}
+	NoBody    bool
+	NoLog200  bool
+	Host      string
+	Ext       Map
 }
 
 // 生成文档数据
@@ -70,6 +74,10 @@ func MakeDocument() ([]Api, []Argot) {
 			Method:    a.method,
 			In:        "",
 			Out:       "",
+			NoBody:    a.options.NoBody,
+			NoLog200:  a.options.NoLog200,
+			Host:      a.options.Host,
+			Ext:       a.options.Ext,
 		}
 		if a.inType != nil {
 			api.In = getType(a.inType)
@@ -89,6 +97,10 @@ func MakeDocument() ([]Api, []Argot) {
 			Method:    a.method,
 			In:        "",
 			Out:       "",
+			NoBody:    a.options.NoBody,
+			NoLog200:  a.options.NoLog200,
+			Host:      a.options.Host,
+			Ext:       a.options.Ext,
 		}
 
 		if a.inType != nil {
@@ -115,6 +127,10 @@ func MakeDocument() ([]Api, []Argot) {
 			Priority:  a.options.Priority,
 			In:        "",
 			Out:       "",
+			NoBody:    a.options.NoBody,
+			NoLog200:  a.options.NoLog200,
+			Host:      a.options.Host,
+			Ext:       a.options.Ext,
 		}
 		if a.openInType != nil {
 			api.In = getType(a.openInType)
@@ -132,6 +148,10 @@ func MakeDocument() ([]Api, []Argot) {
 				Priority:  action.priority,
 				In:        "",
 				Out:       "",
+				NoBody:    a.options.NoBody,
+				NoLog200:  a.options.NoLog200,
+				Host:      a.options.Host,
+				Ext:       a.options.Ext,
 			}
 			if action.inType != nil {
 				api.In = getType(action.inType)
@@ -297,17 +317,27 @@ func getType(t reflect.Type) interface{} {
 	case reflect.Struct:
 		outs := Map{}
 		for i := 0; i < t.NumField(); i++ {
-			if t.Field(i).Tag != "" && reflect.ValueOf(outs[t.Field(i).Name]).Kind() == reflect.String {
-				outs[t.Field(i).Name] = fmt.Sprint(outs[t.Field(i).Name].(string), " ", t.Field(i).Tag)
+			if t.Field(i).Anonymous {
+				if subMap, ok := getType(t.Field(i).Type).(Map); ok {
+					for k, v := range subMap {
+						outs[k] = v
+					}
+				}
 			} else {
-				outs[t.Field(i).Name] = getType(t.Field(i).Type)
+				if t.Field(i).Tag != "" && reflect.ValueOf(outs[t.Field(i).Name]).Kind() == reflect.String {
+					outs[t.Field(i).Name] = fmt.Sprint(outs[t.Field(i).Name].(string), " ", t.Field(i).Tag)
+				} else {
+					outs[t.Field(i).Name] = getType(t.Field(i).Type)
+				}
 			}
 		}
 		return outs
 	case reflect.Map:
-		return fmt.Sprintf("map[%s]%s", getType(t.Key()), getType(t.Elem()))
+		return map[string]interface{}{u.String(getType(t.Key())): getType(t.Elem())}
+		//return fmt.Sprintf("map[%s]%s", getType(t.Key()), getType(t.Elem()))
 	case reflect.Slice:
-		return fmt.Sprint("[]", getType(t.Elem()))
+		return []interface{}{getType(t.Elem())}
+		//return fmt.Sprint("[]", getType(t.Elem()))
 	case reflect.Interface:
 		return "*"
 	default:

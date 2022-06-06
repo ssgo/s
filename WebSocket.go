@@ -239,7 +239,7 @@ func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *s
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args map[string]interface{}, headers map[string]string, startTime *time.Time, requestLogger *log.Logger, sessionObject interface{}) {
+func doWebsocketService(ws *websocketServiceType, request *http.Request, response *Response, authLevel int, args map[string]interface{}, startTime *time.Time, requestLogger *log.Logger, sessionObject interface{}) {
 	//byteArgs, _ := json.Marshal(args)
 	//byteHeaders, _ := json.Marshal(headers)
 
@@ -250,7 +250,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 		response.WriteHeader(500)
 	}
 
-	writeLog(requestLogger, "WSOPEN", nil, 0, request, response, args, headers, startTime, authLevel, Map{
+	writeLog(requestLogger, "WSOPEN", nil, 0, request, response, args, startTime, authLevel, Map{
 		"message": message,
 	})
 
@@ -266,7 +266,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 			if ws.openHeadersIndex >= 0 {
 				//openParms[ws.openRequestIndex] = reflect.ValueOf(&request.Header)
 				headersParm := reflect.New(ws.openHeadersType).Interface()
-				u.Convert(headers, headersParm)
+				u.Convert(getLogHeaders(request), headersParm)
 				openParms[ws.openHeadersIndex] = reflect.ValueOf(headersParm).Elem()
 			}
 			if ws.openRequestIndex >= 0 {
@@ -357,7 +357,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				if webSocketActionAuthChecker != nil {
 					if webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
 						logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
-						writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, headers, startTime, authLevel, Map{
+						writeLog(requestLogger, "WSREJECT", nil, 0, request, response, args, startTime, authLevel, Map{
 							"inAction":  actionName,
 							"inMessage": logInMsg,
 						})
@@ -372,7 +372,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 					logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 					logOutMsg := makeLogableData(reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 					if Config.LogWebsocketAction {
-						writeLog(requestLogger, "WSACTION", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+						writeLog(requestLogger, "WSACTION", nil, outLen, request, response, args, &actionStartTime, authLevel, Map{
 							"inAction":   actionName,
 							"inMessage":  logInMsg,
 							"outAction":  outAction,
@@ -383,7 +383,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 				} else {
 					logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 					logOutMsg := makeLogableData(reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
-					writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request, response, args, headers, &actionStartTime, authLevel, Map{
+					writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request, response, args, &actionStartTime, authLevel, Map{
 						"inAction":   actionName,
 						"inMessage":  logInMsg,
 						"outAction":  outAction,
@@ -432,7 +432,7 @@ func doWebsocketService(ws *websocketServiceType, request *http.Request, respons
 		}
 
 		_ = client.Close()
-		writeLog(requestLogger, "WSCLOSE", nil, 0, request, response, args, headers, startTime, authLevel, nil)
+		writeLog(requestLogger, "WSCLOSE", nil, 0, request, response, args, startTime, authLevel, nil)
 	}
 }
 

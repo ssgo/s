@@ -62,7 +62,7 @@ func SetRewriteBy(by func(request *http.Request) (toPath string, rewrite bool)) 
 	rewriteBy = by
 }
 
-func processRewrite(request *http.Request, response *Response, headers map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processRewrite(request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	// 获取路径
 	requestPath := request.RequestURI
 	var queryString string
@@ -173,7 +173,7 @@ func processRewrite(request *http.Request, response *Response, headers map[strin
 			response.Header().Set("Location", *rewriteToPath)
 			response.WriteHeader(302)
 
-			writeLog(requestLogger, "REWRITE", nil, response.outLen, request, response, nil, headers, startTime, 0, Map{
+			writeLog(requestLogger, "REWRITE", nil, response.outLen, request, response, nil, startTime, 0, Map{
 				"toPath": rewriteToPath,
 				//"rewriteHeaders": rewriteHeaders,
 				//"httpVersion":    rewriteHttpVersion,

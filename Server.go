@@ -69,6 +69,7 @@ type serviceConfig struct {
 	CpuMonitor                    bool
 	MemoryMonitor                 bool
 	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
+	IdServer                      string // 用来维护唯一ID的redis服务器连接
 }
 
 type CertSet struct {
@@ -116,11 +117,11 @@ var _rd *redis.Redis
 var _rd2 *redis.Redis
 var _rdStarted bool
 
-func SetName(serverName string){
+func SetName(serverName string) {
 	name = serverName
 }
 
-func SetVersion(serverVersion string){
+func SetVersion(serverVersion string) {
 	version = serverVersion
 }
 
@@ -221,7 +222,7 @@ func GetServerAddr() string {
 }
 
 //noinspection GoUnusedParameter
-func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response) (pass bool, sessionObject interface{}) {
+func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
 	if authLevel == 0 {
 		return true, nil
 	}
@@ -417,7 +418,6 @@ func Init() {
 	inited = true
 	config.LoadConfig("service", &Config)
 
-	// safe AccessTokens
 	accessTokens = Config.AccessTokens
 	Config.AccessTokens = nil
 

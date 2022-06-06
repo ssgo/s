@@ -20,6 +20,7 @@ type WebServiceOptions struct {
 	NoBody   bool
 	NoLog200 bool
 	Host     string
+	Ext      Map
 }
 
 type webServiceType struct {
@@ -42,6 +43,7 @@ type webServiceType struct {
 	funcType            reflect.Type
 	funcValue           reflect.Value
 	options             WebServiceOptions
+	data                Map
 }
 
 var webServices = make(map[string]*webServiceType)
@@ -50,10 +52,10 @@ var webServicesLock = sync.RWMutex{}
 
 //var regexWebServicesLock = sync.RWMutex{}
 
-var inFilters = make([]func(map[string]interface{}, *http.Request, *Response) interface{}, 0)
-var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}) (interface{}, bool), 0)
+var inFilters = make([]func(map[string]interface{}, *http.Request, *Response, *log.Logger) interface{}, 0)
+var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *Response) interface{}
-var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response) (pass bool, sessionObject interface{})
+var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response, *WebServiceOptions) (pass bool, sessionObject interface{})
 var webAuthFailedData interface{}
 var usedSessionIdKey string
 
@@ -262,16 +264,16 @@ func unregister(method, path string, options WebServiceOptions) {
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *Response) (out interface{})) {
+func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, logger *log.Logger) (out interface{})) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, out interface{}) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, out interface{}, logger *log.Logger) (newOut interface{}, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response) (pass bool, sessionObject interface{})) {
+func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{})) {
 	webAuthChecker = authChecker
 }
 

@@ -88,7 +88,7 @@ func findProxy(request *http.Request) (int, *string, *string) {
 }
 
 // ProxyBy
-func processProxy(request *http.Request, response *Response, logHeaders map[string]string, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processProxy(request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	authLevel, proxyToApp, proxyToPath := findProxy(request)
 	var proxyHeaders map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
@@ -98,11 +98,11 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 		return false
 	}
 
-	if pass, _ := webAuthChecker(authLevel, requestLogger, &request.RequestURI, nil, request, response); pass == false {
+	if pass, _ := webAuthChecker(authLevel, requestLogger, &request.RequestURI, nil, request, response, nil); pass == false {
 		if !response.changed {
 			response.WriteHeader(403)
 		}
-		writeLog(requestLogger, "REJECT", nil, 0, request, response, nil, logHeaders, startTime, authLevel, nil)
+		writeLog(requestLogger, "REJECT", nil, 0, request, response, nil, startTime, authLevel, nil)
 		return
 	}
 
@@ -202,7 +202,7 @@ func processProxy(request *http.Request, response *Response, logHeaders map[stri
 		//outLen = proxyWebRequestReverse(app, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
 	}
 
-	writeLog(requestLogger, "PROXY", nil, outLen, request, response, nil, logHeaders, startTime, 0, Map{
+	writeLog(requestLogger, "PROXY", nil, outLen, request, response, nil, startTime, 0, Map{
 		"toApp":        app,
 		"toPath":       proxyToPath,
 		"proxyHeaders": proxyHeaders,

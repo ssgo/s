@@ -297,6 +297,22 @@ func xHeader(headerName string, request *http.Request, maker func() string) stri
 	return h
 }
 
+func getLogHeaders(request *http.Request) map[string]string {
+	// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
+	logHeaders := make(map[string]string)
+	for k, v := range request.Header {
+		if noLogHeaders[strings.ToLower(k)] {
+			continue
+		}
+		if len(v) > 1 {
+			logHeaders[k] = strings.Join(v, ", ")
+		} else {
+			logHeaders[k] = v[0]
+		}
+	}
+	return logHeaders
+}
+
 func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	startTime := time.Now()
 
@@ -315,7 +331,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	requestId := ""
 	host := ""
-	var logHeaders map[string]string
+	//var logHeaders map[string]string
 	if !Config.Fast {
 		// 在没有 X-Request-ID 的情况下忽略 X-Real-IP
 		if request.Header.Get(standard.DiscoverHeaderRequestId) == "" && !Config.AcceptXRealIpWithoutRequestId {
@@ -405,18 +421,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			request.Header.Set(standard.DiscoverHeaderClientAppVersion, request.Header.Get(usedClientAppKey+"Version"))
 		}
 
-		// Headers，未来可以优化日志记录，最近访问过的头部信息可省略
-		logHeaders = make(map[string]string)
-		for k, v := range request.Header {
-			if noLogHeaders[strings.ToLower(k)] {
-				continue
-			}
-			if len(v) > 1 {
-				logHeaders[k] = strings.Join(v, ", ")
-			} else {
-				logHeaders[k] = v[0]
-			}
-		}
 		//fmt.Println(u.JsonP(logHeaders))
 
 		if Config.StatisticTime {
@@ -435,7 +439,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理 Rewrite，如果是外部转发，直接结束请求
-	if processRewrite(request, response, logHeaders, &startTime, requestLogger) {
+	if processRewrite(request, response, &startTime, requestLogger) {
 		return
 	}
 
@@ -444,7 +448,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// 处理 ProxyBy
-	if processProxy(request, response, logHeaders, &startTime, requestLogger) {
+	if processProxy(request, response, &startTime, requestLogger) {
 		return
 	}
 
@@ -461,7 +465,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//}
 	requestPath := request.URL.Path
 	// 处理静态文件
-	if processStatic(requestPath, request, response, logHeaders, &startTime, requestLogger) {
+	if processStatic(requestPath, request, response, &startTime, requestLogger) {
 		return
 	}
 
@@ -559,7 +563,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog(requestLogger, "FAIL", nil, 0, request, response, args, logHeaders, &startTime, 0, nil)
+			writeLog(requestLogger, "FAIL", nil, 0, request, response, args, &startTime, 0, nil)
 		}
 		return
 	}
@@ -637,7 +641,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				if err != nil {
 					serverLogger.Error(err.Error())
 					response.WriteHeader(400)
-					writeLog(requestLogger, "FAIL", nil, 0, request, response, args, logHeaders, &startTime, 0, nil)
+					writeLog(requestLogger, "FAIL", nil, 0, request, response, args, &startTime, 0, nil)
 					return
 				}
 			}
@@ -674,9 +678,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 
 	var authLevel = 0
+	var options *WebServiceOptions
 	if ws != nil {
 		authLevel = ws.authLevel
 	} else if s != nil {
+		options = &s.options
 		authLevel = s.authLevel
 	}
 
@@ -691,7 +697,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			}
 
 			logError(u.String(err))
-			writeLog(requestLogger, "PANIC", out, response.outLen, request, response, args, logHeaders, &startTime, authLevel, Map{
+			writeLog(requestLogger, "PANIC", out, response.outLen, request, response, args, &startTime, authLevel, Map{
 				"error": u.String(err),
 			})
 		}
@@ -704,7 +710,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	// 前置过滤器
 	var result interface{} = nil
 	for _, filter := range inFilters {
-		result = filter(args, request, response)
+		result = filter(args, request, response, requestLogger)
 		if result != nil {
 			break
 		}
@@ -717,7 +723,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if result == nil {
 		// 之前未产生结果，进行验证
 		pass := false
-		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response)
+		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response, options)
 		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
@@ -727,7 +733,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				if !response.changed {
 					response.WriteHeader(403)
 				}
-				writeLog(requestLogger, "REJECT", result, 0, request, response, args, logHeaders, &startTime, authLevel, nil)
+				writeLog(requestLogger, "REJECT", result, 0, request, response, args, &startTime, authLevel, nil)
 			} else {
 				var outData interface{}
 				var outLen int
@@ -738,7 +744,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				}
 				outData = webAuthFailedData
 				outLen = len(outBytes)
-				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, logHeaders, &startTime, authLevel, nil)
+				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, &startTime, authLevel, nil)
 			}
 			return
 		}
@@ -763,7 +769,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//} else {
 	// 处理 Websocket
 	if ws != nil && result == nil {
-		doWebsocketService(ws, request, response, authLevel, args, logHeaders, &startTime, requestLogger, sessionObject)
+		doWebsocketService(ws, request, response, authLevel, args, &startTime, requestLogger, sessionObject)
 	} else if s != nil || result != nil {
 		result = doWebService(s, request, response, args, result, requestLogger, sessionObject)
 		//logName = "ACCESS"
@@ -777,7 +783,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	if ws == nil {
 		// 后置过滤器
 		for _, filter := range outFilters {
-			newResult, done := filter(args, request, response, result)
+			newResult, done := filter(args, request, response, result, requestLogger)
 			if newResult != nil {
 				result = newResult
 			}
@@ -825,7 +831,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		if requestPath != "/__CHECK__" {
-			writeLog(requestLogger, "ACCESS", result, outLen, request, response, args, logHeaders, &startTime, authLevel, nil)
+			writeLog(requestLogger, "ACCESS", result, outLen, request, response, args, &startTime, authLevel, nil)
 		}
 
 		if Config.StatisticTime {
@@ -872,7 +878,7 @@ func makeOutput(result interface{}) []byte {
 //	}
 //}
 
-func writeLog(logger *log.Logger, logName string, result interface{}, outLen int, request *http.Request, response *Response, args map[string]interface{}, headers map[string]string, startTime *time.Time, authLevel int, extraInfo Map) {
+func writeLog(logger *log.Logger, logName string, result interface{}, outLen int, request *http.Request, response *Response, args map[string]interface{}, startTime *time.Time, authLevel int, extraInfo Map) {
 	if Config.NoLogGets && request.Method == "GET" {
 		return
 	}
@@ -944,7 +950,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	requestPath := request.URL.Path
 	//fmt.Println(u.JsonP(headers))
 
-	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, headers, loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
+	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, getLogHeaders(request), loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
 }
 
 func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, fieldSize int, level int) reflect.Value {

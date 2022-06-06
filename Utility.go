@@ -3,9 +3,12 @@ package s
 import (
 	"fmt"
 	redigo "github.com/gomodule/redigo/redis"
+	"github.com/ssgo/redis"
 	"github.com/ssgo/u"
 	"os"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -299,4 +302,87 @@ func UniqueId16() string {
 
 func UniqueId20() string {
 	return catUniqueId(20)
+}
+
+func Id6(space string) string {
+	return makeId(space, u.Id6)
+}
+
+func Id8(space string) string {
+	return makeId(space, u.Id8)
+}
+
+func Id10(space string) string {
+	return makeId(space, u.Id10)
+}
+
+func Id12(space string) string {
+	return makeId(space, u.Id12)
+}
+
+func Id6L(space string) string {
+	return makeId(space, makeId6L)
+}
+
+func Id8L(space string) string {
+	return makeId(space, makeId8L)
+}
+
+func Id10L(space string) string {
+	return makeId(space, makeId10L)
+}
+
+func Id12L(space string) string {
+	return makeId(space, makeId12L)
+}
+
+func makeId6L() string {
+	return strings.ToLower(u.Id6())
+}
+
+func makeId8L() string {
+	return strings.ToLower(u.Id8())
+}
+
+func makeId10L() string {
+	return strings.ToLower(u.Id10())
+}
+
+func makeId12L() string {
+	return strings.ToLower(u.Id12())
+}
+
+// 分配唯一编号
+func makeId(space string, idMaker func() string) string {
+	rd := redis.GetRedis(Config.IdServer, serverLogger)
+	var id string
+	for i := 0; i < 10000; i++ {
+		id = idMaker()
+		key := fmt.Sprint("ID", space, id[0:2])
+		field := id[2:]
+		if !rd.HEXISTS(key, field) {
+			// 存储到Redis
+			rd.HSET(key, field, "")
+
+			// 存储到磁盘
+			idFilePaths := make([]string, 0)
+			idFilePaths = append(idFilePaths, "data", "ids", id[0:2], id[2:4])
+			idFilePath := strings.Join(idFilePaths, string(os.PathSeparator))
+			u.CheckPath(idFilePath)
+			fd, err := os.OpenFile(idFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+			if err != nil {
+				logError("can't save id to disk", "id", id, "err", err.Error())
+			}else{
+				_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_EX)
+				_, err2 := fd.WriteString(id+"\n")
+				_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_UN)
+				_ = fd.Close()
+				if err2 != nil {
+					logError("can't write id to disk", "id", id, "err", err2.Error())
+				}
+			}
+			break
+		}
+	}
+	return id
 }
