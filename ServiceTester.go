@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ssgo/config"
 	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 	"net/http"
 	"reflect"
 	"testing"
@@ -130,7 +131,7 @@ func B(tb *testing.B) *Testing {
 }
 func (t *Testing) Test(tests bool, comment string, addons ...interface{}) {
 	if !tests {
-		fmt.Println("  \x1b[0;41m失败\x1b[0m", comment, addons)
+		fmt.Println("  \x1b[0;41m失败\x1b[0m", comment, u.JsonP(addons), ".")
 		if t.tt != nil {
 			t.tt.Error(comment, addons)
 			panic(comment)

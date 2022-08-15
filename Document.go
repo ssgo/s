@@ -4,12 +4,12 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"github.com/ssgo/log"
 	"html/template"
 	"os"
 	"os/user"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/ssgo/u"
@@ -26,11 +26,19 @@ type Api struct {
 	NoBody    bool
 	NoLog200  bool
 	Host      string
+	Memo      string
 	Ext       Map
+	InTags    map[string]string
+	OutTags   map[string]string
+}
+
+type ArgotInfo struct {
+	Name Argot
+	Memo string
 }
 
 // 生成文档数据
-func MakeDocument() ([]Api, []Argot) {
+func MakeDocument() ([]Api, []ArgotInfo) {
 	out := make([]Api, 0)
 
 	for _, a := range rewrites {
@@ -66,6 +74,9 @@ func MakeDocument() ([]Api, []Argot) {
 	}
 
 	for _, a := range webServices {
+		if a.options.NoDoc {
+			continue
+		}
 		api := Api{
 			Type:      "Web",
 			Path:      a.path,
@@ -77,18 +88,24 @@ func MakeDocument() ([]Api, []Argot) {
 			NoBody:    a.options.NoBody,
 			NoLog200:  a.options.NoLog200,
 			Host:      a.options.Host,
+			Memo:      a.memo,
 			Ext:       a.options.Ext,
+			InTags:    map[string]string{},
+			OutTags:   map[string]string{},
 		}
 		if a.inType != nil {
-			api.In = getType(a.inType)
+			api.In = getType(a.inType, "", &api.InTags)
 		}
 		if a.funcType.NumOut() > 0 {
-			api.Out = getType(a.funcType.Out(0))
+			api.Out = getType(a.funcType.Out(0), "", &api.OutTags)
 		}
 		out = append(out, api)
 	}
 
 	for _, a := range regexWebServices {
+		if a.options.NoDoc {
+			continue
+		}
 		api := Api{
 			Type:      "Web",
 			Path:      a.path,
@@ -100,14 +117,17 @@ func MakeDocument() ([]Api, []Argot) {
 			NoBody:    a.options.NoBody,
 			NoLog200:  a.options.NoLog200,
 			Host:      a.options.Host,
+			Memo:      a.memo,
 			Ext:       a.options.Ext,
+			InTags:    map[string]string{},
+			OutTags:   map[string]string{},
 		}
 
 		if a.inType != nil {
-			api.In = getType(a.inType)
+			api.In = getType(a.inType, "", &api.InTags)
 		}
 		if a.funcType.NumOut() > 0 {
-			api.Out = getType(a.funcType.Out(0))
+			api.Out = getType(a.funcType.Out(0), "", &api.OutTags)
 		}
 		out = append(out, api)
 	}
@@ -120,6 +140,9 @@ func MakeDocument() ([]Api, []Argot) {
 		allWebsocketServices = append(allWebsocketServices, a)
 	}
 	for _, a := range allWebsocketServices {
+		if a.options.NoDoc {
+			continue
+		}
 		api := Api{
 			Type:      "WebSocket",
 			Path:      a.path,
@@ -130,17 +153,23 @@ func MakeDocument() ([]Api, []Argot) {
 			NoBody:    a.options.NoBody,
 			NoLog200:  a.options.NoLog200,
 			Host:      a.options.Host,
+			Memo:      a.memo,
 			Ext:       a.options.Ext,
+			InTags:    map[string]string{},
+			OutTags:   map[string]string{},
 		}
 		if a.openInType != nil {
-			api.In = getType(a.openInType)
+			api.In = getType(a.openInType, "", &api.InTags)
 		}
 		if a.openFuncType.NumOut() > 0 {
-			api.Out = getType(a.openFuncType.Out(0))
+			api.Out = getType(a.openFuncType.Out(0), "", &api.OutTags)
 		}
 		out = append(out, api)
 
 		for actionName, action := range a.actions {
+			if a.options.NoDoc {
+				continue
+			}
 			api := Api{
 				Type:      "Action",
 				Path:      u.StringIf(actionName != "", actionName, "*"),
@@ -148,16 +177,15 @@ func MakeDocument() ([]Api, []Argot) {
 				Priority:  action.priority,
 				In:        "",
 				Out:       "",
-				NoBody:    a.options.NoBody,
-				NoLog200:  a.options.NoLog200,
-				Host:      a.options.Host,
-				Ext:       a.options.Ext,
+				Memo:      a.memo,
+				InTags:    map[string]string{},
+				OutTags:   map[string]string{},
 			}
 			if action.inType != nil {
-				api.In = getType(action.inType)
+				api.In = getType(action.inType, "", &api.InTags)
 			}
 			if action.funcType.NumOut() > 0 {
-				api.Out = getType(action.funcType.Out(0))
+				api.Out = getType(action.funcType.Out(0), "", &api.OutTags)
 			}
 			out = append(out, api)
 		}
@@ -306,40 +334,112 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 	}
 }
 
-func getType(t reflect.Type) interface{} {
+func getTags(tag string) map[string]string {
+	tags := map[string]string{}
+
+	for tag != "" {
+		i := 0
+		for i < len(tag) && tag[i] == ' ' {
+			i++
+		}
+		tag = tag[i:]
+		if tag == "" {
+			break
+		}
+
+		i = 0
+		for i < len(tag) && tag[i] > ' ' && tag[i] != ':' && tag[i] != '"' && tag[i] != 0x7f {
+			i++
+		}
+		if i == 0 || i+1 >= len(tag) || tag[i] != ':' || tag[i+1] != '"' {
+			break
+		}
+		name := tag[:i]
+		tag = tag[i+1:]
+
+		// Scan quoted string to find value.
+		i = 1
+		for i < len(tag) && tag[i] != '"' {
+			if tag[i] == '\\' {
+				i++
+			}
+			i++
+		}
+		if i >= len(tag) {
+			break
+		}
+		qvalue := tag[:i+1]
+		tag = tag[i+1:]
+
+		value, err := strconv.Unquote(qvalue)
+		if err == nil {
+			tags[name] = value
+		} else {
+			tags[name] = qvalue
+		}
+	}
+	return tags
+}
+
+func getType(t reflect.Type, name string, tags *map[string]string) interface{} {
 	if t == nil {
 		return ""
 	}
+	isPtr := false
 	for t.Kind() == reflect.Ptr {
+		isPtr = true
 		t = t.Elem()
 	}
+	if len(name) > 0 && name[0] == '.' {
+		name = name[1:]
+	}
+	if name != "" {
+		(*tags)[name+".require"] = u.StringIf(isPtr, "false", "true")
+	}
+
 	switch t.Kind() {
 	case reflect.Struct:
 		outs := Map{}
 		for i := 0; i < t.NumField(); i++ {
 			if t.Field(i).Anonymous {
-				if subMap, ok := getType(t.Field(i).Type).(Map); ok {
+				if subMap, ok := getType(t.Field(i).Type, name, tags).(Map); ok {
 					for k, v := range subMap {
 						outs[k] = v
 					}
 				}
 			} else {
-				if t.Field(i).Tag != "" && reflect.ValueOf(outs[t.Field(i).Name]).Kind() == reflect.String {
-					outs[t.Field(i).Name] = fmt.Sprint(outs[t.Field(i).Name].(string), " ", t.Field(i).Tag)
-				} else {
-					outs[t.Field(i).Name] = getType(t.Field(i).Type)
+				//if t.Field(i).Tag != "" && reflect.ValueOf(outs[t.Field(i).Name]).Kind() == reflect.String {
+				//	outs[t.Field(i).Name] = fmt.Sprint(outs[t.Field(i).Name].(string), " ", t.Field(i).Tag)
+				//} else {
+				//	outs[t.Field(i).Name] = getType(t.Field(i).Type, name+"."+t.Field(i).Name, memos)
+				//}
+				//fmt.Println("     ====1", t.Field(i).Name)
+				outs[t.Field(i).Name] = getType(t.Field(i).Type, name+"."+u.GetLowerName(t.Field(i).Name), tags)
+				if t.Field(i).Tag != "" {
+					prefix := name
+					if len(prefix) > 0 {
+						prefix += "."
+					}
+					for k, v := range getTags(string(t.Field(i).Tag)) {
+						//fmt.Println(prefix, t.Field(i).Name)
+						(*tags)[prefix+u.GetLowerName(t.Field(i).Name)+"."+k] = v
+					}
 				}
 			}
 		}
 		return outs
 	case reflect.Map:
-		return map[string]interface{}{u.String(getType(t.Key())): getType(t.Elem())}
+		//return map[string]interface{}{u.String(getType(t.Key())): getType(t.Elem())}
+		//fmt.Println("     ====2", t.Key().String())
+		//return map[string]interface{}{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name+"."+u.GetLowerName(t.Key().String()), tags)}
+		return map[string]interface{}{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name, tags)}
 		//return fmt.Sprintf("map[%s]%s", getType(t.Key()), getType(t.Elem()))
 	case reflect.Slice:
-		return []interface{}{getType(t.Elem())}
+		//fmt.Println("     ====3", t.Elem().String())
+		return []interface{}{getType(t.Elem(), name, tags)}
 		//return fmt.Sprint("[]", getType(t.Elem()))
 	case reflect.Interface:
-		return "*"
+		return "Any"
 	default:
 		return t.String()
 	}

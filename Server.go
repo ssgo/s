@@ -90,7 +90,7 @@ type CodeResult struct {
 	Message string
 }
 
-var _argots = make([]Argot, 0)
+var _argots = make([]ArgotInfo, 0)
 
 var Config = serviceConfig{}
 
@@ -384,9 +384,9 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
-	if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
-		as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
-	}
+	//if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
+	//	as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
+	//}
 	return r
 }
 
@@ -394,12 +394,46 @@ func (as *AsyncServer) SetGlobalHeader(k, v string) {
 	as.clientPool.SetGlobalHeader(k, v)
 }
 
-//func AsyncStart() *AsyncServer {
-//	return asyncStart(2)
-//}
-//func AsyncStart1() *AsyncServer {
-//	return asyncStart(1)
-//}
+func (as *AsyncServer) NewClient(timeout time.Duration) *Client {
+	c := &Client{addr:as.Addr}
+	if as.listens[0].protocol != "h2c" {
+		c.clientPool = httpclient.GetClient(timeout)
+	} else {
+		c.clientPool = httpclient.GetClientH2C(timeout)
+	}
+	return c
+}
+
+type Client struct {
+	addr string
+	clientPool *httpclient.ClientPool
+}
+
+func (c *Client) Get(path string, headers ...string) *httpclient.Result {
+	return c.Do("GET", path, nil, headers...)
+}
+
+func (c *Client) Post(path string, data interface{}, headers ...string) *httpclient.Result {
+	return c.Do("POST", path, data, headers...)
+}
+
+func (c *Client) Put(path string, data interface{}, headers ...string) *httpclient.Result {
+	return c.Do("PUT", path, data, headers...)
+}
+
+func (c *Client) Delete(path string, data interface{}, headers ...string) *httpclient.Result {
+	return c.Do("DELETE", path, data, headers...)
+}
+
+func (c *Client) Head(path string, data interface{}, headers ...string) *httpclient.Result {
+	return c.Do("HEAD", path, data, headers...)
+}
+
+func (c *Client) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
+	r := c.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, c.addr, path), data, headers...)
+	return r
+}
+
 func AsyncStart() *AsyncServer {
 	as := &AsyncServer{startChan: make(chan bool, 1)}
 	as.Start()
@@ -830,7 +864,7 @@ func (as *AsyncServer) Start() {
 	}
 	serviceInfo.save()
 
-	Restful(0, "HEAD", "/__CHECK__", defaultChecker)
+	Restful(0, "HEAD", "/__CHECK__", defaultChecker, "check service is available")
 
 	logInfo("started", "cpuCoreNum", Config.Cpu, "maxMemory", Config.Memory)
 	if Config.StatisticTime {
@@ -1024,7 +1058,10 @@ func MakeArgots(argots interface{}) {
 			t := v.Type().Field(i)
 			if f.CanSet() {
 				f.SetString(t.Name)
-				_argots = append(_argots, Argot(t.Name))
+				_argots = append(_argots, ArgotInfo{
+					Name: Argot(t.Name),
+					Memo: t.Tag.Get("memo"),
+				})
 			}
 		}
 	}

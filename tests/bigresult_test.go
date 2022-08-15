@@ -42,7 +42,7 @@ func TestList(tt *testing.T) {
 
 	_ = os.Setenv("service_logOutputFields", "code,message,list")
 	s.ResetAllSets()
-	s.Register(0, "/list", List)
+	s.Register(0, "/list", List, "")
 	as := s.AsyncStart()
 
 	r := as.Post("/list?a=1", s.Map{"b": s.Arr{1, 2, 3, 4, 5}})

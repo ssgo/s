@@ -16,10 +16,10 @@ func TestEchos(tt *testing.T) {
 	t := s.T(tt)
 
 	s.ResetAllSets()
-	s.Register(0, "/echo1", Echo1)
-	s.Register(0, "/echo2", Echo2)
-	s.Register(0, "/echo3", Echo3)
-	s.Register(0, "/echo4", Echo4)
+	s.Register(0, "/echo1", Echo1, "")
+	s.Register(0, "/echo2", Echo2, "")
+	s.Register(0, "/echo3", Echo3, "")
+	s.Register(0, "/echo4", Echo4, "")
 
 	_ = os.Setenv("LOG_FILE", os.DevNull)
 	as := s.AsyncStart()
@@ -62,7 +62,7 @@ func TestEchos(tt *testing.T) {
 func TestFilters(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
-	s.Register(0, "/echo2", Echo2)
+	s.Register(0, "/echo2", Echo2, "")
 
 	_ = os.Setenv("LOG_FILE", os.DevNull)
 	as := s.AsyncStart()
@@ -71,7 +71,7 @@ func TestFilters(tt *testing.T) {
 	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", d)
 
-	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response) interface{} {
+	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, logger *log.Logger) interface{} {
 		in["filterTag"] = "Abc"
 		in["filterTag2"] = 1000
 		return nil
@@ -79,7 +79,7 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", d)
 
-	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
 		data := result.(echo2Args)
 		data.FilterTag2 = data.FilterTag2 + 100
 		return data, false
@@ -88,7 +88,7 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", d)
 
-	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
 		data := result.(echo2Args)
 		//fmt.Println(" ***************", data.FilterTag2+100)
 		return s.Map{
@@ -100,7 +100,7 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
-	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response) interface{} {
+	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, logger *log.Logger) interface{} {
 		return echo2Args{
 			FilterTag:  in["filterTag"].(string),
 			FilterTag2: in["filterTag2"].(int) + 100,
@@ -113,11 +113,11 @@ func TestFilters(tt *testing.T) {
 func TestAuth(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
-	s.Register(0, "/echo0", Echo2)
-	s.Register(1, "/echo1", Echo2)
-	s.Register(2, "/echo2", Echo2)
+	s.Register(0, "/echo0", Echo2, "")
+	s.Register(1, "/echo1", Echo2, "")
+	s.Register(2, "/echo2", Echo2, "")
 
-	s.SetAuthChecker(func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *s.Response) (pass bool, sessionObject interface{}) {
+	s.SetAuthChecker(func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *s.Response, options *s.WebServiceOptions) (pass bool, sessionObject interface{}) {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 0:
@@ -163,7 +163,7 @@ func panicFunc() {
 func TestPanic(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
-	s.Register(0, "/panic_test", panicFunc)
+	s.Register(0, "/panic_test", panicFunc, "")
 	as := s.AsyncStart()
 	defer as.Stop()
 	_ = os.Setenv("LOG_FILE", os.DevNull)
@@ -174,7 +174,7 @@ func TestPanic(tt *testing.T) {
 func TestSetErrorHandle(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
-	s.Register(0, "/panic_test", panicFunc)
+	s.Register(0, "/panic_test", panicFunc, "")
 	s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *s.Response) interface{} {
 		out := s.Map{"message": "defined", "code": 30889, "panic": fmt.Sprintf("%s", err)}
 		_, _ = (*rsp).Write([]byte(u.String(out)))
@@ -193,7 +193,7 @@ func TestSetErrorHandle(tt *testing.T) {
 func BenchmarkEchosForStructWithLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
-	s.Register(0, "/echo1", Echo1)
+	s.Register(0, "/echo1", Echo1, "")
 
 	as := s.AsyncStart()
 	defer as.Stop()
@@ -218,7 +218,7 @@ func BenchmarkEchosForStructWithLog(tb *testing.B) {
 func BenchmarkEchosForStructNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
-	s.Register(0, "/echo1", Echo1)
+	s.Register(0, "/echo1", Echo1, "")
 	_ = os.Setenv("LOG_FILE", os.DevNull)
 
 	as := s.AsyncStart()
@@ -244,7 +244,7 @@ func BenchmarkEchosForStructNoLog(tb *testing.B) {
 func BenchmarkEchosForMapNoLog(tb *testing.B) {
 	tb.StopTimer()
 	s.ResetAllSets()
-	s.Register(0, "/echo2", Echo2)
+	s.Register(0, "/echo2", Echo2, "")
 	_ = os.Setenv("LOG_FILE", os.DevNull)
 
 	as := s.AsyncStart()

@@ -48,8 +48,8 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	_ = os.Setenv("service_listen", ":,http")
 	_ = os.Setenv("service_fast", "true")
 	s.ResetAllSets()
-	s.Restful(0, "GET", "/", Welcome)
-	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture)
+	s.Restful(0, "GET", "/", Welcome, "")
+	s.Restful(0, "PULL", "/w/{picName}.png", WelcomePicture, "")
 	fmt.Println("000")
 	as := s.AsyncStart()
 
@@ -77,7 +77,7 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 	//_ = os.Setenv("service_httpVersion", "1")
 	_ = os.Setenv("service_listen", ":,http")
 	s.ResetAllSets()
-	s.Register(0, "/", Welcome)
+	s.Register(0, "/", Welcome, "")
 	as := s.AsyncStart()
 
 	r := as.Get("/")
@@ -93,7 +93,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 	//_ = os.Unsetenv("service_httpVersion")
 	_ = os.Setenv("service_listen", ":,h2c")
 	s.ResetAllSets()
-	s.Register(0, "/", Welcome)
+	s.Register(0, "/", Welcome, "")
 	as := s.AsyncStart()
 
 	c := httpclient.GetClientH2C(1000)
@@ -109,7 +109,7 @@ func TestWelcomePicture(tt *testing.T) {
 
 	_ = os.Setenv("LOG_FILE", os.DevNull)
 	s.ResetAllSets()
-	s.Register(0, "/w/{picName}.png", WelcomePicture)
+	s.Register(0, "/w/{picName}.png", WelcomePicture, "")
 
 	as := s.AsyncStart()
 	defer as.Stop()

@@ -44,6 +44,7 @@ type websocketServiceType struct {
 	actions           map[string]*websocketActionType
 	isSimple          bool
 	options           WebServiceOptions
+	memo              string
 }
 
 type websocketActionType struct {
@@ -58,6 +59,7 @@ type websocketActionType struct {
 	loggerIndex  int
 	funcType     reflect.Type
 	funcValue    reflect.Value
+	memo         string
 }
 type ActionRegister struct {
 	websocketName        string
@@ -73,20 +75,20 @@ var websocketServicesLock = sync.RWMutex{}
 var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{}, *http.Request, interface{}) bool
 
 // 注册Websocket服务
-func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, WebServiceOptions{})
+func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}, memo string) {
+	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{})
 }
 
-func RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
-	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, options)
+func RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, memo string, options WebServiceOptions) {
+	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, memo, options)
 }
 
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{})
+	encoder func(action string, data interface{}) interface{}, memo string) *ActionRegister {
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, WebServiceOptions{})
 }
 
 // 注册Websocket服务
@@ -94,13 +96,14 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool, options WebServiceOptions) *ActionRegister {
+	encoder func(action string, data interface{}) interface{}, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
 
 	s := new(websocketServiceType)
 	s.isSimple = isSimple
 	s.authLevel = authLevel
 	s.options = options
 	s.path = path
+	s.memo = memo
 	if updater == nil {
 		s.updater = new(websocket.Upgrader)
 	} else {
@@ -199,13 +202,14 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 	return &ActionRegister{websocketName: path, websocketServiceType: s}
 }
 
-func (ar *ActionRegister) RegisterAction(authLevel int, actionName string, action interface{}) {
-	ar.RegisterActionWithPriority(authLevel, 0, actionName, action)
+func (ar *ActionRegister) RegisterAction(authLevel int, actionName string, action interface{}, memo string) {
+	ar.RegisterActionWithPriority(authLevel, 0, actionName, action, memo)
 }
-func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, actionName string, action interface{}) {
+func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, actionName string, action interface{}, memo string) {
 	a := new(websocketActionType)
 	a.authLevel = authLevel
 	a.priority = priority
+	a.memo = memo
 	a.funcType = reflect.TypeOf(action)
 	if a.funcType != nil {
 		a.parmsNum = a.funcType.NumIn()

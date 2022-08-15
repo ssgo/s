@@ -15,7 +15,7 @@ func TestHttp1(tt *testing.T) {
 	t := s.T(tt)
 
 	s.ResetAllSets()
-	s.Register(0, "/", Hello)
+	s.Register(0, "/", Hello, "")
 	as := s.AsyncStart()
 	defer as.Stop()
 

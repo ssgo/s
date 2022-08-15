@@ -21,7 +21,7 @@ func TestStatistic(tt *testing.T) {
 	s.SetInject(&StatisticContext{})
 	s.Restful(0, "GET", "/hello", func(in struct{ Name string }, request *http.Request, response *s.Response, ctx *StatisticContext) string {
 		return "Hello World!"
-	})
+	}, "")
 	as := s.AsyncStart()
 
 	for i := 0; i < 100; i++ {

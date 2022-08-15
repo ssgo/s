@@ -17,6 +17,7 @@ import (
 
 type WebServiceOptions struct {
 	Priority int
+	NoDoc   bool
 	NoBody   bool
 	NoLog200 bool
 	Host     string
@@ -44,6 +45,7 @@ type webServiceType struct {
 	funcValue           reflect.Value
 	options             WebServiceOptions
 	data                Map
+	memo                string
 }
 
 var webServices = make(map[string]*webServiceType)
@@ -55,7 +57,7 @@ var webServicesLock = sync.RWMutex{}
 var inFilters = make([]func(map[string]interface{}, *http.Request, *Response, *log.Logger) interface{}, 0)
 var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
 var errorHandle func(interface{}, *http.Request, *Response) interface{}
-var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response, *WebServiceOptions) (pass bool, sessionObject interface{})
+var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response, *WebServiceOptions) (pass bool, object interface{})
 var webAuthFailedData interface{}
 var usedSessionIdKey string
 
@@ -159,59 +161,59 @@ func Host(host string) HostRegister {
 	return HostRegister{host: host}
 }
 
-func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, "", path, serviceFunc, WebServiceOptions{Host: host.host})
+func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}, memo string) {
+	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
+func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}, memo string) {
+	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, "", path, serviceFunc, WebServiceOptions{Host: host.host})
+func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string) {
+	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{Host: host.host})
+func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string) {
+	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) Unregister(method, path string) {
 	unregister(method, path, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}) {
-	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, WebServiceOptions{Host: host.host})
+func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}, memo string) {
+	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, options WebServiceOptions) {
-	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, options)
+func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, memo string, options WebServiceOptions) {
+	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, memo, options)
 }
 func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, WebServiceOptions{Host: host.host})
+	encoder func(action string, data interface{}) interface{}, memo string) *ActionRegister {
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
 	onOpen interface{},
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool, options WebServiceOptions) *ActionRegister {
-	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, options)
+	encoder func(action string, data interface{}) interface{}, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
+	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, options)
 }
 
 // 注册服务
-func Register(authLevel int, path string, serviceFunc interface{}) {
-	Restful(authLevel, "", path, serviceFunc)
+func Register(authLevel int, path string, serviceFunc interface{}, memo string) {
+	Restful(authLevel, "", path, serviceFunc, memo)
 }
 
 // 注册服务
-func Restful(authLevel int, method, path string, serviceFunc interface{}) {
-	RestfulWithOptions(authLevel, method, path, serviceFunc, WebServiceOptions{})
+func Restful(authLevel int, method, path string, serviceFunc interface{}, memo string) {
+	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{})
 }
 
 // 注册服务
-func RegisterWithOptions(authLevel int, host, path string, serviceFunc interface{}, options WebServiceOptions) {
-	RestfulWithOptions(authLevel, "", path, serviceFunc, options)
+func RegisterWithOptions(authLevel int, host, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, options)
 }
 
 // 注册服务
-func RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, options WebServiceOptions) {
+func RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		logError(err.Error(), "authLevel", authLevel, "priority", options.Priority, "path", path, "method", method)
@@ -222,6 +224,7 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 	s.options = options
 	s.method = method
 	s.path = path
+	s.memo = memo
 	finder, err := regexp.Compile("{(.*?)}")
 	if err == nil {
 		keyName := regexp.QuoteMeta(path)
@@ -273,7 +276,7 @@ func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, 
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{})) {
+func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
 	webAuthChecker = authChecker
 }
 
@@ -378,7 +381,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 //}
 
 func doWebService(service *webServiceType, request *http.Request, response *Response, args map[string]interface{},
-	result interface{}, requestLogger *log.Logger, sessionObject interface{}) (webResult interface{}) {
+	result interface{}, requestLogger *log.Logger, object interface{}) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
 		return result
@@ -436,8 +439,8 @@ func doWebService(service *webServiceType, request *http.Request, response *Resp
 			st := service.funcType.In(i)
 			isset := false
 			if st.Kind() == reflect.Struct || (st.Kind() == reflect.Ptr && st.Elem().Kind() == reflect.Struct) {
-				if sessionObject != nil && reflect.TypeOf(sessionObject) == st {
-					parms[i] = reflect.ValueOf(sessionObject)
+				if object != nil && reflect.TypeOf(object) == st {
+					parms[i] = reflect.ValueOf(object)
 					isset = true
 				} else {
 					injectObj := GetInject(st)

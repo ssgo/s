@@ -253,10 +253,9 @@ func (response *Response) DownloadFile(contentType, filename string, data interf
 
 func GetDomainWithScope(request *http.Request, scope string) string {
 	host := request.Header.Get(standard.DiscoverHeaderHost)
-	if scope == "domain" {
-		return strings.SplitN(host, ":", 2)[0]
-	} else if scope == "topDomain" {
-		domain := strings.SplitN(host, ":", 2)[0]
+	if scope == "topDomain" {
+		//domain := strings.SplitN(host, ":", 2)[0]
+		domain := host
 		domainParts := strings.Split(domain, ".")
 		if len(domainParts) >= 2 {
 			domain = domainParts[len(domainParts)-2] + "." + domainParts[len(domainParts)-1]
@@ -374,13 +373,16 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			if sessionId == "" {
 				// 自动生成 SessionId
 				sessionId = UniqueId20()
-				http.SetCookie(response, &http.Cookie{
+				cookie := http.Cookie{
 					Name:     usedSessionIdKey,
 					Value:    sessionId,
-					Domain:   GetDomainWithScope(request, Config.CookieScope),
 					Path:     "/",
 					HttpOnly: true,
-				})
+				}
+				if Config.CookieScope != "host" {
+					cookie.Domain = GetDomainWithScope(request, Config.CookieScope)
+				}
+				http.SetCookie(response, &cookie)
 				response.Header().Set(usedSessionIdKey, sessionId)
 			}
 			// 为了在服务间调用时续传 SessionId
@@ -400,14 +402,18 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			if deviceId == "" {
 				// 自动生成 DeviceId
 				deviceId = UniqueId20()
-				http.SetCookie(response, &http.Cookie{
+				cookie := http.Cookie{
 					Name:     usedDeviceIdKey,
 					Value:    deviceId,
-					Domain:   GetDomainWithScope(request, Config.CookieScope),
 					Path:     "/",
 					Expires:  time.Now().AddDate(10, 0, 0),
 					HttpOnly: true,
-				})
+				}
+				if Config.CookieScope != "host" {
+					cookie.Domain = GetDomainWithScope(request, Config.CookieScope)
+				}
+
+				http.SetCookie(response, &cookie)
 				response.Header().Set(usedDeviceIdKey, deviceId)
 			}
 			// 为了在服务间调用时续传 DeviceId
@@ -722,14 +728,16 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	if result == nil {
 		// 之前未产生结果，进行验证
-		pass := false
-		pass, sessionObject = webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response, options)
+		pass, object := webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response, options)
 		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
-			if webAuthFailedData == nil {
+			if object == nil && webAuthFailedData != nil {
+				object = webAuthFailedData
+			}
+			if object == nil {
 				if !response.changed {
 					response.WriteHeader(403)
 				}
@@ -737,16 +745,18 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			} else {
 				var outData interface{}
 				var outLen int
-				outBytes := makeOutput(webAuthFailedData)
+				outBytes := makeOutput(object)
 				n, err := response.Write(outBytes)
 				if err != nil {
 					logError(err.Error(), "wrote", n)
 				}
-				outData = webAuthFailedData
+				outData = object
 				outLen = len(outBytes)
 				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, &startTime, authLevel, nil)
 			}
 			return
+		} else {
+			sessionObject = object
 		}
 	}
 

@@ -26,7 +26,7 @@ func TestGet(tt *testing.T) {
 			TraceId:   rd.GetLogger().GetTraceId(),
 			RequestId: request.Header.Get(standard.DiscoverHeaderRequestId),
 		}
-	})
+	}, "")
 
 	//s.Register(0, "/db", func(request *http.Request, logger *log.Logger) TestLoggerInjectResult {
 	//	db := db.GetDB("test", logger)
@@ -62,7 +62,7 @@ func TestInject(tt *testing.T) {
 			TraceId:   rd.GetLogger().GetTraceId(),
 			RequestId: request.Header.Get(standard.DiscoverHeaderRequestId),
 		}
-	})
+	}, "")
 
 	//s.Register(0, "/db", func(request *http.Request, db DBA) TestLoggerInjectResult {
 	//	return TestLoggerInjectResult{
@@ -109,7 +109,7 @@ func TestInjectContext(tt *testing.T) {
 			TraceId:   ctx.GetRedis().GetLogger().GetTraceId(),
 			RequestId: request.Header.Get(standard.DiscoverHeaderRequestId),
 		}
-	})
+	}, "")
 
 	//s.Register(0, "/db", func(request *http.Request, ctx *Context) TestLoggerInjectResult {
 	//	return TestLoggerInjectResult{
