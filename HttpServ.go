@@ -1039,7 +1039,8 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 			if i >= numArrays {
 				break
 			}
-			if v.Index(i).Kind() == reflect.Ptr && !v.Index(i).IsNil() || v.Index(i).IsValid() {
+			if v.Index(i).Kind() == reflect.Ptr && !v.Index(i).IsNil() && v.Index(i).IsValid() {
+				//fmt.Println(1111,v.Index(i),numArrays, fieldSize, level+1, "|", v2)
 				v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, fieldSize, level+1))
 			} else {
 				//v2 = reflect.Append(v2, makeLogableData(v.Index(i), nil, numArrays, fieldSize, level+1))

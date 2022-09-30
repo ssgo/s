@@ -13,7 +13,7 @@ require (
 	github.com/ssgo/log v0.5.43
 	github.com/ssgo/redis v0.5.44
 	github.com/ssgo/standard v0.5.42
-	github.com/ssgo/u v0.5.43
+	github.com/ssgo/u v0.5.44
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53

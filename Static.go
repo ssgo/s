@@ -10,8 +10,13 @@ import (
 )
 
 var statics = make(map[string]*string)
+var staticsByHost = make(map[string]map[string]*string)
 
 func Static(path, rootPath string) {
+	StaticByHost(path, rootPath, "")
+}
+
+func StaticByHost(path, rootPath, host string) {
 	rootPath = strings.ReplaceAll(rootPath, "\\", "/")
 	if rootPath[0] != '/' {
 		pos := strings.LastIndexByte(os.Args[0], '/')
@@ -26,7 +31,14 @@ func Static(path, rootPath string) {
 		}
 	}
 	rootPath = margePath(rootPath)
-	statics[path] = &rootPath
+	if host == "" {
+		statics[path] = &rootPath
+	} else {
+		if staticsByHost[host] == nil {
+			staticsByHost[host] = make(map[string]*string)
+		}
+		staticsByHost[host][path] = &rootPath
+	}
 }
 
 func margePath(path string) string {
@@ -51,21 +63,36 @@ func margePath(path string) string {
 }
 
 func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) bool {
-	if len(statics) == 0 {
+	if len(statics) == 0 && len(staticsByHost) == 0 {
 		return false
 	}
 
-	rootPath := statics[requestPath]
-	if rootPath == nil {
-		for p1, p2 := range statics {
-			if strings.HasPrefix(requestPath, p1) {
-				rootPath = p2
-				requestPath = requestPath[len(p1):]
-				break
+	var rootPath *string
+	if staticsByHost[request.Host] != nil {
+		// 从虚拟主机设置中匹配
+		rootPath = staticsByHost[request.Host][requestPath]
+		if rootPath == nil && strings.ContainsRune(request.Host, ':') {
+			fixedHost := strings.SplitN(request.Host, ":", 2)[1]
+			if staticsByHost[fixedHost] != nil {
+				rootPath = staticsByHost[fixedHost][requestPath]
 			}
 		}
-	} else {
-		requestPath = requestPath[len(requestPath):]
+	}
+
+	if rootPath == nil {
+		// 从全局设置中匹配
+		rootPath = statics[requestPath]
+		if rootPath == nil {
+			for p1, p2 := range statics {
+				if strings.HasPrefix(requestPath, p1) {
+					rootPath = p2
+					requestPath = requestPath[len(p1):]
+					break
+				}
+			}
+		} else {
+			requestPath = requestPath[len(requestPath):]
+		}
 	}
 
 	if rootPath == nil {

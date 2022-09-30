@@ -161,6 +161,10 @@ func Host(host string) HostRegister {
 	return HostRegister{host: host}
 }
 
+func (host *HostRegister) Static(path, rootPath string) {
+	StaticByHost(path, rootPath, host.host)
+}
+
 func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}, memo string) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
@@ -208,7 +212,7 @@ func Restful(authLevel int, method, path string, serviceFunc interface{}, memo s
 }
 
 // 注册服务
-func RegisterWithOptions(authLevel int, host, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+func RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, options)
 }
 

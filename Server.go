@@ -150,7 +150,7 @@ var noLogOutputFields = map[string]bool{}
 
 var serverId = u.UniqueId()
 var serverStartTime = time.Now()
-var serverLogger = log.New(serverId)
+var serverLogger *log.Logger
 
 var serverAddr string
 var serverProto = "http"
@@ -679,6 +679,7 @@ func Start() {
 }
 
 func (as *AsyncServer) Start() {
+	serverLogger = log.New(serverId)
 	CheckCmd()
 
 	log.Start()
