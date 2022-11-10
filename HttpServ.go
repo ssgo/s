@@ -372,7 +372,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			}
 			if sessionId == "" {
 				// 自动生成 SessionId
-				sessionId = UniqueId20()
+				if sessionIdMaker != nil {
+					sessionId = sessionIdMaker()
+				} else {
+					sessionId = u.UniqueId()
+				}
 				cookie := http.Cookie{
 					Name:     usedSessionIdKey,
 					Value:    sessionId,

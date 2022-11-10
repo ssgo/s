@@ -17,7 +17,7 @@ import (
 
 type WebServiceOptions struct {
 	Priority int
-	NoDoc   bool
+	NoDoc    bool
 	NoBody   bool
 	NoLog200 bool
 	Host     string
@@ -64,6 +64,7 @@ var usedSessionIdKey string
 //var usedClientIdKey string
 var usedDeviceIdKey string
 var usedClientAppKey string
+var sessionIdMaker func() string
 
 //var sessionCreator func() string
 //var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
@@ -90,6 +91,10 @@ func SetUserId(request *http.Request, userId string) {
 func SetSessionId(request *http.Request, sessionId string) {
 	request.Header.Set(usedSessionIdKey, sessionId)
 	request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
+}
+
+func SetSessionIdMaker(maker func() string) {
+	sessionIdMaker = maker
 }
 
 //// 设置 Session ID 生成器
