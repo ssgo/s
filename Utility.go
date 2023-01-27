@@ -66,7 +66,7 @@ func uniqueId() []byte {
 
 				// 尝试文件中保存的ServerId
 				if !makeServerIndexOk && u.FileExists(".server_id") {
-					serverIdInFile, err := u.ReadFile(".server_id", 6)
+					serverIdInFile, err := u.ReadFile(".server_id")
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
@@ -112,7 +112,7 @@ func uniqueId() []byte {
 
 				// 尝试文件中保存的ServerId
 				if !makeServerIndexOk && u.FileExists(".server_id") {
-					serverIdInFile, err := u.ReadFile(".server_id", 6)
+					serverIdInFile, err := u.ReadFile(".server_id")
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {

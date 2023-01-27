@@ -131,6 +131,7 @@ type Response struct {
 	changed       bool
 	headerWritten bool
 	dontLog200    bool
+	dontLogArgs   []string
 	ProxyHeader   *http.Header
 }
 
@@ -206,6 +207,10 @@ func (response *Response) copyProxyHeader() {
 
 func (response *Response) DontLog200() {
 	response.dontLog200 = true
+}
+
+func (response *Response) DontLogArg(arg string) {
+	response.dontLogArgs = append(response.dontLogArgs, arg)
 }
 
 func (response *Response) Location(location string) {
@@ -792,6 +797,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//}
 	if Config.StatisticTime {
 		tc.Add("Do Request")
+	}
+
+	if response.dontLogArgs != nil && len(response.dontLogArgs) > 0 {
+		for _, arg := range response.dontLogArgs {
+			delete(args, arg)
+		}
 	}
 
 	if ws == nil {
