@@ -28,10 +28,10 @@ type proxyInfo struct {
 
 var proxies = make(map[string]*proxyInfo, 0)
 var regexProxies = make([]*proxyInfo, 0)
-var proxyBy func(*http.Request) (int, *string, *string, map[string]string)
+var proxyBy func(*Request) (int, *string, *string, map[string]string)
 
 // 跳转
-func SetProxyBy(by func(request *http.Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
+func SetProxyBy(by func(request *Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
 	//forceDiscoverClient = true // 代理模式强制启动 Discover Client
 	proxyBy = by
 }
@@ -54,7 +54,7 @@ func Proxy(authLevel int, path string, toApp, toPath string) {
 }
 
 // 查找 Proxy
-func findProxy(request *http.Request) (int, *string, *string) {
+func findProxy(request *Request) (int, *string, *string) {
 	var requestPath string
 	var queryString string
 	pos := strings.LastIndex(request.RequestURI, "?")
@@ -88,7 +88,7 @@ func findProxy(request *http.Request) (int, *string, *string) {
 }
 
 // ProxyBy
-func processProxy(request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processProxy(request *Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	authLevel, proxyToApp, proxyToPath := findProxy(request)
 	var proxyHeaders map[string]string
 	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
@@ -102,7 +102,7 @@ func processProxy(request *http.Request, response *Response, startTime *time.Tim
 		if !response.changed {
 			response.WriteHeader(403)
 		}
-		writeLog(requestLogger, "REJECT", nil, 0, request, response, nil, startTime, authLevel, nil)
+		writeLog(requestLogger, "REJECT", nil, 0, request.Request, response, nil, startTime, authLevel, nil)
 		return
 	}
 
@@ -184,7 +184,7 @@ func processProxy(request *http.Request, response *Response, startTime *time.Tim
 			//log.Printf("PROXY	add app	%s	for	%s	%s	%s", app, request.Host, request.Method, request.RequestURI)
 			requestLogger.Info("add app on proxy", Map{
 				"app":    app,
-				"ip":     getRealIp(request),
+				"ip":     getRealIp(request.Request),
 				"host":   request.Host,
 				"method": request.Method,
 				"uri":    request.RequestURI,
@@ -202,7 +202,7 @@ func processProxy(request *http.Request, response *Response, startTime *time.Tim
 		//outLen = proxyWebRequestReverse(app, *proxyToPath, request, response, requestHeaders, appConf.HttpVersion)
 	}
 
-	writeLog(requestLogger, "PROXY", nil, outLen, request, response, nil, startTime, 0, Map{
+	writeLog(requestLogger, "PROXY", nil, outLen, request.Request, response, nil, startTime, 0, Map{
 		"toApp":        app,
 		"toPath":       proxyToPath,
 		"proxyHeaders": proxyHeaders,
@@ -212,7 +212,7 @@ func processProxy(request *http.Request, response *Response, startTime *time.Tim
 
 var httpClientPool *httpclient.ClientPool = nil
 
-func proxyWebRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, requestLogger *log.Logger) {
+func proxyWebRequest(app, path string, request *Request, response *Response, requestHeaders []string, requestLogger *log.Logger) {
 	//var bodyBytes []byte = nil
 	//if request.Body != nil {
 	//	bodyBytes, _ = ioutil.ReadAll(request.Body)
@@ -221,14 +221,14 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 
 	var r *httpclient.Result
 	if !strings.Contains(app, "://") {
-		caller := &discover.Caller{Request: request, NoBody: true}
+		caller := &discover.Caller{Request: request.Request, NoBody: true}
 		r = caller.Do(request.Method, app, path, request.Body, requestHeaders...)
 	} else {
 		if httpClientPool == nil {
 			httpClientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 			httpClientPool.NoBody = true
 		}
-		r = httpClientPool.DoByRequest(request, request.Method, app+path, request.Body, requestHeaders...)
+		r = httpClientPool.DoByRequest(request.Request, request.Method, app+path, request.Body, requestHeaders...)
 	}
 
 	//var statusCode int
@@ -274,13 +274,13 @@ func proxyWebRequest(app, path string, request *http.Request, response *Response
 
 var updater = websocket.Upgrader{}
 
-func proxyWebsocketRequest(app, path string, request *http.Request, response *Response, requestHeaders []string, requestLogger *log.Logger) int {
-	srcConn, err := updater.Upgrade(response.writer, request, nil)
+func proxyWebsocketRequest(app, path string, request *Request, response *Response, requestHeaders []string, requestLogger *log.Logger) int {
+	srcConn, err := updater.Upgrade(response.writer, request.Request, nil)
 	if err != nil {
 		requestLogger.Error(err.Error(), Map{
 			"app":    app,
 			"path":   path,
-			"ip":     getRealIp(request),
+			"ip":     getRealIp(request.Request),
 			"method": request.Method,
 			"host":   request.Host,
 			"uri":    request.RequestURI,
@@ -298,7 +298,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 	for {
 		addr := ""
 		if !isHttp {
-			node := appClient.NextWithNode(app, "", request)
+			node := appClient.NextWithNode(app, "", request.Request)
 			if node == nil {
 				break
 			}
@@ -318,7 +318,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 			requestLogger.Error(err.Error(), Map{
 				"app":    app,
 				"path":   path,
-				"ip":     getRealIp(request),
+				"ip":     getRealIp(request.Request),
 				"method": request.Method,
 				"host":   request.Host,
 				"uri":    request.RequestURI,
@@ -363,7 +363,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 			requestLogger.Error(err.Error(), Map{
 				"app":    app,
 				"path":   path,
-				"ip":     getRealIp(request),
+				"ip":     getRealIp(request.Request),
 				"method": request.Method,
 				"host":   request.Host,
 				"uri":    request.RequestURI,
@@ -395,7 +395,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 						requestLogger.Error(err.Error(), Map{
 							"app":    app,
 							"path":   path,
-							"ip":     getRealIp(request),
+							"ip":     getRealIp(request.Request),
 							"method": request.Method,
 							"host":   request.Host,
 							"uri":    request.RequestURI,
@@ -411,7 +411,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 					requestLogger.Error(err.Error(), Map{
 						"app":    app,
 						"path":   path,
-						"ip":     getRealIp(request),
+						"ip":     getRealIp(request.Request),
 						"method": request.Method,
 						"host":   request.Host,
 						"uri":    request.RequestURI,
@@ -433,7 +433,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 						requestLogger.Error(err.Error(), Map{
 							"app":    app,
 							"path":   path,
-							"ip":     getRealIp(request),
+							"ip":     getRealIp(request.Request),
 							"method": request.Method,
 							"host":   request.Host,
 							"uri":    request.RequestURI,
@@ -448,7 +448,7 @@ func proxyWebsocketRequest(app, path string, request *http.Request, response *Re
 					requestLogger.Error(err.Error(), Map{
 						"app":    app,
 						"path":   path,
-						"ip":     getRealIp(request),
+						"ip":     getRealIp(request.Request),
 						"method": request.Method,
 						"host":   request.Host,
 						"uri":    request.RequestURI,

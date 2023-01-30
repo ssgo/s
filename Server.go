@@ -222,7 +222,7 @@ func GetServerAddr() string {
 }
 
 //noinspection GoUnusedParameter
-func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
+func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
 	if authLevel == 0 {
 		return true, nil
 	}

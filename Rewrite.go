@@ -3,7 +3,6 @@ package s
 import (
 	"fmt"
 	"github.com/ssgo/log"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -18,7 +17,7 @@ type rewriteInfo struct {
 }
 
 var rewrites = make(map[string]*rewriteInfo)
-var rewriteBy func(*http.Request) (string, bool)
+var rewriteBy func(*Request) (string, bool)
 var regexRewrites = make([]*rewriteInfo, 0)
 
 //var clientForRewrite1 *httpclient.ClientPool
@@ -58,11 +57,11 @@ func Rewrite(path string, toPath string) {
 
 // 跳转
 //func SetRewriteBy(by func(request *http.Request) (toPath string, httpVersion int, headers *map[string]string, rewrite bool)) {
-func SetRewriteBy(by func(request *http.Request) (toPath string, rewrite bool)) {
+func SetRewriteBy(by func(request *Request) (toPath string, rewrite bool)) {
 	rewriteBy = by
 }
 
-func processRewrite(request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
+func processRewrite(request *Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (finished bool) {
 	// 获取路径
 	requestPath := request.RequestURI
 	var queryString string
@@ -173,7 +172,7 @@ func processRewrite(request *http.Request, response *Response, startTime *time.T
 			response.Header().Set("Location", *rewriteToPath)
 			response.WriteHeader(302)
 
-			writeLog(requestLogger, "REWRITE", nil, response.outLen, request, response, nil, startTime, 0, Map{
+			writeLog(requestLogger, "REWRITE", nil, response.outLen, request.Request, response, nil, startTime, 0, Map{
 				"toPath": rewriteToPath,
 				//"rewriteHeaders": rewriteHeaders,
 				//"httpVersion":    rewriteHttpVersion,
@@ -186,7 +185,7 @@ func processRewrite(request *http.Request, response *Response, startTime *time.T
 				"toPath":   rewriteToPath,
 				//"httpVersion":    rewriteHttpVersion,
 				//"rewriteHeaders": rewriteHeaders,
-				"ip":     getRealIp(request),
+				"ip":     getRealIp(request.Request),
 				"method": request.Method,
 				"host":   request.Host,
 			})

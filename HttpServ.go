@@ -124,6 +124,26 @@ func (uploadFile *UploadFile) Content() ([]byte, error) {
 	}
 }
 
+type Request struct {
+	*http.Request
+	contextValues map[string]interface{}
+}
+
+func (request *Request) ResetPath(path string) {
+	request.RequestURI = path
+	if newUrl, err := url.Parse(path); err == nil {
+		request.URL = newUrl
+	}
+}
+
+func (request *Request) Set(key string, value interface{}) {
+	request.contextValues[key] = value
+}
+
+func (request *Request) Get(key string) interface{} {
+	return request.contextValues[key]
+}
+
 type Response struct {
 	writer        http.ResponseWriter
 	status        int
@@ -137,6 +157,9 @@ type Response struct {
 
 func MakeUrl(request *http.Request, path string) string {
 	return fmt.Sprint(request.Header.Get(standard.DiscoverHeaderScheme), "://", request.Header.Get(standard.DiscoverHeaderHost), path)
+}
+func (request *Request) MakeUrl(path string) string {
+	return MakeUrl(request.Request, path)
 }
 
 func (response *Response) Header() http.Header {
@@ -317,7 +340,112 @@ func getLogHeaders(request *http.Request) map[string]string {
 	return logHeaders
 }
 
-func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func parseRequestURI(request *http.Request, args *map[string]interface{}) {
+	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
+		requestUrl, reqErr := url.Parse(request.RequestURI)
+		if reqErr == nil {
+			queryStringArr, reqErr := url.ParseQuery(requestUrl.RawQuery)
+			if reqErr == nil && len(queryStringArr) > 0 {
+				for paramName, paramValue := range queryStringArr {
+					if len(paramValue) < 1 {
+						continue
+					}
+					if len(paramValue) > 1 {
+						(*args)[paramName] = paramValue
+					} else {
+						(*args)[paramName] = paramValue[0]
+					}
+				}
+			}
+		}
+	}
+}
+
+func parseService(request *http.Request, host, requestPath string, args *map[string]interface{}) (*webServiceType, *websocketServiceType) {
+	var s *webServiceType
+	var ws *websocketServiceType
+
+	webServicesLock.RLock()
+	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
+	webServicesLock.RUnlock()
+	if s == nil {
+		webServicesLock.RLock()
+		s = webServices[fmt.Sprint(host, requestPath)]
+		webServicesLock.RUnlock()
+		if s == nil {
+			webServicesLock.RLock()
+			s = webServices[fmt.Sprint(request.Method, requestPath)]
+			webServicesLock.RUnlock()
+			if s == nil {
+				webServicesLock.RLock()
+				s = webServices[requestPath]
+				webServicesLock.RUnlock()
+				if s == nil {
+					websocketServicesLock.RLock()
+					ws = websocketServices[fmt.Sprint(host, requestPath)]
+					websocketServicesLock.RUnlock()
+					if ws == nil {
+						websocketServicesLock.RLock()
+						ws = websocketServices[requestPath]
+						websocketServicesLock.RUnlock()
+					}
+				}
+			}
+		}
+	}
+
+	// 未匹配到缓存，尝试匹配新的 Service
+	if s == nil && ws == nil {
+		//for _, tmpS := range regexWebServices {
+		maxRegexWebServicesKey := len(regexWebServices) - 1
+		for i := maxRegexWebServicesKey; i >= 0; i-- {
+			tmpS := regexWebServices[i]
+			if tmpS.method != "" && tmpS.method != request.Method {
+				continue
+			}
+			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
+				continue
+			}
+			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
+			if len(finds) > 0 {
+				foundArgs := finds[0]
+				for i := 1; i < len(foundArgs); i++ {
+					unescaped, err := url.QueryUnescape(foundArgs[i])
+					if err == nil {
+						(*args)[tmpS.pathArgs[i-1]] = unescaped
+					} else {
+						(*args)[tmpS.pathArgs[i-1]] = foundArgs[i]
+					}
+					s = tmpS
+				}
+				break
+			}
+		}
+	}
+
+	// 未匹配到缓存和Service，尝试匹配新的WebsocketService
+	if s == nil && ws == nil {
+		//for _, tmpS := range regexWebsocketServices {
+		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
+			tmpS := regexWebsocketServices[i]
+			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
+				continue
+			}
+			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
+			if len(finds) > 0 {
+				foundArgs := finds[0]
+				for i := 1; i < len(foundArgs); i++ {
+					(*args)[tmpS.pathArgs[i-1]] = foundArgs[i]
+					ws = tmpS
+				}
+				break
+			}
+		}
+	}
+	return s, ws
+}
+
+func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.Request) {
 	startTime := time.Now()
 
 	var tc *TimeCounter
@@ -329,6 +457,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}()
 	}
 
+	var request = &Request{Request: httpRequest}
 	var response = &Response{writer: writer, status: 200}
 	defer response.checkWriteHeader()
 	var sessionObject interface{} = nil
@@ -343,25 +472,25 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		// 产生 X-Request-ID
-		requestId = xHeader(standard.DiscoverHeaderRequestId, request, u.UniqueId)
+		requestId = xHeader(standard.DiscoverHeaderRequestId, request.Request, u.UniqueId)
 
 		// 真实的用户IP，通过 X-Real-IP 续传
-		xHeader(standard.DiscoverHeaderClientIp, request, func() string {
+		xHeader(standard.DiscoverHeaderClientIp, request.Request, func() string {
 			return request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')]
 		})
 
 		// 真实用户请求的Host，通过 X-Host 续传
-		host = xHeader(standard.DiscoverHeaderHost, request, func() string {
+		host = xHeader(standard.DiscoverHeaderHost, request.Request, func() string {
 			return request.Host
 		})
 
 		// 真实用户请求的Scheme，通过 X-Scheme 续传
-		xHeader(standard.DiscoverHeaderScheme, request, func() string {
+		xHeader(standard.DiscoverHeaderScheme, request.Request, func() string {
 			return u.StringIf(request.TLS == nil, "http", "https")
 		})
 
 		// UA
-		xHeader(standard.DiscoverHeaderUserAgent, request, func() string {
+		xHeader(standard.DiscoverHeaderUserAgent, request.Request, func() string {
 			return request.Header.Get("User-Agent")
 		})
 
@@ -389,7 +518,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 					HttpOnly: true,
 				}
 				if Config.CookieScope != "host" {
-					cookie.Domain = GetDomainWithScope(request, Config.CookieScope)
+					cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
 				}
 				http.SetCookie(response, &cookie)
 				response.Header().Set(usedSessionIdKey, sessionId)
@@ -419,7 +548,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 					HttpOnly: true,
 				}
 				if Config.CookieScope != "host" {
-					cookie.Domain = GetDomainWithScope(request, Config.CookieScope)
+					cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
 				}
 
 				http.SetCookie(response, &cookie)
@@ -480,7 +609,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	//}
 	requestPath := request.URL.Path
 	// 处理静态文件
-	if processStatic(requestPath, request, response, &startTime, requestLogger) {
+	if processStatic(requestPath, request.Request, response, &startTime, requestLogger) {
 		return
 	}
 
@@ -491,97 +620,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	args := make(map[string]interface{})
 
 	// 先看缓存中是否有 Service
-	var s *webServiceType
-	var ws *websocketServiceType
+	//var s *webServiceType
+	//var ws *websocketServiceType
 	//fmt.Println(request.Host, request.Method, requestPath)
 	//fmt.Println(u.JsonP(webServices))
-
-	webServicesLock.RLock()
-	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
-	webServicesLock.RUnlock()
-	if s == nil {
-		webServicesLock.RLock()
-		s = webServices[fmt.Sprint(host, requestPath)]
-		webServicesLock.RUnlock()
-		if s == nil {
-			webServicesLock.RLock()
-			s = webServices[fmt.Sprint(request.Method, requestPath)]
-			webServicesLock.RUnlock()
-			if s == nil {
-				webServicesLock.RLock()
-				s = webServices[requestPath]
-				webServicesLock.RUnlock()
-				if s == nil {
-					websocketServicesLock.RLock()
-					ws = websocketServices[fmt.Sprint(host, requestPath)]
-					websocketServicesLock.RUnlock()
-					if ws == nil {
-						websocketServicesLock.RLock()
-						ws = websocketServices[requestPath]
-						websocketServicesLock.RUnlock()
-					}
-				}
-			}
-		}
-	}
-
-	// 未匹配到缓存，尝试匹配新的 Service
-	if s == nil && ws == nil {
-		//for _, tmpS := range regexWebServices {
-		maxRegexWebServicesKey := len(regexWebServices) - 1
-		for i := maxRegexWebServicesKey; i >= 0; i-- {
-			tmpS := regexWebServices[i]
-			if tmpS.method != "" && tmpS.method != request.Method {
-				continue
-			}
-			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
-				continue
-			}
-			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
-			if len(finds) > 0 {
-				foundArgs := finds[0]
-				for i := 1; i < len(foundArgs); i++ {
-					unescaped, err := url.QueryUnescape(foundArgs[i])
-					if err == nil {
-						args[tmpS.pathArgs[i-1]] = unescaped
-					} else {
-						args[tmpS.pathArgs[i-1]] = foundArgs[i]
-					}
-					s = tmpS
-				}
-				break
-			}
-		}
-	}
-
-	// 未匹配到缓存和Service，尝试匹配新的WebsocketService
-	if s == nil && ws == nil {
-		//for _, tmpS := range regexWebsocketServices {
-		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
-			tmpS := regexWebsocketServices[i]
-			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
-				continue
-			}
-			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
-			if len(finds) > 0 {
-				foundArgs := finds[0]
-				for i := 1; i < len(foundArgs); i++ {
-					args[tmpS.pathArgs[i-1]] = foundArgs[i]
-					ws = tmpS
-				}
-				break
-			}
-		}
-	}
-
-	// 全都未匹配，输出404
-	if s == nil && ws == nil {
-		response.WriteHeader(404)
-		if requestPath != "/favicon.ico" {
-			writeLog(requestLogger, "FAIL", nil, 0, request, response, args, &startTime, 0, nil)
-		}
-		return
-	}
+	s, ws := parseService(request.Request, host, requestPath, &args)
 
 	if Config.StatisticTime {
 		tc.Add("Find Service")
@@ -589,25 +632,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	// 判定是rewrite
 	// rewrite问号后的参数不能被request.Form解析 解析问号后的参数
-	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
-		requestUrl, reqErr := url.Parse(request.RequestURI)
-		if reqErr == nil {
-			queryStringArr, reqErr := url.ParseQuery(requestUrl.RawQuery)
-			if reqErr == nil && len(queryStringArr) > 0 {
-				for paramName, paramValue := range queryStringArr {
-					if len(paramValue) < 1 {
-						continue
-					}
-					if len(paramValue) > 1 {
-						args[paramName] = paramValue
-					} else {
-						args[paramName] = paramValue[0]
-					}
-
-				}
-			}
-		}
-	}
+	parseRequestURI(request.Request, &args)
 
 	// GET POST
 	err := request.ParseForm()
@@ -656,7 +681,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				if err != nil {
 					serverLogger.Error(err.Error())
 					response.WriteHeader(400)
-					writeLog(requestLogger, "FAIL", nil, 0, request, response, args, &startTime, 0, nil)
+					writeLog(requestLogger, "FAIL", nil, 0, request.Request, response, args, &startTime, 0, nil)
 					return
 				}
 			}
@@ -712,7 +737,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 			}
 
 			logError(u.String(err))
-			writeLog(requestLogger, "PANIC", out, response.outLen, request, response, args, &startTime, authLevel, Map{
+			writeLog(requestLogger, "PANIC", out, response.outLen, request.Request, response, args, &startTime, authLevel, Map{
 				"error": u.String(err),
 			})
 		}
@@ -724,15 +749,32 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 
 	// 前置过滤器
 	var result interface{} = nil
+	prevRequestURI := request.RequestURI
 	for _, filter := range inFilters {
-		result = filter(args, request, response, requestLogger)
+		result = filter(&args, request, response, requestLogger)
 		if result != nil {
 			break
 		}
 	}
 
+	// 重定向
+	if prevRequestURI != request.RequestURI {
+		requestPath = request.URL.Path
+		s, ws = parseService(request.Request, host, requestPath, &args)
+		parseRequestURI(request.Request, &args)
+	}
+
 	if Config.StatisticTime {
 		tc.Add("In Filter")
+	}
+
+	// 全都未匹配，输出404（在前置过滤器之后再判断404）
+	if s == nil && ws == nil {
+		response.WriteHeader(404)
+		if requestPath != "/favicon.ico" {
+			writeLog(requestLogger, "FAIL", nil, 0, request.Request, response, args, &startTime, 0, nil)
+		}
+		return
 	}
 
 	if result == nil {
@@ -750,7 +792,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				if !response.changed {
 					response.WriteHeader(403)
 				}
-				writeLog(requestLogger, "REJECT", result, 0, request, response, args, &startTime, authLevel, nil)
+				writeLog(requestLogger, "REJECT", result, 0, request.Request, response, args, &startTime, authLevel, nil)
 			} else {
 				var outData interface{}
 				var outLen int
@@ -761,7 +803,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 				}
 				outData = object
 				outLen = len(outBytes)
-				writeLog(requestLogger, "ACCESS", outData, outLen, request, response, args, &startTime, authLevel, nil)
+				writeLog(requestLogger, "ACCESS", outData, outLen, request.Request, response, args, &startTime, authLevel, nil)
 			}
 			return
 		} else {
@@ -856,7 +898,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		}
 
 		if requestPath != "/__CHECK__" {
-			writeLog(requestLogger, "ACCESS", result, outLen, request, response, args, &startTime, authLevel, nil)
+			writeLog(requestLogger, "ACCESS", result, outLen, request.Request, response, args, &startTime, authLevel, nil)
 		}
 
 		if Config.StatisticTime {
@@ -1087,6 +1129,10 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 
 func getRealIp(request *http.Request) string {
 	return u.StringIf(request.Header.Get(standard.DiscoverHeaderClientIp) != "", request.Header.Get(standard.DiscoverHeaderClientIp), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+}
+
+func (request *Request) GetRealIp() string {
+	return getRealIp(request.Request)
 }
 
 /* ================================================================================= */

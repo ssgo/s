@@ -5,7 +5,6 @@ import (
 	"github.com/ssgo/config"
 	"github.com/ssgo/log"
 	"github.com/ssgo/u"
-	"net/http"
 	"reflect"
 	"testing"
 )
@@ -42,8 +41,8 @@ func ResetAllSets() {
 
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make([]*webServiceType, 0)
-	inFilters = make([]func(map[string]interface{}, *http.Request, *Response, *log.Logger) interface{}, 0)
-	outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
+	inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
+	outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
 
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make([]*websocketServiceType, 0)

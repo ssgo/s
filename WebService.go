@@ -36,6 +36,7 @@ type webServiceType struct {
 	headersType         reflect.Type
 	headersIndex        int
 	requestIndex        int
+	httpRequestIndex    int
 	uploaderIndex       int
 	responseIndex       int
 	responseWriterIndex int
@@ -54,10 +55,10 @@ var webServicesLock = sync.RWMutex{}
 
 //var regexWebServicesLock = sync.RWMutex{}
 
-var inFilters = make([]func(map[string]interface{}, *http.Request, *Response, *log.Logger) interface{}, 0)
-var outFilters = make([]func(map[string]interface{}, *http.Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
-var errorHandle func(interface{}, *http.Request, *Response) interface{}
-var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *http.Request, *Response, *WebServiceOptions) (pass bool, object interface{})
+var inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
+var outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
+var errorHandle func(interface{}, *Request, *Response) interface{}
+var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{})
 var webAuthFailedData interface{}
 var usedSessionIdKey string
 
@@ -67,7 +68,7 @@ var usedClientAppKey string
 var sessionIdMaker func() string
 
 //var sessionCreator func() string
-//var sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
+//var sessionObjects = map[*Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
@@ -87,10 +88,16 @@ func SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
 func SetUserId(request *http.Request, userId string) {
 	request.Header.Set(standard.DiscoverHeaderUserId, userId)
 }
+func (request *Request) SetUserId(userId string) {
+	SetUserId(request.Request, userId)
+}
 
 func SetSessionId(request *http.Request, sessionId string) {
 	request.Header.Set(usedSessionIdKey, sessionId)
 	request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
+}
+func (request *Request) SetSessionId(sessionId string) {
+	SetSessionId(request.Request, sessionId)
 }
 
 func SetSessionIdMaker(maker func() string) {
@@ -114,6 +121,9 @@ func GetSessionId(request *http.Request) string {
 		sessionId = request.Header.Get(standard.DiscoverHeaderSessionId)
 	}
 	return sessionId
+}
+func (request *Request) GetSessionId() string {
+	return GetSessionId(request.Request)
 }
 
 //// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
@@ -276,16 +286,16 @@ func unregister(method, path string, options WebServiceOptions) {
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, logger *log.Logger) (out interface{})) {
+func SetInFilter(filter func(in *map[string]interface{}, request *Request, response *Response, logger *log.Logger) (out interface{})) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in map[string]interface{}, request *http.Request, response *Response, out interface{}, logger *log.Logger) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in map[string]interface{}, request *Request, response *Response, out interface{}, logger *log.Logger) (newOut interface{}, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
+func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
 	webAuthChecker = authChecker
 }
 
@@ -293,7 +303,7 @@ func SetAuthFailedData(data interface{}) {
 	webAuthFailedData = data
 }
 
-func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *Response) interface{}) {
+func SetErrorHandle(myErrorHandle func(err interface{}, request *Request, response *Response) interface{}) {
 	errorHandle = myErrorHandle
 }
 
@@ -389,7 +399,7 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, r
 //	}
 //}
 
-func doWebService(service *webServiceType, request *http.Request, response *Response, args map[string]interface{},
+func doWebService(service *webServiceType, request *Request, response *Response, args map[string]interface{},
 	result interface{}, requestLogger *log.Logger, object interface{}) (webResult interface{}) {
 	// 反射调用
 	if result != nil {
@@ -427,8 +437,11 @@ func doWebService(service *webServiceType, request *http.Request, response *Resp
 	if service.requestIndex >= 0 {
 		parms[service.requestIndex] = reflect.ValueOf(request)
 	}
+	if service.httpRequestIndex >= 0 {
+		parms[service.httpRequestIndex] = reflect.ValueOf(request.Request)
+	}
 	if service.uploaderIndex >= 0 {
-		parms[service.uploaderIndex] = reflect.ValueOf(&Uploader{request: request})
+		parms[service.uploaderIndex] = reflect.ValueOf(&Uploader{request: request.Request})
 	}
 	if service.responseIndex >= 0 {
 		parms[service.responseIndex] = reflect.ValueOf(response)
@@ -440,7 +453,7 @@ func doWebService(service *webServiceType, request *http.Request, response *Resp
 		parms[service.loggerIndex] = reflect.ValueOf(requestLogger)
 	}
 	if service.callerIndex >= 0 {
-		caller := &discover.Caller{Request: request}
+		caller := &discover.Caller{Request: request.Request}
 		parms[service.callerIndex] = reflect.ValueOf(caller)
 	}
 	for i, parm := range parms {
@@ -513,6 +526,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.inIndex = -1
 	targetService.headersIndex = -1
 	targetService.requestIndex = -1
+	targetService.httpRequestIndex = -1
 	targetService.uploaderIndex = -1
 	targetService.responseIndex = -1
 	targetService.responseWriterIndex = -1
@@ -520,8 +534,10 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.callerIndex = -1
 	for i := 0; i < targetService.parmsNum; i++ {
 		t := funcType.In(i)
-		if t.String() == "*http.Request" {
+		if t.String() == "*s.Request" {
 			targetService.requestIndex = i
+		} else if t.String() == "*http.Request" {
+			targetService.httpRequestIndex = i
 		} else if t.String() == "*s.Uploader" {
 			targetService.uploaderIndex = i
 		} else if t.String() == "*s.Response" {

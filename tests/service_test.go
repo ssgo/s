@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ssgo/log"
 	"github.com/ssgo/u"
-	"net/http"
 	"os"
 	"testing"
 
@@ -71,15 +70,15 @@ func TestFilters(tt *testing.T) {
 	d := as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "", "[Test InFilter 1] Response", d)
 
-	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, logger *log.Logger) interface{} {
-		in["filterTag"] = "Abc"
-		in["filterTag2"] = 1000
+	s.SetInFilter(func(in *map[string]interface{}, request *s.Request, response *s.Response, logger *log.Logger) interface{} {
+		(*in)["filterTag"] = "Abc"
+		(*in)["filterTag2"] = 1000
 		return nil
 	})
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", d)
 
-	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *s.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
 		data := result.(echo2Args)
 		data.FilterTag2 = data.FilterTag2 + 100
 		return data, false
@@ -88,7 +87,7 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", d)
 
-	s.SetOutFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
+	s.SetOutFilter(func(in map[string]interface{}, request *s.Request, response *s.Response, result interface{}, logger *log.Logger) (interface{}, bool) {
 		data := result.(echo2Args)
 		//fmt.Println(" ***************", data.FilterTag2+100)
 		return s.Map{
@@ -100,10 +99,10 @@ func TestFilters(tt *testing.T) {
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
-	s.SetInFilter(func(in map[string]interface{}, request *http.Request, response *s.Response, logger *log.Logger) interface{} {
+	s.SetInFilter(func(in *map[string]interface{}, request *s.Request, response *s.Response, logger *log.Logger) interface{} {
 		return echo2Args{
-			FilterTag:  in["filterTag"].(string),
-			FilterTag2: in["filterTag2"].(int) + 100,
+			FilterTag:  (*in)["filterTag"].(string),
+			FilterTag2: (*in)["filterTag2"].(int) + 100,
 		}
 	})
 	d = as.Post("/echo2?aaa=11&bbb=_o_", s.Map{"ccc": "ccc"}).Map()
@@ -117,7 +116,7 @@ func TestAuth(tt *testing.T) {
 	s.Register(1, "/echo1", Echo2, "")
 	s.Register(2, "/echo2", Echo2, "")
 
-	s.SetAuthChecker(func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *http.Request, response *s.Response, options *s.WebServiceOptions) (pass bool, sessionObject interface{}) {
+	s.SetAuthChecker(func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *s.Request, response *s.Response, options *s.WebServiceOptions) (pass bool, sessionObject interface{}) {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 0:
@@ -175,7 +174,7 @@ func TestSetErrorHandle(tt *testing.T) {
 	t := s.T(tt)
 	s.ResetAllSets()
 	s.Register(0, "/panic_test", panicFunc, "")
-	s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *s.Response) interface{} {
+	s.SetErrorHandle(func(err interface{}, req *s.Request, rsp *s.Response) interface{} {
 		out := s.Map{"message": "defined", "code": 30889, "panic": fmt.Sprintf("%s", err)}
 		_, _ = (*rsp).Write([]byte(u.String(out)))
 		return out
