@@ -292,6 +292,11 @@ type AsyncServer struct {
 	clientPool   *httpclient.ClientPool
 	routeHandler routeHandler
 	waited       bool
+	onStop       func()
+}
+
+func (as *AsyncServer) OnStop(f func()) {
+	as.onStop = f
 }
 
 func (as *AsyncServer) Wait() {
@@ -358,6 +363,9 @@ func (as *AsyncServer) stop() {
 	for _, listen := range as.listens {
 		_ = listen.listener.Close()
 	}
+	if as.onStop != nil {
+		as.onStop()
+	}
 	running = false
 }
 
@@ -395,7 +403,7 @@ func (as *AsyncServer) SetGlobalHeader(k, v string) {
 }
 
 func (as *AsyncServer) NewClient(timeout time.Duration) *Client {
-	c := &Client{addr:as.Addr}
+	c := &Client{addr: as.Addr}
 	if as.listens[0].protocol != "h2c" {
 		c.clientPool = httpclient.GetClient(timeout)
 	} else {
@@ -405,7 +413,7 @@ func (as *AsyncServer) NewClient(timeout time.Duration) *Client {
 }
 
 type Client struct {
-	addr string
+	addr       string
 	clientPool *httpclient.ClientPool
 }
 

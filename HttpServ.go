@@ -625,7 +625,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	//fmt.Println(request.Host, request.Method, requestPath)
 	//fmt.Println(u.JsonP(webServices))
 	s, ws := parseService(request.Request, host, requestPath, &args)
-
 	if Config.StatisticTime {
 		tc.Add("Find Service")
 	}
@@ -717,6 +716,27 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		tc.Add("Make Args")
 	}
 
+	// 前置过滤器
+	var result interface{} = nil
+	prevRequestURI := request.RequestURI
+	for _, filter := range inFilters {
+		result = filter(&args, request, response, requestLogger)
+		if result != nil {
+			break
+		}
+	}
+
+	// 重定向
+	if prevRequestURI != request.RequestURI {
+		requestPath = request.URL.Path
+		s, ws = parseService(request.Request, host, requestPath, &args)
+		parseRequestURI(request.Request, &args)
+	}
+
+	if Config.StatisticTime {
+		tc.Add("In Filter")
+	}
+
 	var authLevel = 0
 	var options *WebServiceOptions
 	if ws != nil {
@@ -746,27 +766,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		//	delete(sessionObjects, request)
 		//}
 	}()
-
-	// 前置过滤器
-	var result interface{} = nil
-	prevRequestURI := request.RequestURI
-	for _, filter := range inFilters {
-		result = filter(&args, request, response, requestLogger)
-		if result != nil {
-			break
-		}
-	}
-
-	// 重定向
-	if prevRequestURI != request.RequestURI {
-		requestPath = request.URL.Path
-		s, ws = parseService(request.Request, host, requestPath, &args)
-		parseRequestURI(request.Request, &args)
-	}
-
-	if Config.StatisticTime {
-		tc.Add("In Filter")
-	}
 
 	// 全都未匹配，输出404（在前置过滤器之后再判断404）
 	if s == nil && ws == nil {
