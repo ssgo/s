@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -20,6 +19,9 @@ var uidIndexes = map[int]map[uint]bool{}
 
 var uidLock = sync.Mutex{}
 var uidShutdownHookSet = false
+
+var fileLocksLock = sync.Mutex{}
+var fileLocks = map[string]*sync.Mutex{}
 
 func trySetServerId(rdConn redigo.Conn, hkey string, sid int64) (bool, error) {
 	r, err := rdConn.Do("HSETNX", hkey, sid, true)
@@ -369,18 +371,29 @@ func makeId(space string, idMaker func() string) string {
 			idFilePaths = append(idFilePaths, "data", "ids", id[0:2], id[2:4])
 			idFilePath := strings.Join(idFilePaths, string(os.PathSeparator))
 			u.CheckPath(idFilePath)
+
+			// 文件锁(Windows不支持syscall，使用线程锁)
+			fileLocksLock.Lock()
+			if fileLocks[idFilePath] == nil {
+				fileLocks[idFilePath] = new(sync.Mutex)
+			}
+			lock := fileLocks[idFilePath]
+			fileLocksLock.Unlock()
+
+			lock.Lock()
 			fd, err := os.OpenFile(idFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 			if err != nil {
 				logError("can't save id to disk", "id", id, "err", err.Error())
 			}else{
-				_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_EX)
+				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_EX)
 				_, err2 := fd.WriteString(id+"\n")
-				_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_UN)
+				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_UN)
 				_ = fd.Close()
 				if err2 != nil {
 					logError("can't write id to disk", "id", id, "err", err2.Error())
 				}
 			}
+			lock.Unlock()
 			break
 		}
 	}
