@@ -15,5 +15,5 @@ require (
 	github.com/ssgo/redis v0.5.49
 	github.com/ssgo/standard v0.5.49
 	github.com/ssgo/u v0.5.49
-	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
+	golang.org/x/net v0.7.0
 )
