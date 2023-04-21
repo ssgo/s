@@ -272,7 +272,9 @@ func proxyWebRequest(app, path string, request *Request, response *Response, req
 	}
 }
 
-var updater = websocket.Upgrader{}
+var updater = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+	return true
+}}
 
 func proxyWebsocketRequest(app, path string, request *Request, response *Response, requestHeaders []string, requestLogger *log.Logger) int {
 	srcConn, err := updater.Upgrade(response.writer, request.Request, nil)

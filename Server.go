@@ -31,7 +31,7 @@ type Arr = []interface{}
 
 type Map = map[string]interface{}
 
-var name = "Noname Server"
+//var name = "Noname Server"
 var version = "unset version"
 var inited = false
 var running = false
@@ -117,24 +117,34 @@ var _rd *redis.Redis
 var _rd2 *redis.Redis
 var _rdStarted bool
 
-func SetName(serverName string) {
-	name = serverName
-}
+//func SetName(serverName string) {
+//	name = serverName
+//}
 
 func SetVersion(serverVersion string) {
 	version = serverVersion
 }
 
-func getRedis() *redis.Redis {
+func getRedis1() *redis.Redis {
+	if _rd == nil && Config.IdServer != ""{
+		_rd = redis.GetRedis(Config.IdServer, serverLogger)
+	}
+	return _rd
+}
+
+func getRedis2() *redis.Redis {
 	if _rd == nil {
 		_rd = redis.GetRedis(discover.Config.Registry, serverLogger)
 	}
 	return _rd
 }
 
-func getPubSubRedis() *redis.Redis {
+func getPubSubRedis2() *redis.Redis {
 	if _rd2 == nil {
-		rd := getRedis()
+		rd := getRedis2()
+		if rd == nil {
+			return nil
+		}
 		confForPubSub := *rd.Config
 		confForPubSub.IdleTimeout = -1
 		confForPubSub.ReadTimeout = -1
@@ -391,6 +401,7 @@ func (as *AsyncServer) Head(path string, data interface{}, headers ...string) *h
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
+	//fmt.Println("= ========", serverProtoName, "[["+as.Addr+"]]")
 	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
 	//if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
 	//	as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
@@ -839,7 +850,11 @@ func (as *AsyncServer) Start() {
 			}
 		}
 	}
-	serverAddr = fmt.Sprintf("%s:%d", ip.String(), port)
+	ipStr := ip.String()
+	if ipStr == "" || ipStr == "<nil>" {
+		ipStr = "127.0.0.1"
+	}
+	serverAddr = fmt.Sprintf("%s:%d", ipStr, port)
 
 	logInfo("starting discover")
 	if discover.Start(serverAddr) == false {
@@ -1082,10 +1097,16 @@ func Subscribe(channel string, reset func(), received func([]byte)) bool {
 		//redisLock.Lock()
 		_rdStarted = true
 		//redisLock.Unlock()
-		getPubSubRedis().Start()
+		if rd2 := getPubSubRedis2(); rd2 != nil {
+			rd2.Start()
+		}
 	}
 
-	return getPubSubRedis().Subscribe(channel, reset, received)
+	if rd2 := getPubSubRedis2(); rd2 != nil {
+		return rd2.Subscribe(channel, reset, received)
+	}else{
+		return false
+	}
 }
 
 func Publish(channel, data string) bool {
@@ -1093,8 +1114,14 @@ func Publish(channel, data string) bool {
 		//redisLock.Lock()
 		_rdStarted = true
 		//redisLock.Unlock()
-		getPubSubRedis().Start()
+		if rd2 := getPubSubRedis2(); rd2 != nil {
+			rd2.Start()
+		}
 	}
 
-	return getPubSubRedis().PUBLISH(channel, data)
+	if rd2 := getPubSubRedis2(); rd2 != nil {
+		return rd2.PUBLISH(channel, data)
+	}else{
+		return false
+	}
 }

@@ -24,13 +24,17 @@ var fileLocksLock = sync.Mutex{}
 var fileLocks = map[string]*sync.Mutex{}
 
 func trySetServerId(rdConn redigo.Conn, hkey string, sid int64) (bool, error) {
-	r, err := rdConn.Do("HSETNX", hkey, sid, true)
-	if err == nil {
-		if i, ok := r.(int64); ok && i == 1 {
-			return true, nil
+	if rdConn != nil {
+		r, err := rdConn.Do("HSETNX", hkey, sid, true)
+		if err == nil {
+			if i, ok := r.(int64); ok && i == 1 {
+				return true, nil
+			}
 		}
+		return false, err
+	}else {
+		return false, nil
 	}
-	return false, err
 }
 
 func uniqueId() []byte {
@@ -38,31 +42,24 @@ func uniqueId() []byte {
 	date := tm.Format("0102")
 	// 检查每天重新排列的服务器编号
 	if date != uidServerDate {
-		rdConn := getRedis().GetConnection()
+		rd1 := getRedis1()
+		var rdConn1 redigo.Conn
+		if rd1 != nil {
+			rdConn1 = rd1.GetConnection()
+		}
 		makeServerIndexTimes := 0
 		makeServerIndexOk := false
 		uidLock.Lock()
 		if date != uidServerDate {
 			uidServerDate = date
 			uidServerStart = tm.Unix()
-			if rdConn == nil {
-				// 先尝试沿用旧ID
-				hkey := "USI" + date
-				if uidServerIndex >= 0 {
-					if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
-						makeServerIndexOk = true
-						logInfo("get server id for unique id over old", "uidServerId", uidServerIndex)
-					}
-				}
-
+			if rdConn1 == nil {
 				// 尝试环境变量中指定的ServerId
 				if !makeServerIndexOk && os.Getenv("SERVER_ID") != "" {
 					uidServerIndex = u.Int64(os.Getenv("SERVER_ID"))
 					if uidServerIndex >= 0 && uidServerIndex < 238328 {
-						if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
-							makeServerIndexOk = true
-							logInfo("get server id for unique id over env", "uidServerId", uidServerIndex)
-						}
+						makeServerIndexOk = true
+						logInfo("get server id for unique id over env", "uidServerId", uidServerIndex)
 					}
 				}
 
@@ -72,10 +69,8 @@ func uniqueId() []byte {
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
-							if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
-								makeServerIndexOk = true
-								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex, "uidFile", serverIdInFile)
-							}
+							makeServerIndexOk = true
+							logInfo("get server id for unique id over file", "uidServerId", uidServerIndex, "uidFile", serverIdInFile)
 						}
 					}
 				}
@@ -87,15 +82,17 @@ func uniqueId() []byte {
 				// 检查Hash
 				hkey := "USI" + date
 				hexists := false
-				r, err := rdConn.Do("EXISTS", hkey)
-				if err == nil {
-					i, ok := r.(int64)
-					hexists = ok && i == 1
+				if rdConn1 != nil {
+					r, err := rdConn1.Do("EXISTS", hkey)
+					if err == nil {
+						i, ok := r.(int64)
+						hexists = ok && i == 1
+					}
 				}
 
 				// 先尝试沿用旧ID
 				if uidServerIndex >= 0 {
-					if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
+					if ok, _ := trySetServerId(rdConn1, hkey, uidServerIndex); ok {
 						makeServerIndexOk = true
 						logInfo("get server id for unique id over old", "uidServerId", uidServerIndex)
 					}
@@ -105,7 +102,7 @@ func uniqueId() []byte {
 				if !makeServerIndexOk && os.Getenv("SERVER_ID") != "" {
 					uidServerIndex = u.Int64(os.Getenv("SERVER_ID"))
 					if uidServerIndex >= 0 && uidServerIndex < 238328 {
-						if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
+						if ok, _ := trySetServerId(rdConn1, hkey, uidServerIndex); ok {
 							makeServerIndexOk = true
 							logInfo("get server id for unique id over env", "uidServerId", uidServerIndex)
 						}
@@ -118,7 +115,7 @@ func uniqueId() []byte {
 					if err == nil {
 						uidServerIndex = u.Int64(serverIdInFile)
 						if uidServerIndex >= 0 && uidServerIndex < 238328 {
-							if ok, _ := trySetServerId(rdConn, hkey, uidServerIndex); ok {
+							if ok, _ := trySetServerId(rdConn1, hkey, uidServerIndex); ok {
 								makeServerIndexOk = true
 								logInfo("get server id for unique id over file", "uidServerId", uidServerIndex, "uidFile", serverIdInFile)
 							}
@@ -130,7 +127,7 @@ func uniqueId() []byte {
 				if !makeServerIndexOk {
 					for makeServerIndexTimes = 0; makeServerIndexTimes < 100; makeServerIndexTimes++ {
 						uidServerIndex = u.GlobalRand1.Int63n(238328)
-						if ok, err := trySetServerId(rdConn, hkey, uidServerIndex); ok {
+						if ok, err := trySetServerId(rdConn1, hkey, uidServerIndex); ok {
 							makeServerIndexOk = true
 							_ = u.WriteFile(".server_id", u.String(uidServerIndex))
 							logInfo("get server id for unique id over hit", "uidServerId", uidServerIndex)
@@ -144,33 +141,35 @@ func uniqueId() []byte {
 				// 如果尝试100次碰撞失败，使用累加器来获得空闲索引
 				if !makeServerIndexOk {
 					// 1000次随机没有命中的话，使用计数器顺序使用
-					indexKey := fmt.Sprint("USI", date, "Index")
-					for {
-						makeServerIndexTimes++
-						r, err := rdConn.Do("INCR", indexKey)
-						if err == nil {
-							if i, ok := r.(int64); ok {
-								if uidServerIndex >= 238328 {
-									break
-								}
-								if i == 1 {
-									// 第一次创建累加器，设置过期
-									_, _ = rdConn.Do("EXPIRE", indexKey, 86400)
-								}
-								uidServerIndex = i
-								if ok, err := trySetServerId(rdConn, hkey, uidServerIndex); ok {
-									makeServerIndexOk = true
-									_ = u.WriteFile(".server_id", u.String(uidServerIndex))
-									logInfo("get server id for unique id over incr", "uidServerId", uidServerIndex)
-									break
-								} else if err != nil {
+					if rdConn1 != nil {
+						indexKey := fmt.Sprint("USI", date, "Index")
+						for {
+							makeServerIndexTimes++
+							r, err := rdConn1.Do("INCR", indexKey)
+							if err == nil {
+								if i, ok := r.(int64); ok {
+									if uidServerIndex >= 238328 {
+										break
+									}
+									if i == 1 {
+										// 第一次创建累加器，设置过期
+										_, _ = rdConn1.Do("EXPIRE", indexKey, 86400)
+									}
+									uidServerIndex = i
+									if ok, err := trySetServerId(rdConn1, hkey, uidServerIndex); ok {
+										makeServerIndexOk = true
+										_ = u.WriteFile(".server_id", u.String(uidServerIndex))
+										logInfo("get server id for unique id over incr", "uidServerId", uidServerIndex)
+										break
+									} else if err != nil {
+										break
+									}
+								} else {
 									break
 								}
 							} else {
 								break
 							}
-						} else {
-							break
 						}
 					}
 				}
@@ -180,25 +179,31 @@ func uniqueId() []byte {
 				}
 
 				// 第一次创建Hash，设置过期
-				if !hexists {
-					_, _ = rdConn.Do("EXPIRE", hkey, 86400)
+				if !hexists && rdConn1 != nil {
+					_, _ = rdConn1.Do("EXPIRE", hkey, 86400)
 				}
 
 				if makeServerIndexOk && !uidShutdownHookSet {
 					uidShutdownHookSet = true
 					AddShutdownHook(func() {
-						getRedis().HDEL("USI"+uidServerDate, u.String(uidServerIndex))
+						rd1 := getRedis1()
+						if rd1 != nil {
+							rd1.HDEL("USI"+uidServerDate, u.String(uidServerIndex))
+						}
 					})
 				}
 			}
 		}
 		uidLock.Unlock()
-		if rdConn != nil {
-			_ = rdConn.Close()
+		if rdConn1 != nil {
+			_ = rdConn1.Close()
+			rdConn1 = nil
 		}
 
 		if !makeServerIndexOk {
-			serverLogger.Error("failed to make unique id server index", "times", makeServerIndexTimes)
+			if rd1 != nil {
+				serverLogger.Error("failed to make unique id server index", "times", makeServerIndexTimes)
+			}
 		} else if makeServerIndexTimes >= 100 {
 			serverLogger.Warning("make unique id server index slowly", "times", makeServerIndexTimes)
 		}
@@ -356,15 +361,20 @@ func makeId12L() string {
 
 // 分配唯一编号
 func makeId(space string, idMaker func() string) string {
-	rd := redis.GetRedis(Config.IdServer, serverLogger)
+	var rd1 *redis.Redis
+	if Config.IdServer != "" {
+		rd1 = redis.GetRedis(Config.IdServer, serverLogger)
+	}
 	var id string
 	for i := 0; i < 10000; i++ {
 		id = idMaker()
 		key := fmt.Sprint("ID", space, id[0:2])
 		field := id[2:]
-		if !rd.HEXISTS(key, field) {
-			// 存储到Redis
-			rd.HSET(key, field, "")
+		if rd1 == nil || !rd1.HEXISTS(key, field) {
+			if rd1 != nil {
+				// 存储到Redis
+				rd1.HSET(key, field, "")
+			}
 
 			// 存储到磁盘
 			idFilePaths := make([]string, 0)

@@ -8,12 +8,12 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	//github.com/shirou/gopsutil v2.21.11+incompatible // indirect
 	github.com/shirou/gopsutil/v3 v3.22.10
-	github.com/ssgo/config v0.5.49
-	github.com/ssgo/discover v0.5.49
-	github.com/ssgo/httpclient v0.5.49
-	github.com/ssgo/log v0.5.49
-	github.com/ssgo/redis v0.5.49
-	github.com/ssgo/standard v0.5.49
-	github.com/ssgo/u v0.5.49
+	github.com/ssgo/config v0.5.51
+	github.com/ssgo/discover v0.5.51
+	github.com/ssgo/httpclient v0.5.51
+	github.com/ssgo/log v0.5.51
+	github.com/ssgo/redis v0.5.51
+	github.com/ssgo/standard v0.5.51
+	github.com/ssgo/u v0.5.50
 	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 )

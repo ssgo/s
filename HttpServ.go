@@ -788,10 +788,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				object = webAuthFailedData
 			}
 			if object == nil {
+				outLen := 0
 				if !response.changed {
 					response.WriteHeader(403)
+				}else{
+					outLen = response.outLen
 				}
-				writeLog(requestLogger, "REJECT", result, 0, request.Request, response, args, &startTime, authLevel, nil)
+				writeLog(requestLogger, "REJECT", result, outLen, request.Request, response, args, &startTime, authLevel, nil)
 			} else {
 				var outData interface{}
 				var outLen int

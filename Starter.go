@@ -114,7 +114,7 @@ func CheckCmd() {
 
 		cmd := os.Args[1]
 		if cmd == "help" || cmd == "--help" {
-			fmt.Printf("%s (%s)\n\n", u.Cyan(name), version)
+			fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(os.Args[0])), version)
 			for _, cmdInfo := range startCmds {
 				fmt.Printf("%s\t%s\n", u.Cyan(cmdInfo.Name), cmdInfo.Comment)
 			}
@@ -255,7 +255,7 @@ func restartProcess() {
 }
 
 func statusProcess() {
-	fmt.Printf("%s (%s)\n\n", u.Cyan(name), version)
+	fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(os.Args[0])), version)
 	if serviceInfo.pid <= 0 {
 		fmt.Printf("%s	not run\n", os.Args[0])
 		return

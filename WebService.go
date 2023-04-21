@@ -179,6 +179,12 @@ func Host(host string) HostRegister {
 func (host *HostRegister) Static(path, rootPath string) {
 	StaticByHost(path, rootPath, host.host)
 }
+func (host *HostRegister) SetStaticGZFile(path string, data []byte) {
+	SetStaticGZFileByHost(path, data, host.host)
+}
+func (host *HostRegister) SetStaticFile(path string, data []byte) {
+	SetStaticFileByHost(path, data, host.host)
+}
 
 func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}, memo string) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
@@ -567,6 +573,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 }
 
 func makeBytesResult(data interface{}) []byte {
+	excludeKeys := u.MakeExcludeUpperKeys(data, "")
 	bytesResult, err := json.Marshal(data)
 	if err != nil || (len(bytesResult) == 4 && string(bytesResult) == "null") {
 		t := reflect.TypeOf(data)
@@ -577,6 +584,6 @@ func makeBytesResult(data interface{}) []byte {
 			bytesResult = []byte("{}")
 		}
 	}
-	u.FixUpperCase(bytesResult, nil)
+	u.FixUpperCase(bytesResult, excludeKeys)
 	return bytesResult
 }
