@@ -14,6 +14,6 @@ require (
 	github.com/ssgo/log v0.5.51
 	github.com/ssgo/redis v0.5.51
 	github.com/ssgo/standard v0.5.51
-	github.com/ssgo/u v0.5.50
+	github.com/ssgo/u v0.5.51
 	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 )
