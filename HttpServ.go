@@ -367,31 +367,35 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 
 	webServicesLock.RLock()
 	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
-	webServicesLock.RUnlock()
 	if s == nil {
-		webServicesLock.RLock()
 		s = webServices[fmt.Sprint(host, requestPath)]
-		webServicesLock.RUnlock()
 		if s == nil {
-			webServicesLock.RLock()
-			s = webServices[fmt.Sprint(request.Method, requestPath)]
-			webServicesLock.RUnlock()
+			port := ":80"
+			if request.TLS != nil {
+				port = ":443"
+			}
+			if strings.ContainsRune(host, ':') {
+				port = ":"+strings.SplitN(host, ":", 2)[1]
+			}
+			s = webServices[fmt.Sprint(port, request.Method, requestPath)]
 			if s == nil {
-				webServicesLock.RLock()
-				s = webServices[requestPath]
-				webServicesLock.RUnlock()
+				s = webServices[fmt.Sprint(request.Method, requestPath)]
 				if s == nil {
-					websocketServicesLock.RLock()
-					ws = websocketServices[fmt.Sprint(host, requestPath)]
-					websocketServicesLock.RUnlock()
-					if ws == nil {
-						websocketServicesLock.RLock()
-						ws = websocketServices[requestPath]
-						websocketServicesLock.RUnlock()
-					}
+					s = webServices[requestPath]
 				}
 			}
 		}
+	}
+	webServicesLock.RUnlock()
+
+
+	if s == nil {
+		websocketServicesLock.RLock()
+		ws = websocketServices[fmt.Sprint(host, requestPath)]
+		if ws == nil {
+			ws = websocketServices[requestPath]
+		}
+		websocketServicesLock.RUnlock()
 	}
 
 	// 未匹配到缓存，尝试匹配新的 Service
@@ -404,7 +408,22 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 				continue
 			}
 			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
-				continue
+				if tmpS.options.Host[0] == ':' {
+					// 判断是否匹配端口
+					optionHostPort := "80"
+					if request.TLS != nil {
+						optionHostPort = "443"
+					}
+					if strings.Contains(request.Host, ":") {
+						optionHostPort = strings.SplitN(request.Host, ":", 2)[1]
+					}
+					requestHostPort := tmpS.options.Host[1:]
+					if optionHostPort != requestHostPort {
+						continue
+					}
+				} else {
+					continue
+				}
 			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
@@ -429,7 +448,22 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 		for i := len(regexWebsocketServices) - 1; i >= 0; i-- {
 			tmpS := regexWebsocketServices[i]
 			if tmpS.options.Host != "" && tmpS.options.Host != request.Host {
-				continue
+				if tmpS.options.Host[0] == ':' {
+					// 判断是否匹配端口
+					optionHostPort := "80"
+					if request.TLS != nil {
+						optionHostPort = "443"
+					}
+					if strings.Contains(request.Host, ":") {
+						optionHostPort = strings.SplitN(request.Host, ":", 2)[1]
+					}
+					requestHostPort := tmpS.options.Host[1:]
+					if optionHostPort != requestHostPort {
+						continue
+					}
+				} else {
+					continue
+				}
 			}
 			finds := tmpS.pathMatcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
@@ -791,7 +825,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				outLen := 0
 				if !response.changed {
 					response.WriteHeader(403)
-				}else{
+					response.checkWriteHeader()
+				} else {
 					outLen = response.outLen
 				}
 				writeLog(requestLogger, "REJECT", result, outLen, request.Request, response, args, &startTime, authLevel, nil)

@@ -73,14 +73,16 @@ func findProxy(request *Request) (int, *string, *string) {
 		for _, pi := range regexProxies {
 			finds := pi.matcher.FindAllStringSubmatch(requestPath, 20)
 			if len(finds) > 0 {
+				toApp := pi.toApp
 				toPath := pi.toPath
 				for i, partValue := range finds[0] {
+					toApp = strings.Replace(toApp, fmt.Sprintf("$%d", i), partValue, 10)
 					toPath = strings.Replace(toPath, fmt.Sprintf("$%d", i), partValue, 10)
 				}
 				if queryString != "" {
 					toPath += queryString
 				}
-				return pi.authLevel, &pi.toApp, &toPath
+				return pi.authLevel, &toApp, &toPath
 			}
 		}
 	}
@@ -240,6 +242,7 @@ func proxyWebRequest(app, path string, request *Request, response *Response, req
 			response.Header().Set(k, v[0])
 		}
 		response.WriteHeader(r.Response.StatusCode)
+		response.checkWriteHeader()
 		outLen, err := io.Copy(response.writer, r.Response.Body)
 		if err != nil {
 			if strings.Contains(err.Error(), "stream closed") {
