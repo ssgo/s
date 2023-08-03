@@ -367,7 +367,9 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 
 	webServicesLock.RLock()
 	s = webServices[fmt.Sprint(host, request.Method, requestPath)]
+	//fmt.Println(111, fmt.Sprint(host, request.Method, requestPath), s)
 	if s == nil {
+		//fmt.Println(222, fmt.Sprint(host, requestPath), s)
 		s = webServices[fmt.Sprint(host, requestPath)]
 		if s == nil {
 			port := ":80"
@@ -377,8 +379,10 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 			if strings.ContainsRune(host, ':') {
 				port = ":"+strings.SplitN(host, ":", 2)[1]
 			}
+			//fmt.Println(333, fmt.Sprint(port, request.Method, requestPath), s)
 			s = webServices[fmt.Sprint(port, request.Method, requestPath)]
 			if s == nil {
+				//fmt.Println(444, fmt.Sprint(request.Method, requestPath), s)
 				s = webServices[fmt.Sprint(request.Method, requestPath)]
 				if s == nil {
 					s = webServices[requestPath]

@@ -4,36 +4,116 @@
     <meta charset="UTF-8">
     <title>{{.title}}</title>
     <style>
+        html {
+            overflow: auto;
+            height: 100%;
+        }
+
         body {
             margin: 0;
             padding: 10px;
             background: #fff;
             color: #333;
+            font-size: 16px;
+            overflow: hidden;
+            display: flex;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+
+        .nav {
+            overflow-x: hidden;
+            overflow-y: auto;
+            flex: 1;
+            background: #333;
+            color: #fff;
+            height: 100%;
+            padding: 10px 0;
+            box-sizing: border-box;
+        }
+
+        .navItem {
+            width: 100%;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 4px 10px;
+            cursor: pointer;
+            user-select: none;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .navItem:hover {
+            background: #99ccff;
+        }
+
+        .navItem .memo {
+            font-weight: normal;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .apiBox {
+            overflow: auto;
+            flex: 3;
+            padding: 8px;
+            height: 100%;
         }
 
         header {
             border-bottom: #ddd 1px solid;
             margin-bottom: 5px;
-            color: #000;
-            padding: 8px;
+            background: #333;
+            color: #fff;
+            padding: 12px;
+            display: flex;
+            align-items: baseline;
         }
 
         header > span {
             font-weight: bold;
+            margin-right: 10px;
+        }
+
+        header > span.memo {
+            font-weight: normal;
+            font-size: 14px;
+            color: #faebd7;
         }
 
         label {
             display: inline-block;
-            padding: 0 5px;
-            background: #666;
+            margin-right: 10px;
+            padding: 4px 8px;
             font-size: 12px;
-            color: #fff;
+            background: #ccc;
+            color: #000;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        label.authLevel {
+            background: #f90;
+            color: #000;
+        }
+
+        label.authLevel0 {
+            background: #ccc;
+            color: #000;
+        }
+
+        label.type {
+            background: #9cf;
+            color: #000;
         }
 
         section {
-            margin-bottom: 20px;
+            margin-bottom: 40px;
             white-space: nowrap;
-            font-size: 0;
+            font-size: 12px;
         }
 
         header.Action, section.Action {
@@ -57,8 +137,12 @@
             background: #f9f9f9;
         }
 
+        th {
+            padding: 8px;
+        }
+
         td {
-            padding: 3px 8px;
+            padding: 6px 12px;
             white-space: pre-wrap;
         }
 
@@ -68,45 +152,65 @@
     </style>
 </head>
 <body>
-{{range .api}}
-<header class="{{.Type}}">
-    <span>{{.Path}}</span>
-{{if ne .AuthLevel 0}}<label>{{.AuthLevel}}</label>{{end}}
-{{if ne .Method ""}}<label>{{.Method}}</label>{{end}}
-{{if ne .Type "Web"}}<label>{{.Type}}</label>{{end}}
-</header>
-<section class="{{.Type}}">
-    <table>
-    {{if isMap .In}}
-    {{range $k, $v := .In}}
-        <tr>
-            <td width="30%">{{$k}}</td>
-            <td width="70%">{{toText $v}}</td>
-        </tr>
+<div class="nav">
+    {{range .api}}
+    <a href="#{{.Path}}" class="navItem">
+        <span>{{.Path}}</span>
+        <span class="memo">{{.Memo}}</span>
+    </a>
     {{end}}
+</div>
+<div class="apiBox">
+    {{range .api}}
+    <a name="{{.Path}}"></a>
+    <div style="height: 16px"></div>
+    <header class="{{.Type}}">
+        <span>{{.Path}}</span>
+        <span class="memo">{{.Memo}}</span>
+        {{if ne .Method ""}}<label>{{.Method}}</label>{{end}}
+        <label title="Auth Level" class="authLevel authLevel{{.AuthLevel}}">{{.AuthLevel}}</label>
+        {{if ne .Type "Web"}}<label class="type">{{.Type}}</label>{{end}}
+    </header>
+    <section class="{{.Type}}">
+        <table>
+            {{if isMap .In}}
+            <tr>
+                <th colspan="2">Request</th>
+            </tr>
+            {{range $k, $v := .In}}
+            <tr>
+                <td width="30%">{{$k}}</td>
+                <td width="70%">{{toText $v}}</td>
+            </tr>
+            {{end}}
+            {{else}}
+            <tr>
+                <td colspan="2">{{.In}}</td>
+            </tr>
+            {{end}}
+        </table>
+        <table>
+            {{if isMap .Out}}
+            <tr>
+                <th colspan="2">Response</th>
+            </tr>
+            {{range $k, $v := .Out}}
+            <tr>
+                <td width="30%">{{$k}}</td>
+                <td width="70%">{{toText $v}}</td>
+            </tr>
+            {{end}}
+            {{else}}
+            <tr>
+                <td colspan="2">{{.Out}}</td>
+            </tr>
+            {{end}}
+        </table>
+    </section>
     {{else}}
-        <tr>
-            <td colspan="2">{{.In}}</td>
-        </tr>
+    <div><strong>no document</strong></div>
     {{end}}
-    </table>
-    <table>
-    {{if isMap .Out}}
-    {{range $k, $v := .Out}}
-        <tr>
-            <td width="30%">{{$k}}</td>
-            <td width="70%">{{toText $v}}</td>
-        </tr>
-    {{end}}
-    {{else}}
-        <tr>
-            <td colspan="2">{{.Out}}</td>
-        </tr>
-    {{end}}
-    </table>
-</section>
-{{else}}
-<div><strong>no document</strong></div>
-{{end}}
+    <div style="height: 800px"></div>
+</div>
 </body>
 </html>

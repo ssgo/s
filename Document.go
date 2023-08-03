@@ -41,7 +41,7 @@ type ArgotInfo struct {
 func MakeDocument() ([]Api, []ArgotInfo) {
 	out := make([]Api, 0)
 
-	for _, a := range rewrites {
+	for _, a := range rewritesList {
 		api := Api{
 			Type: "Rewrite",
 			Path: a.fromPath + " -> " + a.toPath,
@@ -49,23 +49,15 @@ func MakeDocument() ([]Api, []ArgotInfo) {
 		out = append(out, api)
 	}
 
-	for _, a := range regexRewrites {
-		api := Api{
-			Type: "Rewrite",
-			Path: a.fromPath + " -> " + a.toPath,
-		}
-		out = append(out, api)
-	}
+	//for _, a := range regexRewrites {
+	//	api := Api{
+	//		Type: "Rewrite",
+	//		Path: a.fromPath + " -> " + a.toPath,
+	//	}
+	//	out = append(out, api)
+	//}
 
-	for _, a := range proxies {
-		api := Api{
-			Type: "Proxy",
-			Path: a.fromPath + " -> " + a.toApp + ":" + a.toPath,
-		}
-		out = append(out, api)
-	}
-
-	for _, a := range regexProxies {
+	for _, a := range proxiesList {
 		api := Api{
 			Type: "Proxy",
 			Path: a.fromPath + " -> " + a.toApp + ":" + a.toPath,
@@ -73,7 +65,15 @@ func MakeDocument() ([]Api, []ArgotInfo) {
 		out = append(out, api)
 	}
 
-	for _, a := range webServices {
+	//for _, a := range regexProxies {
+	//	api := Api{
+	//		Type: "Proxy",
+	//		Path: a.fromPath + " -> " + a.toApp + ":" + a.toPath,
+	//	}
+	//	out = append(out, api)
+	//}
+
+	for _, a := range webServicesList {
 		if a.options.NoDoc {
 			continue
 		}
@@ -102,44 +102,44 @@ func MakeDocument() ([]Api, []ArgotInfo) {
 		out = append(out, api)
 	}
 
-	for _, a := range regexWebServices {
-		if a.options.NoDoc {
-			continue
-		}
-		api := Api{
-			Type:      "Web",
-			Path:      a.path,
-			AuthLevel: a.authLevel,
-			Priority:  a.options.Priority,
-			Method:    a.method,
-			In:        "",
-			Out:       "",
-			NoBody:    a.options.NoBody,
-			NoLog200:  a.options.NoLog200,
-			Host:      a.options.Host,
-			Memo:      a.memo,
-			Ext:       a.options.Ext,
-			InTags:    map[string]string{},
-			OutTags:   map[string]string{},
-		}
+	//for _, a := range regexWebServices {
+	//	if a.options.NoDoc {
+	//		continue
+	//	}
+	//	api := Api{
+	//		Type:      "Web",
+	//		Path:      a.path,
+	//		AuthLevel: a.authLevel,
+	//		Priority:  a.options.Priority,
+	//		Method:    a.method,
+	//		In:        "",
+	//		Out:       "",
+	//		NoBody:    a.options.NoBody,
+	//		NoLog200:  a.options.NoLog200,
+	//		Host:      a.options.Host,
+	//		Memo:      a.memo,
+	//		Ext:       a.options.Ext,
+	//		InTags:    map[string]string{},
+	//		OutTags:   map[string]string{},
+	//	}
+	//
+	//	if a.inType != nil {
+	//		api.In = getType(a.inType, "", &api.InTags)
+	//	}
+	//	if a.funcType.NumOut() > 0 {
+	//		api.Out = getType(a.funcType.Out(0), "", &api.OutTags)
+	//	}
+	//	out = append(out, api)
+	//}
 
-		if a.inType != nil {
-			api.In = getType(a.inType, "", &api.InTags)
-		}
-		if a.funcType.NumOut() > 0 {
-			api.Out = getType(a.funcType.Out(0), "", &api.OutTags)
-		}
-		out = append(out, api)
-	}
-
-	allWebsocketServices := make([]*websocketServiceType, 0)
-	for _, a := range websocketServices {
-		allWebsocketServices = append(allWebsocketServices, a)
-	}
-	for _, a := range regexWebsocketServices {
-		allWebsocketServices = append(allWebsocketServices, a)
-	}
-	for _, a := range allWebsocketServices {
+	//allWebsocketServices := make([]*websocketServiceType, 0)
+	//for _, a := range websocketServices {
+	//	allWebsocketServices = append(allWebsocketServices, a)
+	//}
+	//for _, a := range regexWebsocketServices {
+	//	allWebsocketServices = append(allWebsocketServices, a)
+	//}
+	for _, a := range websocketServicesList {
 		if a.options.NoDoc {
 			continue
 		}
@@ -321,7 +321,11 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 			return ""
 		}
 
-		err = t.ExecuteTemplate(fp, fromFile, data)
+		if realFromFile != "" {
+			err = t.ExecuteTemplate(fp, fromFile, data)
+		} else {
+			err = t.Execute(fp, data)
+		}
 		if err != nil {
 			log.DefaultLogger.Error(err.Error())
 		}

@@ -70,6 +70,7 @@ type ActionRegister struct {
 var websocketServices = make(map[string]*websocketServiceType)
 var regexWebsocketServices = make([]*websocketServiceType, 0)
 var websocketServicesLock = sync.RWMutex{}
+var websocketServicesList = make([]*websocketServiceType, 0)
 
 //var regexWebsocketServicesLock = sync.RWMutex{}
 
@@ -198,12 +199,14 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 			}
 			//regexWebsocketServices[path] = s
 			regexWebsocketServices = append(regexWebsocketServices, s)
+			websocketServicesList = append(websocketServicesList, s)
 		}
 	}
 	if s.pathMatcher == nil {
 		websocketServicesLock.Lock()
 		websocketServices[fmt.Sprint(options.Host, path)] = s
 		websocketServicesLock.Unlock()
+		websocketServicesList = append(websocketServicesList, s)
 	}
 
 	return &ActionRegister{websocketName: path, websocketServiceType: s}

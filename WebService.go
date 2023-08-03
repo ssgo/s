@@ -52,6 +52,7 @@ type webServiceType struct {
 var webServices = make(map[string]*webServiceType)
 var regexWebServices = make([]*webServiceType, 0)
 var webServicesLock = sync.RWMutex{}
+var webServicesList = make([]*webServiceType, 0)
 
 //var regexWebServicesLock = sync.RWMutex{}
 
@@ -269,13 +270,17 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 				})
 				//log.Print("Register	Compile	", err)
 			}
+			webServicesLock.Lock()
 			regexWebServices = append(regexWebServices, s)
+			webServicesLock.Unlock()
+			webServicesList = append(webServicesList, s)
 		}
 	}
 	if s.pathMatcher == nil {
 		webServicesLock.Lock()
 		webServices[fmt.Sprint(options.Host, method, path)] = s
 		webServicesLock.Unlock()
+		webServicesList = append(webServicesList, s)
 	}
 }
 

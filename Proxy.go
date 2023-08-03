@@ -29,6 +29,7 @@ type proxyInfo struct {
 var proxies = make(map[string]*proxyInfo, 0)
 var regexProxies = make([]*proxyInfo, 0)
 var proxyBy func(*Request) (int, *string, *string, map[string]string)
+var proxiesList = make([]*proxyInfo, 0)
 
 // 跳转
 func SetProxyBy(by func(request *Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
@@ -46,9 +47,11 @@ func Proxy(authLevel int, path string, toApp, toPath string) {
 		} else {
 			p.matcher = matcher
 			regexProxies = append(regexProxies, p)
+			proxiesList = append(proxiesList, p)
 		}
 	}
 	if p.matcher == nil {
+		proxiesList = append(proxiesList, p)
 		proxies[path] = p
 	}
 }
