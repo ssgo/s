@@ -257,18 +257,29 @@ func uniqueId() []byte {
 		serverLogger.Warning("make unique id second index slowly", "times", makeSecIndexTimes, "second", uidSec, "indexSize", len(uidIndexes[uidSec]))
 	}
 
-	// 添加服务器序号
-	uid := u.AppendInt(nil, uint64(uidServerIndex))
-	for len(uid) < 3 {
-		uid = append(uid, '9')
-	}
+	// 添加序号
+	uid := u.AppendInt(nil, uint64(secIndex))
 
 	// 添加时间戳
-	uid = u.AppendInt(uid, uint64(tm.Unix()-946656000))
+	sec1 := u.Bytes(tm.Unix())
+	secLen := len(sec1)
+	sec2 := make([]byte, secLen+1)
+	for i:=0; i<secLen; i++ {
+		sec2[i+1] = sec1[secLen-i-1]
+	}
+	sec2[0] = byte(u.Int(u.GlobalRand2.Intn(10))+48)
+	timeStr := u.AppendInt(nil, u.Uint64(sec2))
+	for len(timeStr) < 7 {
+		timeStr = append(timeStr, '9')
+	}
+	uid = append(uid, timeStr...)
 
-	// 添加序号
-	uid = u.AppendInt(uid, uint64(secIndex))
-
+	// 添加服务器序号
+	serverIndexStr := u.AppendInt(nil, uint64(uidServerIndex))
+	for len(serverIndexStr) < 3 {
+		serverIndexStr = append(serverIndexStr, '9')
+	}
+	uid = append(uid, serverIndexStr...)
 	return uid
 }
 
@@ -293,10 +304,6 @@ func catUniqueId(size int) string {
 
 func UniqueId() string {
 	return string(uniqueId())
-}
-
-func UniqueId12() string {
-	return catUniqueId(12)
 }
 
 func UniqueId14() string {

@@ -547,7 +547,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				if sessionIdMaker != nil {
 					sessionId = sessionIdMaker()
 				} else {
-					sessionId = u.UniqueId()
+					sessionId = UniqueId20()
 				}
 				cookie := http.Cookie{
 					Name:     usedSessionIdKey,
@@ -1169,7 +1169,14 @@ func makeLogableData(v reflect.Value, notAllows map[string]bool, numArrays int, 
 }
 
 func getRealIp(request *http.Request) string {
-	return u.StringIf(request.Header.Get(standard.DiscoverHeaderClientIp) != "", request.Header.Get(standard.DiscoverHeaderClientIp), request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')])
+	ip := request.Header.Get(standard.DiscoverHeaderClientIp)
+	if ip == "" {
+		ip = request.Header.Get(standard.DiscoverHeaderForwardedFor)
+	}
+	if ip == "" {
+		ip = request.RemoteAddr[0:strings.IndexByte(request.RemoteAddr, ':')]
+	}
+	return ip
 }
 
 func (request *Request) GetRealIp() string {
