@@ -145,7 +145,7 @@ func (request *Request) Get(key string) interface{} {
 }
 
 type Response struct {
-	writer        http.ResponseWriter
+	Writer        http.ResponseWriter
 	status        int
 	outLen        int
 	changed       bool
@@ -154,6 +154,8 @@ type Response struct {
 	dontLogArgs   []string
 	ProxyHeader   *http.Header
 }
+
+type Logger = log.Logger
 
 func MakeUrl(request *http.Request, path string) string {
 	return fmt.Sprint(request.Header.Get(standard.DiscoverHeaderScheme), "://", request.Header.Get(standard.DiscoverHeaderHost), path)
@@ -170,7 +172,7 @@ func (response *Response) Header() http.Header {
 	if response.ProxyHeader != nil {
 		return *response.ProxyHeader
 	}
-	return response.writer.Header()
+	return response.Writer.Header()
 }
 func (response *Response) Write(bytes []byte) (int, error) {
 	response.checkWriteHeader()
@@ -179,7 +181,7 @@ func (response *Response) Write(bytes []byte) (int, error) {
 	if response.ProxyHeader != nil {
 		response.copyProxyHeader()
 	}
-	return response.writer.Write(bytes)
+	return response.Writer.Write(bytes)
 }
 func (response *Response) WriteString(s string) (int, error) {
 	return response.Write([]byte(s))
@@ -198,14 +200,14 @@ func (response *Response) checkWriteHeader() {
 	if !response.headerWritten {
 		response.headerWritten = true
 		if response.status != 200 {
-			response.writer.WriteHeader(response.status)
+			response.Writer.WriteHeader(response.status)
 		}
 		return
 	}
 }
 
 func (response *Response) Flush() {
-	if flusher, ok := response.writer.(http.Flusher); ok {
+	if flusher, ok := response.Writer.(http.Flusher); ok {
 		flusher.Flush()
 	}
 }
@@ -219,7 +221,7 @@ func (response *Response) FlushString(s string) (int, error) {
 
 func (response *Response) copyProxyHeader() {
 	src := *response.ProxyHeader
-	dst := response.writer.Header()
+	dst := response.Writer.Header()
 	for k, vv := range src {
 		for _, v := range vv {
 			dst.Add(k, v)
@@ -496,7 +498,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	}
 
 	var request = &Request{Request: httpRequest}
-	var response = &Response{writer: writer, status: 200}
+	var response = &Response{Writer: writer, status: 200}
 	defer response.checkWriteHeader()
 	var sessionObject interface{} = nil
 
@@ -837,7 +839,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			} else {
 				var outData interface{}
 				var outLen int
-				outBytes := makeOutput(object)
+				outBytes, outContentType := makeOutput(object)
+				if outContentType != "" {
+					response.Header().Set("Content-Type", outContentType)
+				}
 				n, err := response.Write(outBytes)
 				if err != nil {
 					logError(err.Error(), "wrote", n)
@@ -904,7 +909,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		}
 
 		// 返回结果
-		outBytes := makeOutput(result)
+		outBytes, outContentType := makeOutput(result)
+		if outContentType != "" {
+			response.Header().Set("Content-Type", outContentType)
+		}
 
 		isZipOuted := false
 		if Config.Compress && len(outBytes) >= Config.CompressMinSize && len(outBytes) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
@@ -948,10 +956,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	}
 }
 
-func makeOutput(result interface{}) []byte {
+func makeOutput(result interface{}) (byteResult []byte, contentType string) {
 	outType := reflect.TypeOf(result)
 	if outType == nil {
-		return []byte{}
+		return []byte{}, ""
 	}
 	for outType.Kind() == reflect.Ptr {
 		outType = outType.Elem()
@@ -959,12 +967,13 @@ func makeOutput(result interface{}) []byte {
 	var outBytes []byte
 	if outType.Kind() != reflect.String && (outType.Kind() != reflect.Slice || outType.Elem().Kind() != reflect.Uint8) {
 		outBytes = makeBytesResult(result)
+		contentType = "application/json; charset=UTF-8"
 	} else if outType.Kind() == reflect.String {
 		outBytes = []byte(result.(string))
 	} else {
 		outBytes = result.([]byte)
 	}
-	return outBytes
+	return outBytes, contentType
 }
 
 //func requireEncryptField(k string) bool {

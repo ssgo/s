@@ -21,6 +21,12 @@ var rewriteBy func(*Request) (string, bool)
 var regexRewrites = make([]*rewriteInfo, 0)
 var rewritesList = make([]*rewriteInfo, 0)
 
+func resetRewriteMemory() {
+	rewrites = make(map[string]*rewriteInfo)
+	rewriteBy = nil
+	regexRewrites = make([]*rewriteInfo, 0)
+	rewritesList = make([]*rewriteInfo, 0)
+}
 //var clientForRewrite1 *httpclient.ClientPool
 //var clientForRewrite2 *httpclient.ClientPool
 
@@ -148,8 +154,8 @@ func processRewrite(request *Request, response *Response, startTime *time.Time, 
 			//		response.Header().Set(k, v[0])
 			//	}
 			//	response.WriteHeader(r.Response.StatusCode)
-			//	//copiedLen, err := io.Copy(response.writer, r.Response.Body)
-			//	copiedLen, err := io.Copy(response.writer, r.Response.Body)
+			//	//copiedLen, err := io.Copy(response.Writer, r.Response.Body)
+			//	copiedLen, err := io.Copy(response.Writer, r.Response.Body)
 			//	if err != nil {
 			//		response.WriteHeader(500)
 			//		n, err := response.Write([]byte(err.Error()))

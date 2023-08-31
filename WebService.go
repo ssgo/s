@@ -73,6 +73,24 @@ var sessionIdMaker func() string
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
+func resetWebServiceMemory(){
+	webServices = make(map[string]*webServiceType)
+	regexWebServices = make([]*webServiceType, 0)
+	//webServicesLock = sync.RWMutex{}
+	webServicesList = make([]*webServiceType, 0)
+	inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
+	outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
+	errorHandle = nil
+	webAuthChecker = nil
+	webAuthFailedData = nil
+	usedSessionIdKey = ""
+	usedDeviceIdKey = ""
+	usedClientAppKey = ""
+	sessionIdMaker = nil
+	injectObjects = map[reflect.Type]interface{}{}
+	injectFunctions = map[reflect.Type]func() interface{}{}
+}
+
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
 //func SetSessionKey(inSessionKey string) {
 //	if usedSessionIdKey == "" {
@@ -458,7 +476,7 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 		parms[service.responseIndex] = reflect.ValueOf(response)
 	}
 	if service.responseWriterIndex >= 0 {
-		parms[service.responseWriterIndex] = reflect.ValueOf(response.writer)
+		parms[service.responseWriterIndex] = reflect.ValueOf(response.Writer)
 	}
 	if service.loggerIndex >= 0 {
 		parms[service.loggerIndex] = reflect.ValueOf(requestLogger)

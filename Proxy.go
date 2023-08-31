@@ -6,7 +6,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
-	"github.com/ssgo/standard"
 	"github.com/ssgo/u"
 	"io"
 	"net/http"
@@ -31,6 +30,12 @@ var regexProxies = make([]*proxyInfo, 0)
 var proxyBy func(*Request) (int, *string, *string, map[string]string)
 var proxiesList = make([]*proxyInfo, 0)
 
+func resetProxyMemory() {
+	proxies = make(map[string]*proxyInfo, 0)
+	regexProxies = make([]*proxyInfo, 0)
+	proxyBy = nil
+	proxiesList = make([]*proxyInfo, 0)
+}
 // 跳转
 func SetProxyBy(by func(request *Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
 	//forceDiscoverClient = true // 代理模式强制启动 Discover Client
@@ -115,10 +120,15 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 	//	//log.Printf("PROXY	%s	%s	%s	%s	%s	%s", getRealIp(request), request.Host, request.Method, request.RequestURI, *proxyToApp, *proxyToPath)
 	//}
 
-	requestHeaders := make([]string, 0)
+	//requestHeaders := make([]string, 0)
+	requestHeaders := map[string]string{}
+	for k, v := range request.Header {
+		requestHeaders[k] = v[0]
+	}
+
 	if proxyHeaders != nil {
 		for k, v := range proxyHeaders {
-			requestHeaders = append(requestHeaders, k, v)
+			requestHeaders[k] = v
 		}
 	}
 	//if appConf.Headers != nil {
@@ -128,11 +138,12 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 	//}
 
 	// 续传 X-...
-	for _, h := range standard.DiscoverRelayHeaders {
-		if request.Header.Get(h) != "" {
-			requestHeaders = append(requestHeaders, h, request.Header.Get(h))
-		}
-	}
+	// for k, v := range request.Header { 时已经设置
+	//for _, h := range standard.DiscoverRelayHeaders {
+	//	if request.Header.Get(h) != "" {
+	//		requestHeaders = append(requestHeaders, h, request.Header.Get(h))
+	//	}
+	//}
 
 	//// 真实的用户IP，通过 X-Real-IP 续传
 	//requestHeaders = append(requestHeaders, standard.DiscoverHeaderClientIp, getRealIp(request))
@@ -217,23 +228,28 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 
 var httpClientPool *httpclient.ClientPool = nil
 
-func proxyWebRequest(app, path string, request *Request, response *Response, requestHeaders []string, requestLogger *log.Logger) {
+func proxyWebRequest(app, path string, request *Request, response *Response, requestHeaders map[string]string, requestLogger *log.Logger) {
 	//var bodyBytes []byte = nil
 	//if request.Body != nil {
 	//	bodyBytes, _ = ioutil.ReadAll(request.Body)
 	//	request.Body.Close()
 	//}
 
+	headerArgs := make([]string, 0)
+	for k, v := range requestHeaders {
+		headerArgs = append(headerArgs, k, v)
+	}
+
 	var r *httpclient.Result
 	if !strings.Contains(app, "://") {
 		caller := &discover.Caller{Request: request.Request, NoBody: true}
-		r = caller.Do(request.Method, app, path, request.Body, requestHeaders...)
+		r = caller.Do(request.Method, app, path, request.Body, headerArgs...)
 	} else {
 		if httpClientPool == nil {
 			httpClientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
 			httpClientPool.NoBody = true
 		}
-		r = httpClientPool.DoByRequest(request.Request, request.Method, app+path, request.Body, requestHeaders...)
+		r = httpClientPool.DoByRequest(request.Request, request.Method, app+path, request.Body, headerArgs...)
 	}
 
 	//var statusCode int
@@ -246,7 +262,7 @@ func proxyWebRequest(app, path string, request *Request, response *Response, req
 		}
 		response.WriteHeader(r.Response.StatusCode)
 		response.checkWriteHeader()
-		outLen, err := io.Copy(response.writer, r.Response.Body)
+		outLen, err := io.Copy(response.Writer, r.Response.Body)
 		if err != nil {
 			if strings.Contains(err.Error(), "stream closed") {
 				requestLogger.Warning(err.Error(), "app", app, "path", path, "responseSize", outLen)
@@ -282,8 +298,8 @@ var updater = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 	return true
 }}
 
-func proxyWebsocketRequest(app, path string, request *Request, response *Response, requestHeaders []string, requestLogger *log.Logger) int {
-	srcConn, err := updater.Upgrade(response.writer, request.Request, nil)
+func proxyWebsocketRequest(app, path string, request *Request, response *Response, requestHeaders map[string]string, requestLogger *log.Logger) int {
+	srcConn, err := updater.Upgrade(response.Writer, request.Request, nil)
 	if err != nil {
 		requestLogger.Error(err.Error(), Map{
 			"app":    app,
@@ -344,9 +360,13 @@ func proxyWebsocketRequest(app, path string, request *Request, response *Respons
 		}
 		sendHeader.Set("Host", request.Host)
 
-		for i := 1; i < len(requestHeaders); i += 2 {
-			sendHeader.Set(requestHeaders[i-1], requestHeaders[i])
+		for k, v := range requestHeaders {
+			sendHeader.Set(k, v)
 		}
+
+		//for i := 1; i < len(requestHeaders); i += 2 {
+		//	sendHeader.Set(requestHeaders[i-1], requestHeaders[i])
+		//}
 
 		//if httpVersion != 1 {
 		//	rp.Transport = &http2.Transport{

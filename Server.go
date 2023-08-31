@@ -35,6 +35,11 @@ type Map = map[string]interface{}
 var version = "unset version"
 var inited = false
 var running = false
+var workPath string // 工作路径，默认为可执行文件的当前目录
+
+func SetWorkPath(p string) {
+	workPath = p
+}
 
 type serviceConfig struct {
 	Listen string
@@ -126,10 +131,10 @@ func SetVersion(serverVersion string) {
 }
 
 func getRedis1() *redis.Redis {
-	if _rd == nil && Config.IdServer != ""{
+	if _rd == nil && Config.IdServer != "" {
 		_rd = redis.GetRedis(Config.IdServer, serverLogger)
 	}
-	return _rd
+	return getRedis2()
 }
 
 func getRedis2() *redis.Redis {
@@ -358,15 +363,50 @@ func (as *AsyncServer) Wait() {
 			logInfo("shutdownHooks stopped", "shutdownHooksNum", len(shutdownHooks))
 		}
 
+		// 清楚内存数据
+		resetWebServiceMemory()
+		resetWebSocketMemory()
+		resetProxyMemory()
+		resetRewriteMemory()
+		resetStarterMemory()
+		resetStaticMemory()
+		resetUtilityMemory()
+		resetServerMemory()
+
 		serviceInfo.remove()
 		logInfo("stopped")
 
 		// 最后关闭日志服务
 		logInfo("logger stopped")
+		serverLogger = nil
 		log.Stop()
 		log.Wait()
-
 	}
+}
+
+func resetServerMemory() {
+	version = "unset version"
+	inited = false
+	running = false
+	workPath = ""
+	_argots = make([]ArgotInfo, 0)
+	Config = serviceConfig{}
+	accessTokens = map[string]*int{}
+	_cpuOverTimes = 0
+	_memoryOutTimes = 0
+	_rd = nil
+	_rd2 = nil
+	_rdStarted = false
+	noLogHeaders = map[string]bool{}
+	noLogOutputFields = map[string]bool{}
+	serverId = u.UniqueId()
+	serverStartTime = time.Now()
+	serverAddr = ""
+	serverProto = "http"
+	serverProtoName = "http"
+	checker = nil
+	shutdownHooks = make([]func(), 0)
+	timerServers = make([]*timerServer, 0)
 }
 
 func (as *AsyncServer) stop() {
@@ -469,6 +509,10 @@ func AsyncStart() *AsyncServer {
 
 func Init() {
 	inited = true
+	if workPath != "" {
+		_ = os.Chdir(workPath)
+	}
+
 	config.LoadConfig("service", &Config)
 
 	accessTokens = Config.AccessTokens
@@ -1104,7 +1148,7 @@ func Subscribe(channel string, reset func(), received func([]byte)) bool {
 
 	if rd2 := getPubSubRedis2(); rd2 != nil {
 		return rd2.Subscribe(channel, reset, received)
-	}else{
+	} else {
 		return false
 	}
 }
@@ -1121,7 +1165,7 @@ func Publish(channel, data string) bool {
 
 	if rd2 := getPubSubRedis2(); rd2 != nil {
 		return rd2.PUBLISH(channel, data)
-	}else{
+	} else {
 		return false
 	}
 }

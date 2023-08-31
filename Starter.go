@@ -40,6 +40,10 @@ var startCmds = []StartCmd{
   ./server doc output.html tpl.html - save api doc with html format (template is special file tpl.html)`, cmdMakeDocument},
 }
 
+func resetStarterMemory() {
+	startCmds = []StartCmd{}
+}
+
 // 			makeDockment(os.Args[2], os.Args[3])
 //		} else if len(os.Args) >= 3 {
 //			makeDockment(os.Args[2], "")
@@ -92,11 +96,25 @@ func (si *serviceInfoType) load() {
 }
 
 var serviceInfo serviceInfoType
+
 //var inDocumentMode = false
 
 func init() {
-	_ = os.Chdir(path.Dir(os.Args[0]))
-	serviceInfo = serviceInfoType{pidFile: "." + strings.Replace(os.Args[0], "/", "_", 100) + ".pid"}
+	pidTag := os.Args[0]
+	if len(os.Args) > 1 {
+		if u.FileExists(os.Args[1]) {
+			pidTag = os.Args[1]
+		}
+	}
+	if len(os.Args) > 2 {
+		if os.Args[1] == "start" || os.Args[1] == "stop" || os.Args[1] == "restart" || os.Args[1] == "status" || os.Args[1] == "check" {
+			pidTag = os.Args[2]
+		}
+	}
+
+	pidPath := path.Dir(os.Args[0])
+	_ = os.Chdir(pidPath)
+	serviceInfo = serviceInfoType{pidFile: path.Join(pidPath, "."+strings.Replace(pidTag, string(os.PathSeparator), "_", 100)+".pid")}
 	serviceInfo.load()
 
 	if len(os.Args) > 1 {

@@ -76,6 +76,13 @@ var websocketServicesList = make([]*websocketServiceType, 0)
 
 var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{}, *Request, interface{}) bool
 
+func resetWebSocketMemory() {
+	websocketServices = make(map[string]*websocketServiceType)
+	regexWebsocketServices = make([]*websocketServiceType, 0)
+	websocketServicesList = make([]*websocketServiceType, 0)
+	webSocketActionAuthChecker = nil
+}
+
 // 注册Websocket服务
 func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}, memo string) {
 	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{})
@@ -258,7 +265,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 	//byteHeaders, _ := json.Marshal(headers)
 
 	message := "OK"
-	client, err := ws.updater.Upgrade(response.writer, request.Request, nil)
+	client, err := ws.updater.Upgrade(response.Writer, request.Request, nil)
 	if err != nil {
 		message = err.Error()
 		response.WriteHeader(500)

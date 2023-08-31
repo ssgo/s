@@ -98,7 +98,7 @@ func TestWelcomeWithHttp2(tt *testing.T) {
 
 	c := httpclient.GetClientH2C(1000)
 	r := c.Get("http://" + as.Addr)
-	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, r.String())
+	t.Test(r.Error == nil && r.String() == "Hello World!", "Welcome", r.Error, "|||", r.String())
 	t.Test(r.Response.Proto == "HTTP/2.0", "Welcome Proto", r.Error, r.Response.Proto)
 
 	as.Stop()

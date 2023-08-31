@@ -17,6 +17,13 @@ var staticsByHost = make(map[string]map[string]*string)
 var staticsFiles = make(map[string][]byte)
 var staticsFileByHost = make(map[string]map[string][]byte)
 
+func resetStaticMemory() {
+	statics = make(map[string]*string)
+	staticsByHost = make(map[string]map[string]*string)
+	staticsFiles = make(map[string][]byte)
+	staticsFileByHost = make(map[string]map[string][]byte)
+}
+
 func SetStaticGZFile(path string, data []byte) {
 	SetStaticGZFileByHost(path, data, "")
 }

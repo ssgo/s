@@ -23,6 +23,16 @@ var uidShutdownHookSet = false
 var fileLocksLock = sync.Mutex{}
 var fileLocks = map[string]*sync.Mutex{}
 
+func resetUtilityMemory() {
+	uidServerDate = ""
+	uidServerStart = 0
+	uidServerIndex = -1
+	uidSec = 0
+	uidIndexes = map[int]map[uint]bool{}
+	uidShutdownHookSet = false
+	fileLocks = map[string]*sync.Mutex{}
+}
+
 func trySetServerId(rdConn redigo.Conn, hkey string, sid int64) (bool, error) {
 	if rdConn != nil {
 		r, err := rdConn.Do("HSETNX", hkey, sid, true)
