@@ -934,7 +934,7 @@ func (as *AsyncServer) Start() {
 
 	Restful(0, "HEAD", "/__CHECK__", defaultChecker, "check service is available")
 
-	logInfo("started", "cpuCoreNum", Config.Cpu, "maxMemory", Config.Memory)
+	logInfo("started", "cpuCoreNum", Config.Cpu, "maxMemory", Config.Memory, "pid", serviceInfo.pid, "pidFile", serviceInfo.pidFile)
 	if Config.StatisticTime {
 		// 统计请求个阶段的处理时间
 		timeStatistic = NewTimeStatistic(serverLogger)

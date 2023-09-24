@@ -288,17 +288,55 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 				})
 				//log.Print("Register	Compile	", err)
 			}
+			// 检查是否有已经存在的项
+			deleteIndex := -1
+			deleteIndex2 := -1
+			webServicesLock.RLock()
+			for i, s := range regexWebServices {
+				if s.options.Host == options.Host && s.method == method && s.path == path {
+					deleteIndex = i
+					break
+				}
+			}
+			for i, s := range webServicesList {
+				if s.options.Host == options.Host && s.method == method && s.path == path {
+					deleteIndex2 = i
+					break
+				}
+			}
+			webServicesLock.RUnlock()
+
 			webServicesLock.Lock()
 			regexWebServices = append(regexWebServices, s)
-			webServicesLock.Unlock()
+			if deleteIndex >= 0 {
+				regexWebServices = append(regexWebServices[0:deleteIndex], regexWebServices[deleteIndex+1:]...)
+			}
 			webServicesList = append(webServicesList, s)
+			if deleteIndex2 >= 0 {
+				webServicesList = append(webServicesList[0:deleteIndex2], regexWebServices[deleteIndex2+1:]...)
+			}
+			webServicesLock.Unlock()
 		}
 	}
 	if s.pathMatcher == nil {
+		// 检查是否有已经存在的项
+		deleteIndex2 := -1
+		webServicesLock.RLock()
+		for i, s := range webServicesList {
+			if s.options.Host == options.Host && s.method == method && s.path == path {
+				deleteIndex2 = i
+				break
+			}
+		}
+		webServicesLock.RUnlock()
+
 		webServicesLock.Lock()
 		webServices[fmt.Sprint(options.Host, method, path)] = s
-		webServicesLock.Unlock()
 		webServicesList = append(webServicesList, s)
+		if deleteIndex2 >= 0 {
+			webServicesList = append(webServicesList[0:deleteIndex2], regexWebServices[deleteIndex2+1:]...)
+		}
+		webServicesLock.Unlock()
 	}
 }
 
@@ -309,9 +347,39 @@ func Unregister(method, path string) {
 
 // 注册服务
 func unregister(method, path string, options WebServiceOptions) {
-	webServicesLock.Lock()
-	delete(webServices, fmt.Sprint(options.Host, method, path))
-	webServicesLock.Unlock()
+	webServicesLock.RLock()
+	isRegexWebService := false
+	if webServices[fmt.Sprint(options.Host, method, path)] == nil {
+		isRegexWebService = true
+	}
+	webServicesLock.RUnlock()
+
+	if !isRegexWebService {
+		webServicesLock.Lock()
+		delete(webServices, fmt.Sprint(options.Host, method, path))
+		for i, s := range webServicesList {
+			if s.options.Host == options.Host && s.method == method && s.path == path {
+				webServicesList = append(webServicesList[0:i], webServicesList[i+1:]...)
+				break
+			}
+		}
+		webServicesLock.Unlock()
+	}else{
+		webServicesLock.Lock()
+		for i, s := range regexWebServices {
+			if s.options.Host == options.Host && s.method == method && s.path == path {
+				regexWebServices = append(regexWebServices[0:i], regexWebServices[i+1:]...)
+				break
+			}
+		}
+		for i, s := range webServicesList {
+			if s.options.Host == options.Host && s.method == method && s.path == path {
+				webServicesList = append(webServicesList[0:i], webServicesList[i+1:]...)
+				break
+			}
+		}
+		webServicesLock.Unlock()
+	}
 }
 
 // 设置前置过滤器

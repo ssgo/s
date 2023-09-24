@@ -2,7 +2,6 @@ package s
 
 import (
 	"fmt"
-	"github.com/ssgo/log"
 	"github.com/ssgo/u"
 	"os"
 	"os/exec"
@@ -99,27 +98,53 @@ var serviceInfo serviceInfoType
 
 //var inDocumentMode = false
 
-func init() {
-	pidTag := os.Args[0]
-	if len(os.Args) > 1 {
-		if u.FileExists(os.Args[1]) {
-			pidTag = os.Args[1]
-		}
-	}
-	if len(os.Args) > 2 {
-		if os.Args[1] == "start" || os.Args[1] == "stop" || os.Args[1] == "restart" || os.Args[1] == "status" || os.Args[1] == "check" {
-			pidTag = os.Args[2]
+func tryStartPath(testFile string) string {
+	if u.FileExists(testFile) {
+		// use current path
+		if path.IsAbs(testFile) {
+			return path.Dir(testFile)
+		} else {
+			curPath, _ := os.Getwd()
+			return curPath
 		}
 	}
 
-	pidPath := path.Dir(os.Args[0])
-	_ = os.Chdir(pidPath)
-	serviceInfo = serviceInfoType{pidFile: path.Join(pidPath, "."+strings.Replace(pidTag, string(os.PathSeparator), "_", 100)+".pid")}
+	tryPath := path.Dir(os.Args[0])
+	if u.FileExists(path.Join(tryPath, testFile)) {
+		// use arg0 path
+		return tryPath
+	}
+
+	// no set
+	return ""
+}
+
+func init() {
+	startPath := ""
+	if startPath == "" && len(os.Args) > 1 && strings.ContainsRune(os.Args[1], '.') {
+		startPath = tryStartPath(os.Args[1])
+	}
+	if startPath == "" && len(os.Args) > 2 && strings.ContainsRune(os.Args[2], '.') {
+		startPath = tryStartPath(os.Args[2])
+	}
+	if startPath == "" {
+		startPath = tryStartPath("env.yml")
+	}
+	if startPath == "" {
+		startPath = tryStartPath("env.json")
+	}
+
+	if startPath != "" {
+		_ = os.Chdir(startPath)
+	} else if !strings.Contains(os.Args[0], "/go-build") {
+		_ = os.Chdir(path.Dir(os.Args[0]))
+	}
+	serviceInfo = serviceInfoType{pidFile: path.Join(startPath, ".pid")}
 	serviceInfo.load()
 
-	if len(os.Args) > 1 {
-		log.DefaultLogger.SetLevel(log.CLOSE)
-	}
+	//if len(os.Args) > 1 {
+	//	log.DefaultLogger.SetLevel(log.CLOSE)
+	//}
 }
 
 func AddCmd(name, comment string, function func()) {
@@ -128,7 +153,7 @@ func AddCmd(name, comment string, function func()) {
 
 func CheckCmd() {
 	if len(os.Args) > 1 {
-		log.DefaultLogger.SetLevel(log.INFO)
+		//log.DefaultLogger.SetLevel(log.INFO)
 
 		cmd := os.Args[1]
 		if cmd == "help" || cmd == "--help" {
