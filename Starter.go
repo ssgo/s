@@ -346,7 +346,7 @@ func checkProcess() {
 	}
 
 	checkUrl := serviceInfo.baseUrl + "/__CHECK__"
-	r := client.Head(checkUrl, nil, "Pid", pid)
+	r := client.Head(checkUrl, "Pid", pid)
 	if r.Error != nil {
 		fmt.Printf("request %s error %s\n", checkUrl, r.Error.Error())
 		os.Exit(1)
