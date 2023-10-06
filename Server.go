@@ -437,7 +437,7 @@ func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) 
 	return as.Do("DELETE", path, data, headers...)
 }
 func (as *AsyncServer) Head(path string, headers ...string) *httpclient.Result {
-	return as.Do("HEAD", path, headers...)
+	return as.Do("HEAD", path, nil, headers...)
 }
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
@@ -485,7 +485,7 @@ func (c *Client) Delete(path string, data interface{}, headers ...string) *httpc
 }
 
 func (c *Client) Head(path string, headers ...string) *httpclient.Result {
-	return c.Do("HEAD", path, headers...)
+	return c.Do("HEAD", path, nil, headers...)
 }
 
 func (c *Client) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
