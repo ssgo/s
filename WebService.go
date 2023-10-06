@@ -73,7 +73,7 @@ var sessionIdMaker func() string
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
-func resetWebServiceMemory(){
+func resetWebServiceMemory() {
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make([]*webServiceType, 0)
 	//webServicesLock = sync.RWMutex{}
@@ -309,11 +309,21 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 			webServicesLock.Lock()
 			regexWebServices = append(regexWebServices, s)
 			if deleteIndex >= 0 {
-				regexWebServices = append(regexWebServices[0:deleteIndex], regexWebServices[deleteIndex+1:]...)
+				//regexWebServices = append(regexWebServices[0:deleteIndex], regexWebServices[deleteIndex+1:]...)
+				newList := regexWebServices[0:deleteIndex]
+				if len(regexWebServices) > deleteIndex {
+					newList = append(newList, regexWebServices[deleteIndex+1:]...)
+				}
+				regexWebServices = newList
 			}
 			webServicesList = append(webServicesList, s)
 			if deleteIndex2 >= 0 {
-				webServicesList = append(webServicesList[0:deleteIndex2], regexWebServices[deleteIndex2+1:]...)
+				//webServicesList = append(webServicesList[0:deleteIndex2], webServicesList[deleteIndex2+1:]...)
+				newList := webServicesList[0:deleteIndex2]
+				if len(webServicesList) > deleteIndex2 {
+					newList = append(newList, webServicesList[deleteIndex2+1:]...)
+				}
+				webServicesList = newList
 			}
 			webServicesLock.Unlock()
 		}
@@ -334,7 +344,11 @@ func RestfulWithOptions(authLevel int, method, path string, serviceFunc interfac
 		webServices[fmt.Sprint(options.Host, method, path)] = s
 		webServicesList = append(webServicesList, s)
 		if deleteIndex2 >= 0 {
-			webServicesList = append(webServicesList[0:deleteIndex2], regexWebServices[deleteIndex2+1:]...)
+			newList := webServicesList[0:deleteIndex2]
+			if len(webServicesList) > deleteIndex2 {
+				newList = append(newList, webServicesList[deleteIndex2+1:]...)
+			}
+			webServicesList = newList
 		}
 		webServicesLock.Unlock()
 	}
@@ -364,7 +378,7 @@ func unregister(method, path string, options WebServiceOptions) {
 			}
 		}
 		webServicesLock.Unlock()
-	}else{
+	} else {
 		webServicesLock.Lock()
 		for i, s := range regexWebServices {
 			if s.options.Host == options.Host && s.method == method && s.path == path {
