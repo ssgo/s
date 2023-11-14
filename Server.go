@@ -75,6 +75,7 @@ type serviceConfig struct {
 	MemoryMonitor                 bool
 	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
 	IdServer                      string // 用来维护唯一ID的redis服务器连接
+	KeepKeyCase                   bool   // 是否保持Key的首字母大小写？默认一律使用小写
 }
 
 type CertSet struct {

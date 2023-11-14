@@ -689,6 +689,8 @@ func makeBytesResult(data interface{}) []byte {
 			bytesResult = []byte("{}")
 		}
 	}
-	u.FixUpperCase(bytesResult, excludeKeys)
+	if !Config.KeepKeyCase {
+		u.FixUpperCase(bytesResult, excludeKeys)
+	}
 	return bytesResult
 }

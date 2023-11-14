@@ -380,7 +380,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 				//printableMsg, _ := json.Marshal(messageData)
 				if webSocketActionAuthChecker != nil {
 					if webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
-						logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
+						logInMsg := makeLogableData(requestLogger, reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 						writeLog(requestLogger, "WSREJECT", nil, 0, request.Request, response, args, startTime, authLevel, Map{
 							"inAction":  actionName,
 							"inMessage": logInMsg,
@@ -393,8 +393,8 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 				actionStartTime := time.Now()
 				outAction, outData, outLen, err := doWebsocketAction(ws, actionName, action, client, request, messageData, sessionValue, requestLogger, sessionObject)
 				if err == nil {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
-					logOutMsg := makeLogableData(reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
+					logInMsg := makeLogableData(requestLogger, reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
+					logOutMsg := makeLogableData(requestLogger, reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 					if Config.LogWebsocketAction {
 						writeLog(requestLogger, "WSACTION", nil, outLen, request.Request, response, args, &actionStartTime, authLevel, Map{
 							"inAction":   actionName,
@@ -405,8 +405,8 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 					}
 					//log.Printf("WSACTION	%s	%s	%s	%.6f	%s", getRealIp(request), request.RequestURI, actionName, usedTime, string(printableMsg))
 				} else {
-					logInMsg := makeLogableData(reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
-					logOutMsg := makeLogableData(reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
+					logInMsg := makeLogableData(requestLogger, reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
+					logOutMsg := makeLogableData(requestLogger, reflect.ValueOf(outData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 					writeLog(requestLogger, "WSACTIONERROR", nil, outLen, request.Request, response, args, &actionStartTime, authLevel, Map{
 						"inAction":   actionName,
 						"inMessage":  logInMsg,
@@ -537,7 +537,9 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 		if err != nil {
 			return outAction, outData, outLen, err
 		}
-		u.FixUpperCase(outBytes, nil)
+		if !Config.KeepKeyCase {
+			u.FixUpperCase(outBytes, nil)
+		}
 		err = client.WriteMessage(websocket.TextMessage, outBytes)
 		if err != nil {
 			return outAction, outData, outLen, err

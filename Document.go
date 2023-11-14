@@ -201,7 +201,9 @@ func MakeJsonDocument() string {
 		"argots": argots,
 	})
 
-	u.FixUpperCase(data, nil)
+	if !Config.KeepKeyCase {
+		u.FixUpperCase(data, nil)
+	}
 	api2 := Map{}
 	json.Unmarshal(data, &api2)
 	data2, _ := json.MarshalIndent(api2, "", "\t")
@@ -243,7 +245,9 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 
 	for i, a := range api {
 		data2, _ := json.Marshal(a.In)
-		u.FixUpperCase(data2, nil)
+		if !Config.KeepKeyCase {
+			u.FixUpperCase(data2, nil)
+		}
 		var in2 interface{}
 		_ = json.Unmarshal(data2, &in2)
 		api[i].In = in2
@@ -262,7 +266,9 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 			//fmt.Println(">>>>>>>", a.Out)
 		}
 		data3, _ := json.Marshal(a.Out)
-		u.FixUpperCase(data3, nil)
+		if !Config.KeepKeyCase {
+			u.FixUpperCase(data3, nil)
+		}
 		var out3 interface{}
 		_ = json.Unmarshal(data3, &out3)
 		api[i].Out = out3
