@@ -193,10 +193,10 @@ type timerServer struct {
 var timerServers = make([]*timerServer, 0)
 
 func NewTimerServer(name string, interval time.Duration, run func(*bool), start func(), stop func()) {
-	if interval < time.Millisecond*500 {
-		interval = time.Millisecond * 500
+	if interval < time.Millisecond*100 {
+		interval = time.Millisecond * 100
 	}
-	intervalTimes := int(interval / (time.Millisecond * 500))
+	intervalTimes := int(interval / (time.Millisecond * 100))
 	timerServers = append(timerServers, &timerServer{name: name, intervalDuration: interval, intervalTimes: intervalTimes, run: run, start: start, stop: stop})
 }
 
@@ -1037,7 +1037,7 @@ func runTimerServer(ts *timerServer) {
 		}
 
 		for i := 0; i < ts.intervalTimes; i++ {
-			time.Sleep(time.Millisecond * 500)
+			time.Sleep(time.Millisecond * 100)
 			if !ts.running {
 				break
 			}
