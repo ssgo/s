@@ -331,7 +331,7 @@ func (as *AsyncServer) Wait() {
 
 		// 停止计时器服务
 		for _, ts := range timerServers {
-			logInfo("stopping timer server", "name", ts.name, "interval", ts.intervalDuration)
+			logInfo("stopping timer server", "name", ts.name, "interval", ts.intervalDuration/time.Millisecond)
 			if ts.stop != nil {
 				ts.stop()
 			}
@@ -350,7 +350,7 @@ func (as *AsyncServer) Wait() {
 		discover.Wait()
 
 		for _, ts := range timerServers {
-			logInfo("waiting timer server", "name", ts.name, "interval", ts.intervalDuration)
+			logInfo("waiting timer server", "name", ts.name, "interval", ts.intervalDuration/time.Millisecond)
 			if ts.stopChan != nil {
 				<-ts.stopChan
 				ts.stopChan = nil
@@ -909,7 +909,7 @@ func (as *AsyncServer) Start() {
 	}
 
 	for _, ts := range timerServers {
-		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration/time.Second)
+		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration/time.Millisecond)
 		if ts.start != nil {
 			ts.start()
 		}
