@@ -73,6 +73,10 @@ type serviceConfig struct {
 	Memory                        int    // 内存（单位M），默认为0，即不做限制
 	CpuMonitor                    bool
 	MemoryMonitor                 bool
+	CpuLimitValue                 uint   // CPU超过最高占用值（10-100）超过次数将自动重启（如果CpuMonitor开启的话），默认100
+	MemoryLimitValue              uint   // 内存超过最高占用值（10-100）超过次数将自动重启（如果MemoryMonitor开启的话），默认95
+	CpuLimitTimes                 uint   // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
+	MemoryLimitTimes              uint   // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
 	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
 	IdServer                      string // 用来维护唯一ID的redis服务器连接
 	KeepKeyCase                   bool   // 是否保持Key的首字母大小写？默认一律使用小写
@@ -261,12 +265,12 @@ func defaultChecker(request *http.Request, response http.ResponseWriter) {
 	}
 
 	cpuOverTimes, memoryOutTimes := GetCPUMemoryStat()
-	if ok && Config.CpuMonitor && cpuOverTimes >= 10 {
-		// CPU连续10分钟达到 100%
+	if ok && Config.CpuMonitor && cpuOverTimes >= Config.CpuLimitTimes {
+		// CPU 1分钟连续6次达到 100%
 		ok = false
 	}
-	if ok && Config.MemoryMonitor && memoryOutTimes >= 10 {
-		// 内存连续10分钟达到 100%
+	if ok && Config.MemoryMonitor && memoryOutTimes >= Config.MemoryLimitTimes {
+		// 内存 1分钟连续6次达到 95%
 		ok = false
 	}
 
@@ -624,111 +628,21 @@ func Init() {
 	if Config.Memory < 256 {
 		Config.Memory = 256
 	}
+
+	if Config.CpuLimitValue <= 0 || Config.CpuLimitValue > 100 {
+		Config.CpuLimitValue = 100
+	}
+	if Config.MemoryLimitValue <= 0 || Config.MemoryLimitValue > 100 {
+		Config.MemoryLimitValue = 95
+	}
+	if Config.CpuLimitTimes <= 0 {
+		Config.CpuLimitTimes = 6
+	}
+	if Config.MemoryLimitTimes <= 0 {
+		Config.MemoryLimitTimes = 6
+	}
 	//ms := runtime.MemStats{}
 	//runtime.ReadMemStats(&ms)
-
-	if Config.CpuMonitor || Config.MemoryMonitor {
-		var serviceProcess *process.Process
-		var cpuCounter *Counter
-		var memoryCounter *Counter
-		var memoryStat = runtime.MemStats{}
-		NewTimerServer("serverMonitor", time.Minute, func(serverRunning *bool) {
-			if Config.MemoryMonitor {
-				runtime.ReadMemStats(&memoryStat)
-				memoryUsed := byteToM(memoryStat.Sys)
-				memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
-				if memoryPercent >= 60 {
-					memoryCounter.AddFailed(memoryPercent)
-				} else {
-					memoryCounter.Add(memoryPercent)
-				}
-
-				if memoryPercent >= 100 {
-					_memoryOutTimes++
-				} else {
-					_memoryOutTimes = 0
-				}
-
-				if memoryCounter.Times >= 10 {
-					memoryCounter.Count()
-					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
-					if memoryPercent >= 100 {
-						logError("out of memory", memoryInfo...)
-					} else if memoryPercent >= 80 {
-						logError("memory danger", memoryInfo...)
-					} else if memoryPercent >= 60 {
-						logError("memory warning", memoryInfo...)
-					}
-					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
-					memoryCounter.Reset()
-				}
-			}
-
-			if Config.CpuMonitor && serviceProcess != nil {
-				if cpuPercent, err := serviceProcess.CPUPercent(); err == nil {
-					if cpuPercent >= 60 {
-						cpuCounter.AddFailed(cpuPercent)
-					} else {
-						cpuCounter.Add(cpuPercent)
-					}
-
-					if cpuPercent >= 100 {
-						_cpuOverTimes++
-					} else {
-						_cpuOverTimes = 0
-					}
-
-					if cpuCounter.Times >= 10 {
-						cpuCounter.Count()
-						numThreads, _ := serviceProcess.NumThreads()
-						cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
-						if cpuPercent >= 100 {
-							logError("over load of cpu", cpuInfo...)
-						} else if cpuPercent >= 80 {
-							logError("cpu danger", cpuInfo...)
-						} else if cpuPercent >= 60 {
-							logError("cpu warning", cpuInfo...)
-						}
-						serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
-						cpuCounter.Reset()
-					}
-				}
-			}
-		}, func() {
-			if Config.MemoryMonitor {
-				memoryCounter = NewCounter()
-			}
-
-			if Config.CpuMonitor {
-				var err error
-				serviceProcess, err = process.NewProcess(int32(os.Getpid()))
-				if err != nil {
-					logError(err.Error())
-					serviceProcess = nil
-				}
-				cpuCounter = NewCounter()
-			}
-		}, func() {
-			if Config.MemoryMonitor {
-				if memoryCounter.Times >= 1 {
-					memoryUsed := byteToM(memoryStat.Sys)
-					memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
-					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
-					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
-					memoryCounter.Reset()
-				}
-			}
-
-			if Config.CpuMonitor && serviceProcess != nil {
-				if cpuCounter.Times >= 1 {
-					numThreads, _ := serviceProcess.NumThreads()
-					cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
-					serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
-					cpuCounter.Reset()
-				}
-			}
-		})
-	}
 }
 
 func byteToM(n uint64) int {
@@ -783,6 +697,110 @@ func (as *AsyncServer) Start() {
 	if !inited {
 		Init()
 		discover.Init()
+	}
+
+	// 监控
+	if Config.CpuMonitor || Config.MemoryMonitor {
+		var serviceProcess *process.Process
+		var cpuCounter *Counter
+		var memoryCounter *Counter
+		var memoryStat = runtime.MemStats{}
+		NewTimerServer("serverMonitor", time.Second * 5, func(serverRunning *bool) {
+			if Config.MemoryMonitor {
+				runtime.ReadMemStats(&memoryStat)
+				memoryUsed := byteToM(memoryStat.Sys)
+				memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
+				if memoryPercent >= 60 {
+					memoryCounter.AddFailed(memoryPercent)
+				} else {
+					memoryCounter.Add(memoryPercent)
+				}
+
+				if memoryPercent >= float64(Config.MemoryLimitValue) {
+					_memoryOutTimes++
+				} else {
+					_memoryOutTimes = 0
+				}
+
+				if memoryCounter.Times >= 12 {
+					memoryCounter.Count()
+					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					if memoryPercent >= 100 {
+						logError("out of memory", memoryInfo...)
+					} else if memoryPercent >= 80 {
+						logError("memory danger", memoryInfo...)
+					} else if memoryPercent >= 60 {
+						logError("memory warning", memoryInfo...)
+					}
+					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					memoryCounter.Reset()
+				}
+			}
+
+			if Config.CpuMonitor && serviceProcess != nil {
+				if cpuPercent, err := serviceProcess.CPUPercent(); err == nil {
+					if cpuPercent >= 60 {
+						cpuCounter.AddFailed(cpuPercent)
+					} else {
+						cpuCounter.Add(cpuPercent)
+					}
+
+					if cpuPercent >= float64(Config.CpuLimitValue) {
+						_cpuOverTimes++
+					} else {
+						_cpuOverTimes = 0
+					}
+
+					if cpuCounter.Times >= 12 {
+						cpuCounter.Count()
+						numThreads, _ := serviceProcess.NumThreads()
+						cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+						if cpuPercent >= 100 {
+							logError("over load of cpu", cpuInfo...)
+						} else if cpuPercent >= 80 {
+							logError("cpu danger", cpuInfo...)
+						} else if cpuPercent >= 60 {
+							logError("cpu warning", cpuInfo...)
+						}
+						serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+						cpuCounter.Reset()
+					}
+				}
+			}
+		}, func() {
+			if Config.MemoryMonitor {
+				memoryCounter = NewCounter()
+			}
+
+			if Config.CpuMonitor {
+				var err error
+				serviceProcess, err = process.NewProcess(int32(os.Getpid()))
+				if err != nil {
+					logError(err.Error())
+					serviceProcess = nil
+				}
+				cpuCounter = NewCounter()
+			}
+		}, func() {
+			if Config.MemoryMonitor {
+				if memoryCounter.Times >= 1 {
+					memoryUsed := byteToM(memoryStat.Sys)
+					memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
+					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					memoryCounter.Reset()
+				}
+			}
+
+			if Config.CpuMonitor && serviceProcess != nil {
+				if cpuCounter.Times >= 1 {
+					numThreads, _ := serviceProcess.NumThreads()
+					cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+					serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+					cpuCounter.Reset()
+				}
+			}
+		})
 	}
 
 	listenLines := strings.Split(Config.Listen, "|")
