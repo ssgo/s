@@ -309,6 +309,8 @@ type AsyncServer struct {
 	stopChan     chan bool
 	listens      []Listen
 	Addr         string
+	Proto        string
+	ProtoName    string
 	clientPool   *httpclient.ClientPool
 	routeHandler routeHandler
 	waited       bool
@@ -444,6 +446,7 @@ func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) 
 func (as *AsyncServer) Head(path string, headers ...string) *httpclient.Result {
 	return as.Do("HEAD", path, nil, headers...)
 }
+
 func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
 	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	//fmt.Println("= ========", serverProtoName, "[["+as.Addr+"]]")
@@ -451,6 +454,10 @@ func (as *AsyncServer) Do(method, path string, data interface{}, headers ...stri
 	//if usedSessionIdKey != "" && r.Response != nil && r.Response.Header != nil && r.Response.Header.Get(usedSessionIdKey) != "" {
 	//	as.clientPool.SetGlobalHeader(usedSessionIdKey, r.Response.Header.Get(usedSessionIdKey))
 	//}
+	return r
+}
+func (as *AsyncServer) ManualDo(method, path string, data interface{}, headers ...string) *httpclient.Result {
+	r := as.clientPool.ManualDo(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
 	return r
 }
 
@@ -705,7 +712,7 @@ func (as *AsyncServer) Start() {
 		var cpuCounter *Counter
 		var memoryCounter *Counter
 		var memoryStat = runtime.MemStats{}
-		NewTimerServer("serverMonitor", time.Second * 5, func(serverRunning *bool) {
+		NewTimerServer("serverMonitor", time.Second*5, func(serverRunning *bool) {
 			if Config.MemoryMonitor {
 				runtime.ReadMemStats(&memoryStat)
 				memoryUsed := byteToM(memoryStat.Sys)
@@ -846,6 +853,10 @@ func (as *AsyncServer) Start() {
 		as.listens = append(as.listens, listen)
 	}
 
+	if len(websocketServicesList) > 0 && as.listens[0].protocol == "h2c" {
+		// force http for websocket
+		as.listens[0].protocol = "http"
+	}
 	serverProto = as.listens[0].protocol
 	if serverProto == "https" || serverProto == "h2" {
 		serverProtoName = "https"
@@ -960,6 +971,8 @@ func (as *AsyncServer) Start() {
 	}
 
 	as.Addr = serverAddr
+	as.Proto = serverProto
+	as.ProtoName = serverProtoName
 	as.startChan <- true
 	// 11
 	rh := routeHandler{}

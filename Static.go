@@ -9,19 +9,23 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
 var statics = make(map[string]*string)
 var staticsByHost = make(map[string]map[string]*string)
+var staticsByHostLock = sync.RWMutex{}
 var staticsFiles = make(map[string][]byte)
 var staticsFileByHost = make(map[string]map[string][]byte)
 
 func resetStaticMemory() {
+	staticsByHostLock.Lock()
 	statics = make(map[string]*string)
 	staticsByHost = make(map[string]map[string]*string)
 	staticsFiles = make(map[string][]byte)
 	staticsFileByHost = make(map[string]map[string][]byte)
+	staticsByHostLock.Unlock()
 }
 
 func SetStaticGZFile(path string, data []byte) {
@@ -71,12 +75,16 @@ func StaticByHost(path, rootPath, host string) {
 	}
 	rootPath = margePath(rootPath)
 	if host == "" {
+		staticsByHostLock.Lock()
 		statics[path] = &rootPath
+		staticsByHostLock.Unlock()
 	} else {
+		staticsByHostLock.Lock()
 		if staticsByHost[host] == nil {
 			staticsByHost[host] = make(map[string]*string)
 		}
 		staticsByHost[host][path] = &rootPath
+		staticsByHostLock.Unlock()
 	}
 }
 
@@ -120,30 +128,45 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		http.ServeContent(response, request, path.Base(requestPath), serverStartTime, bytes.NewReader(fileBuf))
 		outLen = len(fileBuf)
 	} else {
-		if len(statics) == 0 && len(staticsByHost) == 0 {
+		staticsByHostLock.RLock()
+		staticsLen := len(statics)
+		staticsByHostLen := len(staticsByHost)
+		requestStaticsByHost := staticsByHost[request.Host]
+		staticsByHostLock.RUnlock()
+		if staticsLen == 0 && staticsByHostLen == 0 {
 			return false
 		}
 
 		var rootPath *string
-		if staticsByHost[request.Host] != nil {
+		if requestStaticsByHost != nil {
 			// 从虚拟主机设置中匹配
-			rootPath = staticsByHost[request.Host][requestPath]
+			rootPath = requestStaticsByHost[requestPath]
 			if rootPath == nil && strings.ContainsRune(request.Host, ':') {
 				fixedHost := strings.SplitN(request.Host, ":", 2)[1]
-				if staticsByHost[fixedHost] != nil {
-					rootPath = staticsByHost[fixedHost][requestPath]
+				staticsByHostLock.RLock()
+				fixedStaticsByHost := staticsByHost[fixedHost]
+				staticsByHostLock.RUnlock()
+
+				if fixedStaticsByHost != nil {
+					rootPath = fixedStaticsByHost[requestPath]
 				}
 			}
 		}
 		// 去掉端口匹配
 		if rootPath == nil && baseHost != request.Host {
-			if staticsByHost[baseHost] != nil {
+			staticsByHostLock.RLock()
+			baseStaticsByHost := staticsByHost[baseHost]
+			staticsByHostLock.RUnlock()
+			if baseStaticsByHost != nil {
 				// 从虚拟主机设置中匹配
-				rootPath = staticsByHost[baseHost][requestPath]
+				rootPath = baseStaticsByHost[requestPath]
 				if rootPath == nil && strings.ContainsRune(baseHost, ':') {
 					fixedHost := strings.SplitN(baseHost, ":", 2)[1]
-					if staticsByHost[fixedHost] != nil {
-						rootPath = staticsByHost[fixedHost][requestPath]
+					staticsByHostLock.RLock()
+					fixedStaticsByHost := staticsByHost[fixedHost]
+					staticsByHostLock.RUnlock()
+					if fixedStaticsByHost != nil {
+						rootPath = fixedStaticsByHost[requestPath]
 					}
 				}
 			}
@@ -151,8 +174,11 @@ func processStatic(requestPath string, request *http.Request, response *Response
 
 		if rootPath == nil {
 			// 从全局设置中匹配
+			staticsByHostLock.RLock()
 			rootPath = statics[requestPath]
+			staticsByHostLock.RUnlock()
 			if rootPath == nil {
+				staticsByHostLock.RLock()
 				for p1, p2 := range statics {
 					if strings.HasPrefix(requestPath, p1) {
 						rootPath = p2
@@ -160,6 +186,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 						break
 					}
 				}
+				staticsByHostLock.RUnlock()
 			} else {
 				requestPath = requestPath[len(requestPath):]
 			}
