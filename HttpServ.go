@@ -165,9 +165,9 @@ func (request *Request) MakeUrl(path string) string {
 }
 
 func (response *Response) Header() http.Header {
-	if response.headerWritten {
-		return nil
-	}
+	//if response.headerWritten {
+	//	return nil
+	//}
 	response.changed = true
 	if response.ProxyHeader != nil {
 		return *response.ProxyHeader
@@ -1012,6 +1012,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	//}
 
 	outHeaders := make(map[string]string)
+	//fmt.Println(111, u.JsonP((*response).Header()), 111)
 	for k, v := range (*response).Header() {
 		if outLen == 0 && k == "Content-Length" {
 			outLen, _ = strconv.Atoi(v[0])
@@ -1067,7 +1068,7 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 	}
 
 	requestPath := request.URL.Path
-	//fmt.Println(u.JsonP(headers))
+	//fmt.Println(u.JsonP(outHeaders) , 123111)
 
 	logger.Request(serverId, discover.Config.App, serverAddr, getRealIp(request), request.Header.Get(standard.DiscoverHeaderFromApp), request.Header.Get(standard.DiscoverHeaderFromNode), request.Header.Get(standard.DiscoverHeaderUserId), request.Header.Get(standard.DiscoverHeaderDeviceId), request.Header.Get(standard.DiscoverHeaderClientAppName), request.Header.Get(standard.DiscoverHeaderClientAppVersion), request.Header.Get(standard.DiscoverHeaderSessionId), request.Header.Get(standard.DiscoverHeaderRequestId), host, u.StringIf(request.TLS == nil, "http", "https"), request.Proto[5:], authLevel, 0, request.Method, requestPath, getLogHeaders(request), loggableRequestArgs, usedTime, response.status, outHeaders, uint(outLen), fixedResult, extraInfo)
 }
