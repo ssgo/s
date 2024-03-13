@@ -25,19 +25,19 @@ type WebServiceOptions struct {
 }
 
 type webServiceType struct {
-	authLevel           int
-	method              string
-	path                string
-	pathMatcher         *regexp.Regexp
-	pathArgs            []string
-	parmsNum            int
-	inType              reflect.Type
-	inIndex             int
-	headersType         reflect.Type
-	headersIndex        int
-	requestIndex        int
-	httpRequestIndex    int
-	uploaderIndex       int
+	authLevel        int
+	method           string
+	path             string
+	pathMatcher      *regexp.Regexp
+	pathArgs         []string
+	parmsNum         int
+	inType           reflect.Type
+	inIndex          int
+	headersType      reflect.Type
+	headersIndex     int
+	requestIndex     int
+	httpRequestIndex int
+	//uploaderIndex       int
 	responseIndex       int
 	responseWriterIndex int
 	loggerIndex         int
@@ -63,13 +63,13 @@ var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *Requ
 var webAuthFailedData interface{}
 var usedSessionIdKey string
 
-//var usedClientIdKey string
+// var usedClientIdKey string
 var usedDeviceIdKey string
 var usedClientAppKey string
 var sessionIdMaker func() string
 
-//var sessionCreator func() string
-//var sessionObjects = map[*Request]map[reflect.Type]interface{}{}
+// var sessionCreator func() string
+// var sessionObjects = map[*Request]map[reflect.Type]interface{}{}
 var injectObjects = map[reflect.Type]interface{}{}
 var injectFunctions = map[reflect.Type]func() interface{}{}
 
@@ -551,9 +551,9 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 	if service.httpRequestIndex >= 0 {
 		parms[service.httpRequestIndex] = reflect.ValueOf(request.Request)
 	}
-	if service.uploaderIndex >= 0 {
-		parms[service.uploaderIndex] = reflect.ValueOf(&Uploader{request: request.Request})
-	}
+	//if service.uploaderIndex >= 0 {
+	//	parms[service.uploaderIndex] = reflect.ValueOf(&Uploader{request: request.Request})
+	//}
 	if service.responseIndex >= 0 {
 		parms[service.responseIndex] = reflect.ValueOf(response)
 	}
@@ -638,7 +638,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	targetService.headersIndex = -1
 	targetService.requestIndex = -1
 	targetService.httpRequestIndex = -1
-	targetService.uploaderIndex = -1
+	//targetService.uploaderIndex = -1
 	targetService.responseIndex = -1
 	targetService.responseWriterIndex = -1
 	targetService.loggerIndex = -1
@@ -649,8 +649,8 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 			targetService.requestIndex = i
 		} else if t.String() == "*http.Request" {
 			targetService.httpRequestIndex = i
-		} else if t.String() == "*s.Uploader" {
-			targetService.uploaderIndex = i
+			//} else if t.String() == "*s.Uploader" {
+			//	targetService.uploaderIndex = i
 		} else if t.String() == "*s.Response" {
 			targetService.responseIndex = i
 		} else if t.String() == "http.ResponseWriter" {

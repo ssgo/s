@@ -10,7 +10,6 @@ import (
 	"github.com/ssgo/u"
 	"golang.org/x/net/websocket"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -43,9 +42,9 @@ import (
 //	return request.injects[dataType]
 //}
 
-type Uploader struct {
-	request *http.Request
-}
+//type Uploader struct {
+//	request *http.Request
+//}
 
 type UploadFile struct {
 	fileHeader *multipart.FileHeader
@@ -54,46 +53,47 @@ type UploadFile struct {
 	Size       int64
 }
 
-func (uploader *Uploader) Fields() []string {
-	fields := make([]string, 0)
-	if uploader.request.MultipartForm != nil {
-		for field := range uploader.request.MultipartForm.File {
-			fields = append(fields, field)
-		}
-	}
-	return fields
-}
-
-func (uploader *Uploader) File(field string) *UploadFile {
-	uploadFiles := uploader.Files(field)
-	if len(uploadFiles) > 0 {
-		return uploadFiles[0]
-	}
-	return nil
-}
-
-func (uploader *Uploader) Files(field string) []*UploadFile {
-	uploadFiles := make([]*UploadFile, 0)
-	if uploader.request.MultipartForm != nil {
-		if fileHeaders := uploader.request.MultipartForm.File[field]; fileHeaders != nil {
-			for _, fileHeader := range fileHeaders {
-				uploadFiles = append(uploadFiles, &UploadFile{
-					fileHeader: fileHeader,
-					Filename:   fileHeader.Filename,
-					Header:     fileHeader.Header,
-					Size:       fileHeader.Size,
-				})
-			}
-		}
-	}
-	return uploadFiles
-}
+//func (uploader *Uploader) Fields() []string {
+//	fields := make([]string, 0)
+//	if uploader.request.MultipartForm != nil {
+//		for field := range uploader.request.MultipartForm.File {
+//			fields = append(fields, field)
+//		}
+//	}
+//	return fields
+//}
+//
+//func (uploader *Uploader) File(field string) *UploadFile {
+//	uploadFiles := uploader.Files(field)
+//	if len(uploadFiles) > 0 {
+//		return uploadFiles[0]
+//	}
+//	return nil
+//}
+//
+//func (uploader *Uploader) Files(field string) []*UploadFile {
+//	uploadFiles := make([]*UploadFile, 0)
+//	if uploader.request.MultipartForm != nil {
+//		if fileHeaders := uploader.request.MultipartForm.File[field]; fileHeaders != nil {
+//			for _, fileHeader := range fileHeaders {
+//				uploadFiles = append(uploadFiles, &UploadFile{
+//					fileHeader: fileHeader,
+//					Filename:   fileHeader.Filename,
+//					Header:     fileHeader.Header,
+//					Size:       fileHeader.Size,
+//				})
+//			}
+//		}
+//	}
+//	return uploadFiles
+//}
 
 func (uploadFile *UploadFile) Open() (multipart.File, error) {
 	return uploadFile.fileHeader.Open()
 }
 
 func (uploadFile *UploadFile) Save(filename string) error {
+	u.CheckPath(filename)
 	if dstFile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
 		if srcFile, err := uploadFile.fileHeader.Open(); err == nil {
 			defer srcFile.Close()
@@ -109,11 +109,7 @@ func (uploadFile *UploadFile) Save(filename string) error {
 
 func (uploadFile *UploadFile) Content() ([]byte, error) {
 	if file, err := uploadFile.fileHeader.Open(); err == nil {
-		buf := make([]byte, uploadFile.Size)
-		n, err := file.Read(buf)
-		if n != int(uploadFile.Size) {
-			logError("file read not full", "size", uploadFile.Size, "readSize", n)
-		}
+		buf, err := io.ReadAll(file)
 		if err == nil {
 			return buf, nil
 		} else {
@@ -379,7 +375,7 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 				port = ":443"
 			}
 			if strings.ContainsRune(host, ':') {
-				port = ":"+strings.SplitN(host, ":", 2)[1]
+				port = ":" + strings.SplitN(host, ":", 2)[1]
 			}
 			//fmt.Println(333, fmt.Sprint(port, request.Method, requestPath), s)
 			s = webServices[fmt.Sprint(port, request.Method, requestPath)]
@@ -393,7 +389,6 @@ func parseService(request *http.Request, host, requestPath string, args *map[str
 		}
 	}
 	webServicesLock.RUnlock()
-
 
 	if s == nil {
 		websocketServicesLock.RLock()
@@ -622,6 +617,16 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		}
 	}
 
+	if httpRequest.Method == "PRI" {
+		writer.WriteHeader(200)
+		writer.Header().Set("Upgrade", "h2c")
+		writer.Header().Set("Connection", "Upgrade")
+		writer.Header().Set("Content-Length", "0")
+		writer.Header().Set("Content-Type", "text/plain")
+		writeLog(requestLogger, "PRI", nil, 0, request.Request, response, nil, &startTime, 0, nil)
+		return
+	}
+
 	// 处理 Rewrite，如果是外部转发，直接结束请求
 	if processRewrite(request, response, &startTime, requestLogger) {
 		return
@@ -649,7 +654,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	//}
 	requestPath := request.URL.Path
 	// 处理静态文件
-	if processStatic(requestPath, request.Request, response, &startTime, requestLogger) {
+	processStaticOK, staticFile := processStatic(requestPath, request.Request, response, &startTime, requestLogger)
+	if processStaticOK {
 		return
 	}
 
@@ -706,7 +712,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	if request.Body != nil && !noBody {
 		contentType := request.Header.Get("Content-Type")
 		if strings.HasPrefix(contentType, "application/json") {
-			bodyBytes, _ := ioutil.ReadAll(request.Body)
+			bodyBytes, _ := io.ReadAll(request.Body)
 			_ = request.Body.Close()
 			if len(bodyBytes) > 0 {
 				var err error
@@ -725,11 +731,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				}
 			}
 		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
-			bodyBytes, _ := ioutil.ReadAll(request.Body)
+			bodyBytes, _ := io.ReadAll(request.Body)
 			_ = request.Body.Close()
 			argsBody, err := url.ParseQuery(string(bodyBytes))
 			if err == nil && len(argsBody) > 0 {
 				for aKey, aValue := range argsBody {
+					aKey = strings.ReplaceAll(aKey, "[]", "")
 					if len(aValue) > 1 {
 						args[aKey] = aValue
 					} else {
@@ -742,10 +749,29 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			if err == nil {
 				defer request.MultipartForm.RemoveAll()
 				for aKey, aValue := range request.MultipartForm.Value {
+					aKey = strings.ReplaceAll(aKey, "[]", "")
 					if len(aValue) > 1 {
 						args[aKey] = aValue
-					} else {
+					} else if len(aValue) == 1 {
 						args[aKey] = aValue[0]
+					}
+				}
+				for aKey, aValue := range request.MultipartForm.File {
+					aKey = strings.ReplaceAll(aKey, "[]", "")
+					uploads := make([]UploadFile, len(aValue))
+					for i := len(aValue) - 1; i >= 0; i-- {
+						fileHeader := aValue[i]
+						uploads[i] = UploadFile{
+							fileHeader: fileHeader,
+							Filename:   fileHeader.Filename,
+							Header:     fileHeader.Header,
+							Size:       fileHeader.Size,
+						}
+					}
+					if len(aValue) > 1 {
+						args[aKey] = uploads
+					} else if len(aValue) == 1 {
+						args[aKey] = uploads[0]
 					}
 				}
 			}
@@ -811,7 +837,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	if s == nil && ws == nil {
 		response.WriteHeader(404)
 		if requestPath != "/favicon.ico" {
-			writeLog(requestLogger, "FAIL", nil, 0, request.Request, response, args, &startTime, 0, nil)
+			writeLog(requestLogger, "FAIL", nil, 0, request.Request, response, args, &startTime, 0, Map{
+				"file": staticFile,
+			})
 		}
 		return
 	}

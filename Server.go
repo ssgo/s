@@ -31,7 +31,7 @@ type Arr = []interface{}
 
 type Map = map[string]interface{}
 
-//var name = "Noname Server"
+// var name = "Noname Server"
 var version = "unset version"
 var inited = false
 var running = false
@@ -165,7 +165,7 @@ func getPubSubRedis2() *redis.Redis {
 
 var noLogHeaders = map[string]bool{}
 
-//var encryptLogFields = map[string]bool{}
+// var encryptLogFields = map[string]bool{}
 var noLogOutputFields = map[string]bool{}
 
 var serverId = u.UniqueId()
@@ -241,7 +241,7 @@ func GetServerAddr() string {
 	return serverAddr
 }
 
-//noinspection GoUnusedParameter
+// noinspection GoUnusedParameter
 func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
 	if authLevel == 0 {
 		return true, nil
@@ -602,7 +602,7 @@ func Init() {
 	}
 
 	if Config.MaxUploadSize <= 0 {
-		Config.MaxUploadSize = 1024 * 1024 * 10
+		Config.MaxUploadSize = 1024 * 1024 * 100
 	}
 
 	if Config.Listen == "" {
@@ -1167,7 +1167,7 @@ func MakeArgots(argots interface{}) {
 	}
 }
 
-//var redisLock = sync.Mutex{}
+// var redisLock = sync.Mutex{}
 func Subscribe(channel string, reset func(), received func([]byte)) bool {
 	if !_rdStarted {
 		//redisLock.Lock()

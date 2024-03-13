@@ -62,16 +62,16 @@ func Static(path, rootPath string) {
 func StaticByHost(path, rootPath, host string) {
 	rootPath = strings.ReplaceAll(rootPath, "\\", "/")
 	if rootPath[0] != '/' {
-		pos := strings.LastIndexByte(os.Args[0], '/')
-		if pos > 0 {
-			rootPath = os.Args[0][0:pos+1] + rootPath
-			if rootPath[0] != '/' {
-				wd, err := os.Getwd()
-				if err == nil {
-					rootPath = fmt.Sprintf("%s/%s", wd, rootPath)
-				}
-			}
+		//pos := strings.LastIndexByte(os.Args[0], '/')
+		//if pos > 0 {
+		//	rootPath = os.Args[0][0:pos+1] + rootPath
+		//	if rootPath[0] != '/' {
+		wd, err := os.Getwd()
+		if err == nil {
+			rootPath = fmt.Sprintf("%s/%s", wd, rootPath)
 		}
+		//	}
+		//}
 	}
 	rootPath = margePath(rootPath)
 	if host == "" {
@@ -109,7 +109,7 @@ func margePath(path string) string {
 	return path
 }
 
-func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) bool {
+func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
 	baseHost := strings.SplitN(request.Host, ":", 2)[0]
 
 	// 从内存中查找
@@ -123,6 +123,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 	}
 
 	outLen := 0
+	filePath := ""
 	if fileBuf != nil {
 		response.Header().Set("Content-Encoding", "gzip")
 		http.ServeContent(response, request, path.Base(requestPath), serverStartTime, bytes.NewReader(fileBuf))
@@ -134,7 +135,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		requestStaticsByHost := staticsByHost[request.Host]
 		staticsByHostLock.RUnlock()
 		if staticsLen == 0 && staticsByHostLen == 0 {
-			return false
+			return false, filePath
 		}
 
 		var rootPath *string
@@ -193,10 +194,10 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		}
 
 		if rootPath == nil {
-			return false
+			return false, filePath
 		}
 
-		filePath := *rootPath + requestPath
+		filePath = *rootPath + requestPath
 		if strings.HasSuffix(filePath, "/") {
 			filePath += "index.html"
 		}
@@ -224,13 +225,13 @@ func processStatic(requestPath string, request *http.Request, response *Response
 
 		size, err := ResponseStatic(filePath, request, response)
 		if err != nil {
-			return false
+			return false, filePath
 		}
 		outLen = size
 	}
 
-	writeLog(requestLogger, "STATIC", nil, outLen, request, response, nil, startTime, 0, nil)
-	return true
+	writeLog(requestLogger, "STATIC", nil, outLen, request, response, nil, startTime, 0, Map{"file": filePath})
+	return true, filePath
 }
 
 func ResponseStatic(filePath string, request *http.Request, response *Response) (int, error) {
