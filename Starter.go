@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -110,7 +111,7 @@ func tryStartPath(testFile string) string {
 	}
 
 	tryPath := path.Dir(os.Args[0])
-	if u.FileExists(path.Join(tryPath, testFile)) {
+	if u.FileExists(filepath.Join(tryPath, testFile)) {
 		// use arg0 path
 		return tryPath
 	}
@@ -139,7 +140,7 @@ func init() {
 	} else if !strings.Contains(os.Args[0], "/go-build") {
 		_ = os.Chdir(path.Dir(os.Args[0]))
 	}
-	serviceInfo = serviceInfoType{pidFile: path.Join(startPath, ".pid")}
+	serviceInfo = serviceInfoType{pidFile: filepath.Join(startPath, ".pid")}
 	serviceInfo.load()
 
 	//if len(os.Args) > 1 {
