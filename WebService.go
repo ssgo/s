@@ -198,12 +198,13 @@ func Host(host string) HostRegister {
 func (host *HostRegister) Static(path, rootPath string) {
 	StaticByHost(path, rootPath, host.host)
 }
-func (host *HostRegister) SetStaticGZFile(path string, data []byte) {
-	SetStaticGZFileByHost(path, data, host.host)
-}
-func (host *HostRegister) SetStaticFile(path string, data []byte) {
-	SetStaticFileByHost(path, data, host.host)
-}
+
+//func (host *HostRegister) SetStaticGZFile(path string, data []byte) {
+//	SetStaticGZFileByHost(path, data, host.host)
+//}
+//func (host *HostRegister) SetStaticFile(path string, data []byte) {
+//	SetStaticFileByHost(path, data, host.host)
+//}
 
 func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}, memo string) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})

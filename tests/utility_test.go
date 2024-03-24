@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/ssgo/config"
 	"github.com/ssgo/s"
+	"os"
 	"testing"
 )
 
 func TestMakeId(tt *testing.T) {
 	config.ResetConfigEnv()
+	_ = os.Setenv("service_listen", ":,http")
 	s.ResetAllSets()
 	as := s.AsyncStart()
 	ids := map[string]bool{}

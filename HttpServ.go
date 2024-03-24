@@ -241,6 +241,10 @@ func (response *Response) Location(location string) {
 
 func (response *Response) SendFile(contentType, filename string) {
 	response.Header().Set("Content-Type", contentType)
+	if mf := u.ReadFileFromMemory(filename); mf != nil {
+		response.Write(mf.Data)
+		return
+	}
 	if fd, err := os.Open(filename); err == nil {
 		defer fd.Close()
 		_, _ = io.Copy(response, fd)

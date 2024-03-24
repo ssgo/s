@@ -2,9 +2,9 @@ package s
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 	"net/http"
 	"os"
 	"path"
@@ -16,44 +16,45 @@ import (
 var statics = make(map[string]*string)
 var staticsByHost = make(map[string]map[string]*string)
 var staticsByHostLock = sync.RWMutex{}
-var staticsFiles = make(map[string][]byte)
-var staticsFileByHost = make(map[string]map[string][]byte)
+
+//var staticsFiles = make(map[string][]byte)
+//var staticsFileByHost = make(map[string]map[string][]byte)
 
 func resetStaticMemory() {
 	staticsByHostLock.Lock()
 	statics = make(map[string]*string)
 	staticsByHost = make(map[string]map[string]*string)
-	staticsFiles = make(map[string][]byte)
-	staticsFileByHost = make(map[string]map[string][]byte)
+	//staticsFiles = make(map[string][]byte)
+	//staticsFileByHost = make(map[string]map[string][]byte)
 	staticsByHostLock.Unlock()
 }
 
-func SetStaticGZFile(path string, data []byte) {
-	SetStaticGZFileByHost(path, data, "")
-}
-
-func SetStaticFile(path string, data []byte) {
-	SetStaticFileByHost(path, data, "")
-}
-
-func SetStaticGZFileByHost(path string, data []byte, host string) {
-	if host == "" {
-		staticsFiles[path] = data
-	} else {
-		if staticsFileByHost[host] == nil {
-			staticsFileByHost[host] = make(map[string][]byte)
-		}
-		staticsFileByHost[host][path] = data
-	}
-}
-
-func SetStaticFileByHost(path string, data []byte, host string) {
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	_, _ = gz.Write(data)
-	_ = gz.Close()
-	SetStaticGZFileByHost(path, buf.Bytes(), host)
-}
+//func SetStaticGZFile(path string, data []byte) {
+//	SetStaticGZFileByHost(path, data, "")
+//}
+//
+//func SetStaticFile(path string, data []byte) {
+//	SetStaticFileByHost(path, data, "")
+//}
+//
+//func SetStaticGZFileByHost(path string, data []byte, host string) {
+//	if host == "" {
+//		staticsFiles[path] = data
+//	} else {
+//		if staticsFileByHost[host] == nil {
+//			staticsFileByHost[host] = make(map[string][]byte)
+//		}
+//		staticsFileByHost[host][path] = data
+//	}
+//}
+//
+//func SetStaticFileByHost(path string, data []byte, host string) {
+//	var buf bytes.Buffer
+//	gz := gzip.NewWriter(&buf)
+//	_, _ = gz.Write(data)
+//	_ = gz.Close()
+//	SetStaticGZFileByHost(path, buf.Bytes(), host)
+//}
 
 func Static(path, rootPath string) {
 	StaticByHost(path, rootPath, "")
@@ -112,123 +113,126 @@ func margePath(path string) string {
 func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
 	baseHost := strings.SplitN(request.Host, ":", 2)[0]
 
-	// 从内存中查找
-	var fileBuf []byte
-	if staticsFileByHost[request.Host] != nil && staticsFileByHost[request.Host][requestPath] != nil {
-		fileBuf = staticsFileByHost[request.Host][requestPath]
-	} else if baseHost != request.Host && staticsFileByHost[baseHost] != nil && staticsFileByHost[baseHost][requestPath] != nil {
-		fileBuf = staticsFileByHost[baseHost][requestPath]
-	} else if staticsFiles[requestPath] != nil {
-		fileBuf = staticsFiles[requestPath]
-	}
+	//if staticsFileByHost[request.Host] != nil && staticsFileByHost[request.Host][requestPath] != nil {
+	//	fileBuf = staticsFileByHost[request.Host][requestPath]
+	//} else if baseHost != request.Host && staticsFileByHost[baseHost] != nil && staticsFileByHost[baseHost][requestPath] != nil {
+	//	fileBuf = staticsFileByHost[baseHost][requestPath]
+	//} else if staticsFiles[requestPath] != nil {
+	//	fileBuf = staticsFiles[requestPath]
+	//}
 
 	outLen := 0
 	filePath := ""
-	if fileBuf != nil {
-		response.Header().Set("Content-Encoding", "gzip")
-		http.ServeContent(response, request, path.Base(requestPath), serverStartTime, bytes.NewReader(fileBuf))
-		outLen = len(fileBuf)
-	} else {
-		staticsByHostLock.RLock()
-		staticsLen := len(statics)
-		staticsByHostLen := len(staticsByHost)
-		requestStaticsByHost := staticsByHost[request.Host]
-		staticsByHostLock.RUnlock()
-		if staticsLen == 0 && staticsByHostLen == 0 {
-			return false, filePath
-		}
+	staticsByHostLock.RLock()
+	staticsLen := len(statics)
+	staticsByHostLen := len(staticsByHost)
+	requestStaticsByHost := staticsByHost[request.Host]
+	staticsByHostLock.RUnlock()
+	if staticsLen == 0 && staticsByHostLen == 0 {
+		return false, filePath
+	}
 
-		var rootPath *string
-		if requestStaticsByHost != nil {
+	var rootPath *string
+	if requestStaticsByHost != nil {
+		// 从虚拟主机设置中匹配
+		rootPath = requestStaticsByHost[requestPath]
+		if rootPath == nil && strings.ContainsRune(request.Host, ':') {
+			fixedHost := strings.SplitN(request.Host, ":", 2)[1]
+			staticsByHostLock.RLock()
+			fixedStaticsByHost := staticsByHost[fixedHost]
+			staticsByHostLock.RUnlock()
+
+			if fixedStaticsByHost != nil {
+				rootPath = fixedStaticsByHost[requestPath]
+			}
+		}
+	}
+	// 去掉端口匹配
+	if rootPath == nil && baseHost != request.Host {
+		staticsByHostLock.RLock()
+		baseStaticsByHost := staticsByHost[baseHost]
+		staticsByHostLock.RUnlock()
+		if baseStaticsByHost != nil {
 			// 从虚拟主机设置中匹配
-			rootPath = requestStaticsByHost[requestPath]
-			if rootPath == nil && strings.ContainsRune(request.Host, ':') {
-				fixedHost := strings.SplitN(request.Host, ":", 2)[1]
+			rootPath = baseStaticsByHost[requestPath]
+			if rootPath == nil && strings.ContainsRune(baseHost, ':') {
+				fixedHost := strings.SplitN(baseHost, ":", 2)[1]
 				staticsByHostLock.RLock()
 				fixedStaticsByHost := staticsByHost[fixedHost]
 				staticsByHostLock.RUnlock()
-
 				if fixedStaticsByHost != nil {
 					rootPath = fixedStaticsByHost[requestPath]
 				}
 			}
 		}
-		// 去掉端口匹配
-		if rootPath == nil && baseHost != request.Host {
-			staticsByHostLock.RLock()
-			baseStaticsByHost := staticsByHost[baseHost]
-			staticsByHostLock.RUnlock()
-			if baseStaticsByHost != nil {
-				// 从虚拟主机设置中匹配
-				rootPath = baseStaticsByHost[requestPath]
-				if rootPath == nil && strings.ContainsRune(baseHost, ':') {
-					fixedHost := strings.SplitN(baseHost, ":", 2)[1]
-					staticsByHostLock.RLock()
-					fixedStaticsByHost := staticsByHost[fixedHost]
-					staticsByHostLock.RUnlock()
-					if fixedStaticsByHost != nil {
-						rootPath = fixedStaticsByHost[requestPath]
-					}
-				}
-			}
-		}
-
-		if rootPath == nil {
-			// 从全局设置中匹配
-			staticsByHostLock.RLock()
-			rootPath = statics[requestPath]
-			staticsByHostLock.RUnlock()
-			if rootPath == nil {
-				staticsByHostLock.RLock()
-				for p1, p2 := range statics {
-					if strings.HasPrefix(requestPath, p1) {
-						rootPath = p2
-						requestPath = requestPath[len(p1):]
-						break
-					}
-				}
-				staticsByHostLock.RUnlock()
-			} else {
-				requestPath = requestPath[len(requestPath):]
-			}
-		}
-
-		if rootPath == nil {
-			return false, filePath
-		}
-
-		filePath = *rootPath + requestPath
-		if strings.HasSuffix(filePath, "/") {
-			filePath += "index.html"
-		}
-
-		//fileInfo, err := os.Stat(filePath)
-		//if err != nil {
-		//	return false
-		//}
-		//
-		////if strings.HasSuffix(filePath, "/index.html") {
-		////	filePath = filePath[len(filePath)-11:]
-		////}
-		//
-		////http.ServeFile(response, request, *rootPath+requestPath)
-		//
-		//if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
-		//	zipWriter := NewGzipResponseWriter(response)
-		//	http.ServeFile(zipWriter, request, *rootPath+requestPath)
-		//	zipWriter.Close()
-		//} else {
-		//	http.ServeFile(response, request, *rootPath+requestPath)
-		//}
-
-		//writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
-
-		size, err := ResponseStatic(filePath, request, response)
-		if err != nil {
-			return false, filePath
-		}
-		outLen = size
 	}
+
+	if rootPath == nil {
+		// 从全局设置中匹配
+		staticsByHostLock.RLock()
+		rootPath = statics[requestPath]
+		staticsByHostLock.RUnlock()
+		if rootPath == nil {
+			staticsByHostLock.RLock()
+			for p1, p2 := range statics {
+				if strings.HasPrefix(requestPath, p1) {
+					rootPath = p2
+					requestPath = requestPath[len(p1):]
+					break
+				}
+			}
+			staticsByHostLock.RUnlock()
+		} else {
+			requestPath = requestPath[len(requestPath):]
+		}
+	}
+
+	if rootPath == nil {
+		return false, filePath
+	}
+
+	filePath = *rootPath + requestPath
+	if strings.HasSuffix(filePath, "/") {
+		filePath += "index.html"
+	}
+
+	// 从内存中查找
+	mf := u.ReadFileFromMemory(filePath)
+	if mf != nil {
+		if mf.Compressed {
+			response.Header().Set("Content-Encoding", "gzip")
+		}
+		http.ServeContent(response, request, path.Base(filePath), serverStartTime, bytes.NewReader(mf.Data))
+		outLen = len(mf.Data)
+		return true, filePath
+	}
+
+	//fileInfo, err := os.Stat(filePath)
+	//if err != nil {
+	//	return false
+	//}
+	//
+	////if strings.HasSuffix(filePath, "/index.html") {
+	////	filePath = filePath[len(filePath)-11:]
+	////}
+	//
+	////http.ServeFile(response, request, *rootPath+requestPath)
+	//
+	//if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+	//	zipWriter := NewGzipResponseWriter(response)
+	//	http.ServeFile(zipWriter, request, *rootPath+requestPath)
+	//	zipWriter.Close()
+	//} else {
+	//	http.ServeFile(response, request, *rootPath+requestPath)
+	//}
+
+	//writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
+
+	size, err := ResponseStatic(filePath, request, response)
+	if err != nil {
+		return false, filePath
+	}
+	outLen = size
 
 	writeLog(requestLogger, "STATIC", nil, outLen, request, response, nil, startTime, 0, Map{"file": filePath})
 	return true, filePath

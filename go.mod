@@ -6,7 +6,6 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gomodule/redigo v1.8.8
 	github.com/gorilla/websocket v1.4.2
-	//github.com/shirou/gopsutil v2.21.11+incompatible // indirect
 	github.com/shirou/gopsutil/v3 v3.22.10
 	github.com/ssgo/config v1.7.3
 	github.com/ssgo/discover v1.7.3

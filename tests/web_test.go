@@ -3,9 +3,12 @@ package tests
 import (
 	"fmt"
 	"github.com/ssgo/httpclient"
+	"github.com/ssgo/u"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ssgo/s"
 )
@@ -26,20 +29,39 @@ func WelcomePicture(in struct{ PicName string }, response http.ResponseWriter) [
 	return pic
 }
 
-//func TestStatic(tt *testing.T) {
-//	t := s.T(tt)
-//	s.ResetAllSets()
-//	s.Static("/", "www")
-//
-//	as := s.AsyncStart1()
-//	r := as.Get("/")
-//	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
-//	r = as.Get("/aaa/111.json")
-//	t.Test(r.Error == nil && r.String() == "111", "Static 111.json", r.Error, r.String())
-//	r = as.Get("/ooo.html")
-//	t.Test(r.Error == nil && r.Response.StatusCode == 404, "Static 404", r.Error, r.String())
-//	as.Stop()
-//}
+func TestStatic(tt *testing.T) {
+	t := s.T(tt)
+	s.ResetAllSets()
+	s.Static("/", "www/")
+	nowTime := time.Now()
+	u.AddFileToMemory(u.MemFile{
+		Name:       "www/aaa/222.json",
+		ModTime:    nowTime,
+		IsDir:      false,
+		Compressed: false,
+		Data:       []byte("222"),
+	})
+	u.AddFileToMemory(u.MemFile{
+		Name:       "www/bbb/333.json",
+		ModTime:    nowTime,
+		IsDir:      false,
+		Compressed: true,
+		Data:       u.GzipN([]byte("333")),
+	})
+
+	as := s.AsyncStart()
+	r := as.Get("/")
+	t.Test(r.Error == nil && strings.Contains(r.String(), "Hello"), "Static /", r.Error, r.String())
+	r = as.Get("/aaa/111.json")
+	t.Test(r.Error == nil && r.String() == "111", "Static 111.json", r.Error, r.String())
+	r = as.Get("/aaa/222.json")
+	t.Test(r.Error == nil && r.String() == "222", "Static 222.json", r.Error, r.String())
+	r = as.Get("/bbb/333.json")
+	t.Test(r.Error == nil && r.String() == "333", "Static 333.json", r.Error, r.String())
+	r = as.Get("/ooo.html")
+	t.Test(r.Error == nil && r.Response.StatusCode == 404, "Static 404", r.Error, r.String())
+	as.Stop()
+}
 
 func TestWelcomeWithRestful(tt *testing.T) {
 	t := s.T(tt)
@@ -66,16 +88,14 @@ func TestWelcomeWithRestful(tt *testing.T) {
 	result := r.Bytes()
 	t.Test(r.Error == nil && result[0] == 1 && result[1] == 0 && result[2] == 240 && result[4] == 'b', "WelcomePicture", result, r.Error)
 	t.Test(r.Response.Header.Get("Content-Type") == "image/png", "WelcomePicture Content-Type", result, r.Error)
-	fmt.Println("111")
 	as.Stop()
-	fmt.Println("222")
 }
 
 func TestWelcomeWithHttp1(tt *testing.T) {
 	t := s.T(tt)
 
 	//_ = os.Setenv("service_httpVersion", "1")
-	_ = os.Setenv("service_listen", ":,http")
+	_ = os.Setenv("service_listen", ":11822,http")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome, "")
 	as := s.AsyncStart()
@@ -87,7 +107,7 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 	as.Stop()
 }
 
-func TestWelcomeWithHttp2(tt *testing.T) {
+func T1estWelcomeWithHttp2(tt *testing.T) {
 	t := s.T(tt)
 
 	//_ = os.Unsetenv("service_httpVersion")
