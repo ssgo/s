@@ -27,12 +27,14 @@ func resetRewriteMemory() {
 	regexRewrites = make([]*rewriteInfo, 0)
 	rewritesList = make([]*rewriteInfo, 0)
 }
+
 //var clientForRewrite1 *httpclient.ClientPool
 //var clientForRewrite2 *httpclient.ClientPool
 
 // 跳转
-//func setRewrite(path string, toPath string, httpVersion int) {
-//	s := &rewriteInfo{fromPath: path, toPath: toPath, httpVersion: httpVersion}
+//
+//	func setRewrite(path string, toPath string, httpVersion int) {
+//		s := &rewriteInfo{fromPath: path, toPath: toPath, httpVersion: httpVersion}
 func setRewrite(path string, toPath string) {
 	s := &rewriteInfo{fromPath: path, toPath: toPath}
 
@@ -65,7 +67,7 @@ func Rewrite(path string, toPath string) {
 //}
 
 // 跳转
-//func SetRewriteBy(by func(request *http.Request) (toPath string, httpVersion int, headers *map[string]string, rewrite bool)) {
+// func SetRewriteBy(by func(request *http.Request) (toPath string, httpVersion int, headers *map[string]string, rewrite bool)) {
 func SetRewriteBy(by func(request *Request) (toPath string, rewrite bool)) {
 	rewriteBy = by
 }
@@ -128,11 +130,11 @@ func processRewrite(request *Request, response *Response, startTime *time.Time, 
 			//	request.Body.Close()
 			//}
 			//if rewriteHttpVersion == 1 && clientForRewrite1 == nil {
-			//	clientForRewrite1 = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+			//	clientForRewrite1 = httpclient.GetClient(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 			//	clientForRewrite1.NoBody = true
 			//}
 			//if rewriteHttpVersion == 2 && clientForRewrite2 == nil {
-			//	clientForRewrite2 = httpclient.GetClientH2C(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+			//	clientForRewrite2 = httpclient.GetClientH2C(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 			//	clientForRewrite2.NoBody = true
 			//}
 			//requestHeaders := make([]string, 0)

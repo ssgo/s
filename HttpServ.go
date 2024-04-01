@@ -728,7 +728,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 					args["request"] = arg
 				}
 				if err != nil {
-					serverLogger.Error(err.Error())
+					ServerLogger.Error(err.Error())
 					response.WriteHeader(400)
 					writeLog(requestLogger, "FAIL", nil, 0, request.Request, response, args, &startTime, 0, nil)
 					return

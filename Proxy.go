@@ -36,6 +36,7 @@ func resetProxyMemory() {
 	proxyBy = nil
 	proxiesList = make([]*proxyInfo, 0)
 }
+
 // 跳转
 func SetProxyBy(by func(request *Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
 	//forceDiscoverClient = true // 代理模式强制启动 Discover Client
@@ -205,7 +206,7 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 				"method": request.Method,
 				"uri":    request.RequestURI,
 			})
-			discover.AddExternalApp(app, u.String(Config.RewriteTimeout))
+			discover.AddExternalApp(app, u.String(Config.RedirectTimeout))
 			discover.Restart()
 		}
 	}
@@ -246,7 +247,7 @@ func proxyWebRequest(app, path string, request *Request, response *Response, req
 		r = caller.Do(request.Method, app, path, request.Body, headerArgs...)
 	} else {
 		if httpClientPool == nil {
-			httpClientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+			httpClientPool = httpclient.GetClient(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 			httpClientPool.NoBody = true
 		}
 		r = httpClientPool.DoByRequest(request.Request, request.Method, app+path, request.Body, headerArgs...)

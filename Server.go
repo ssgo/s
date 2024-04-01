@@ -41,45 +41,41 @@ func SetWorkPath(p string) {
 	workPath = p
 }
 
-type serviceConfig struct {
-	Listen string
-	SSL    map[string]*CertSet
-	//HttpVersion                   int
-	KeepaliveTimeout              int
-	NoLogGets                     bool
-	NoLogHeaders                  string
-	NoLogInputFields              bool
-	LogInputArrayNum              int
-	LogInputFieldSize             int
-	NoLogOutputFields             string
-	LogOutputArrayNum             int
-	LogOutputFieldSize            int
-	LogWebsocketAction            bool
-	Compress                      bool
-	CompressMinSize               int
-	CompressMaxSize               int
-	CertFile                      string
-	KeyFile                       string
-	CheckDomain                   string // 心跳检测时使用域名
-	AccessTokens                  map[string]*int
-	RewriteTimeout                int
-	AcceptXRealIpWithoutRequestId bool
-	StatisticTime                 bool
-	StatisticTimeInterval         int
-	Fast                          bool
-	MaxUploadSize                 int64
-	IpPrefix                      string // 指定使用的IP网段，默认排除 172.17
-	Cpu                           int    // CPU占用的核数，默认为0，即不做限制
-	Memory                        int    // 内存（单位M），默认为0，即不做限制
-	CpuMonitor                    bool
-	MemoryMonitor                 bool
-	CpuLimitValue                 uint   // CPU超过最高占用值（10-100）超过次数将自动重启（如果CpuMonitor开启的话），默认100
-	MemoryLimitValue              uint   // 内存超过最高占用值（10-100）超过次数将自动重启（如果MemoryMonitor开启的话），默认95
-	CpuLimitTimes                 uint   // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
-	MemoryLimitTimes              uint   // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
-	CookieScope                   string // Cookie的有效范围，host|domain|topDomain，默认值为host
-	IdServer                      string // 用来维护唯一ID的redis服务器连接
-	KeepKeyCase                   bool   // 是否保持Key的首字母大小写？默认一律使用小写
+type ServiceConfig struct {
+	Listen                        string              // 监听端口（|隔开多个监听）（,隔开多个选项）（如果不指定IP则监听在0.0.0.0，如果不指定端口则使用h2c协议监听在随机端口，80端口默认使用http协议，443端口默认使用https协议），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
+	SSL                           map[string]*CertSet // SSL证书配置，key为域名，value为cert和key的文件路径
+	KeepaliveTimeout              int                 // 连接允许空闲的最大时间，单位ms，默认值：15000
+	NoLogGets                     bool                // 不记录GET请求的日志
+	NoLogHeaders                  string              // 不记录请求头中包含的这些字段，多个字段用逗号分隔，默认不记录：Accept,Accept-Encoding,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests
+	LogInputArrayNum              int                 // 请求字段中容器类型（数组、Map）在日志打印个数限制 默认为10个，多余的数据将不再日志中记录
+	LogInputFieldSize             int                 // 请求字段中单个字段在日志打印长度限制 默认为500个字符，多余的数据将不再日志中记录
+	NoLogOutputFields             string              // 不记录响应字段中包含的这些字段（key名），多个字段用逗号分隔
+	LogOutputArrayNum             int                 // 响应字段中容器类型（数组、Map）在日志打印个数限制 默认为3个，多余的数据将不再日志中记录
+	LogOutputFieldSize            int                 // 响应字段中单个字段在日志打印长度限制 默认为100个字符，多余的数据将不再日志中记录
+	LogWebsocketAction            bool                // 记录Websocket中每个Action的请求日志，默认不记录
+	Compress                      bool                // 是否启用压缩，默认不启用
+	CompressMinSize               int                 // 小于设定值的应答内容将不进行压缩，默认值：1024
+	CompressMaxSize               int                 // 大于设定值的应答内容将不进行压缩，默认值：4096000
+	CheckDomain                   string              // 心跳检测时使用域名，，默认使用IP地址，心跳检测使用 HEAD /__CHECK__ 请求，应答 299 表示正常，593 表示异常
+	AccessTokens                  map[string]*int     // 请求接口时使用指定的Access-Token进行验证，值为Token对应的auth-level
+	RedirectTimeout               int                 // proxy和discover发起请求时的超时时间，单位ms，默认值：10000
+	AcceptXRealIpWithoutRequestId bool                // 是否允许头部没有携带请求ID的X-Real-IP信息，默认不允许（防止伪造客户端IP）
+	StatisticTime                 bool                // 是否开启请求时间统计，默认不开启
+	StatisticTimeInterval         int                 // 统计时间间隔，单位ms，默认值：10000
+	Fast                          bool                // 是否启用快速模式（为了追求性能牺牲一部分特性），默认不启用
+	MaxUploadSize                 int64               // 最大上传文件大小（multipart/form-data请求的总空间），单位字节，默认值：104857600
+	IpPrefix                      string              // discover服务发现时指定使用的IP网段，默认排除 172.17.（Docker）
+	Cpu                           int                 // CPU占用的核数，默认为0，即不做限制
+	Memory                        int                 // 内存（单位M），默认为0，即不做限制
+	CpuMonitor                    bool                // 在日志中记录CPU使用情况，默认不开启
+	MemoryMonitor                 bool                // 在日志中记录内存使用情况，默认不开启
+	CpuLimitValue                 uint                // CPU超过最高占用值（10-100）超过次数将自动重启（如果CpuMonitor开启的话），默认100
+	MemoryLimitValue              uint                // 内存超过最高占用值（10-100）超过次数将自动重启（如果MemoryMonitor开启的话），默认95
+	CpuLimitTimes                 uint                // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
+	MemoryLimitTimes              uint                // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
+	CookieScope                   string              // 启用Session时Cookie的有效范围，host|domain|topDomain，默认值为host
+	IdServer                      string              // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
+	KeepKeyCase                   bool                // 是否保持Key的首字母大小写？默认一律使用小写
 }
 
 type CertSet struct {
@@ -102,7 +98,7 @@ type CodeResult struct {
 
 var _argots = make([]ArgotInfo, 0)
 
-var Config = serviceConfig{}
+var Config = ServiceConfig{}
 
 var accessTokens = map[string]*int{}
 
@@ -137,14 +133,14 @@ func SetVersion(serverVersion string) {
 
 func getRedis1() *redis.Redis {
 	if _rd == nil && Config.IdServer != "" {
-		_rd = redis.GetRedis(Config.IdServer, serverLogger)
+		_rd = redis.GetRedis(Config.IdServer, ServerLogger)
 	}
 	return getRedis2()
 }
 
 func getRedis2() *redis.Redis {
 	if _rd == nil {
-		_rd = redis.GetRedis(discover.Config.Registry, serverLogger)
+		_rd = redis.GetRedis(discover.Config.Registry, ServerLogger)
 	}
 	return _rd
 }
@@ -158,7 +154,7 @@ func getPubSubRedis2() *redis.Redis {
 		confForPubSub := *rd.Config
 		confForPubSub.IdleTimeout = -1
 		confForPubSub.ReadTimeout = -1
-		_rd2 = redis.NewRedis(&confForPubSub, serverLogger)
+		_rd2 = redis.NewRedis(&confForPubSub, ServerLogger)
 	}
 	return _rd2
 }
@@ -170,7 +166,7 @@ var noLogOutputFields = map[string]bool{}
 
 var serverId = u.UniqueId()
 var serverStartTime = time.Now()
-var serverLogger *log.Logger
+var ServerLogger *log.Logger
 
 var serverAddr string
 var serverProto = "http"
@@ -226,11 +222,11 @@ func NewTimerServer(name string, interval time.Duration, run func(*bool), start 
 //}
 
 func logInfo(info string, extra ...interface{}) {
-	serverLogger.Server(info, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
+	ServerLogger.Server(info, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
 }
 
 func logError(error string, extra ...interface{}) {
-	serverLogger.ServerError(error, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
+	ServerLogger.ServerError(error, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
 }
 
 func SetChecker(ck func(request *http.Request) bool) {
@@ -385,7 +381,7 @@ func (as *AsyncServer) Wait() {
 
 		// 最后关闭日志服务
 		logInfo("logger stopped")
-		serverLogger = nil
+		ServerLogger = nil
 		log.Stop()
 		log.Wait()
 	}
@@ -397,7 +393,7 @@ func resetServerMemory() {
 	running = false
 	workPath = ""
 	_argots = make([]ArgotInfo, 0)
-	Config = serviceConfig{}
+	Config = ServiceConfig{}
 	accessTokens = map[string]*int{}
 	_cpuOverTimes = 0
 	_memoryOutTimes = 0
@@ -512,9 +508,9 @@ func AsyncStart() *AsyncServer {
 	<-as.startChan
 	//if Config.HttpVersion == 1 || Config.CertFile != "" {
 	if as.listens[0].protocol != "h2c" {
-		as.clientPool = httpclient.GetClient(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+		as.clientPool = httpclient.GetClient(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 	} else {
-		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.RewriteTimeout) * time.Millisecond)
+		as.clientPool = httpclient.GetClientH2C(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 	}
 	return as
 }
@@ -542,8 +538,8 @@ func Init() {
 		Config.CompressMaxSize = 4096000
 	}
 
-	if Config.RewriteTimeout <= 0 {
-		Config.RewriteTimeout = 10000
+	if Config.RedirectTimeout <= 0 {
+		Config.RedirectTimeout = 10000
 	}
 
 	if Config.NoLogHeaders == "" {
@@ -664,7 +660,7 @@ func Start() {
 }
 
 func (as *AsyncServer) Start() {
-	serverLogger = log.New(serverId)
+	ServerLogger = log.New(serverId)
 	CheckCmd()
 
 	log.Start()
@@ -739,7 +735,7 @@ func (as *AsyncServer) Start() {
 					} else if memoryPercent >= 60 {
 						logError("memory warning", memoryInfo...)
 					}
-					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					ServerLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
 					memoryCounter.Reset()
 				}
 			}
@@ -769,7 +765,7 @@ func (as *AsyncServer) Start() {
 						} else if cpuPercent >= 60 {
 							logError("cpu warning", cpuInfo...)
 						}
-						serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+						ServerLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
 						cpuCounter.Reset()
 					}
 				}
@@ -794,7 +790,7 @@ func (as *AsyncServer) Start() {
 					memoryUsed := byteToM(memoryStat.Sys)
 					memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
 					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
-					serverLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
+					ServerLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
 					memoryCounter.Reset()
 				}
 			}
@@ -803,7 +799,7 @@ func (as *AsyncServer) Start() {
 				if cpuCounter.Times >= 1 {
 					numThreads, _ := serviceProcess.NumThreads()
 					cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
-					serverLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
+					ServerLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
 					cpuCounter.Reset()
 				}
 			}
@@ -967,7 +963,7 @@ func (as *AsyncServer) Start() {
 	logInfo("started", "cpuCoreNum", Config.Cpu, "maxMemory", Config.Memory, "pid", serviceInfo.pid, "pidFile", serviceInfo.pidFile)
 	if Config.StatisticTime {
 		// 统计请求个阶段的处理时间
-		timeStatistic = NewTimeStatistic(serverLogger)
+		timeStatistic = NewTimeStatistic(ServerLogger)
 	}
 
 	as.Addr = serverAddr

@@ -26,7 +26,7 @@ import (
 
 func ResetAllSets() {
 	config.ResetConfigEnv()
-	Config = serviceConfig{}
+	Config = ServiceConfig{}
 	inited = false
 
 	rewrites = make(map[string]*rewriteInfo)

@@ -42,7 +42,7 @@ func trySetServerId(rdConn redigo.Conn, hkey string, sid int64) (bool, error) {
 			}
 		}
 		return false, err
-	}else {
+	} else {
 		return false, nil
 	}
 }
@@ -212,10 +212,10 @@ func uniqueId() []byte {
 
 		if !makeServerIndexOk {
 			if rd1 != nil {
-				serverLogger.Error("failed to make unique id server index", "times", makeServerIndexTimes)
+				ServerLogger.Error("failed to make unique id server index", "times", makeServerIndexTimes)
 			}
 		} else if makeServerIndexTimes >= 100 {
-			serverLogger.Warning("make unique id server index slowly", "times", makeServerIndexTimes)
+			ServerLogger.Warning("make unique id server index slowly", "times", makeServerIndexTimes)
 		}
 	}
 
@@ -261,10 +261,10 @@ func uniqueId() []byte {
 		if len(uid) > 11 {
 			uid = uid[0:11]
 		}
-		serverLogger.Warning("failed to make unique id second index，use random unique id", "times", makeSecIndexTimes, "second", uidSec, "indexSize", len(uidIndexes[uidSec]), "randomUid", string(uid))
+		ServerLogger.Warning("failed to make unique id second index，use random unique id", "times", makeSecIndexTimes, "second", uidSec, "indexSize", len(uidIndexes[uidSec]), "randomUid", string(uid))
 		return uid
 	} else if makeSecIndexTimes >= 1000 {
-		serverLogger.Warning("make unique id second index slowly", "times", makeSecIndexTimes, "second", uidSec, "indexSize", len(uidIndexes[uidSec]))
+		ServerLogger.Warning("make unique id second index slowly", "times", makeSecIndexTimes, "second", uidSec, "indexSize", len(uidIndexes[uidSec]))
 	}
 
 	// 添加序号
@@ -274,10 +274,10 @@ func uniqueId() []byte {
 	sec1 := u.Bytes(tm.Unix())
 	secLen := len(sec1)
 	sec2 := make([]byte, secLen+1)
-	for i:=0; i<secLen; i++ {
+	for i := 0; i < secLen; i++ {
 		sec2[i+1] = sec1[secLen-i-1]
 	}
-	sec2[0] = byte(u.Int(u.GlobalRand2.Intn(10))+48)
+	sec2[0] = byte(u.Int(u.GlobalRand2.Intn(10)) + 48)
 	timeStr := u.AppendInt(nil, u.Uint64(sec2))
 	for len(timeStr) < 7 {
 		timeStr = append(timeStr, '9')
@@ -380,7 +380,7 @@ func makeId12L() string {
 func makeId(space string, idMaker func() string) string {
 	var rd1 *redis.Redis
 	if Config.IdServer != "" {
-		rd1 = redis.GetRedis(Config.IdServer, serverLogger)
+		rd1 = redis.GetRedis(Config.IdServer, ServerLogger)
 	}
 	var id string
 	for i := 0; i < 10000; i++ {
@@ -411,9 +411,9 @@ func makeId(space string, idMaker func() string) string {
 			fd, err := os.OpenFile(idFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 			if err != nil {
 				logError("can't save id to disk", "id", id, "err", err.Error())
-			}else{
+			} else {
 				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_EX)
-				_, err2 := fd.WriteString(id+"\n")
+				_, err2 := fd.WriteString(id + "\n")
 				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_UN)
 				_ = fd.Close()
 				if err2 != nil {

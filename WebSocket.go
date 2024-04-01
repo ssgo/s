@@ -3,6 +3,7 @@ package s
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ssgo/discover"
 	"github.com/ssgo/log"
 	"reflect"
 	"regexp"
@@ -27,6 +28,7 @@ type websocketServiceType struct {
 	openHttpRequestIndex  int
 	openLoggerIndex       int
 	openClientIndex       int
+	openCallerIndex       int
 	openHeadersType       reflect.Type
 	openHeadersIndex      int
 	openFuncType          reflect.Type
@@ -128,6 +130,7 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 		s.openInIndex = -1
 		s.openHeadersIndex = -1
 		s.openClientIndex = -1
+		s.openCallerIndex = -1
 		s.openRequestIndex = -1
 		s.openHttpRequestIndex = -1
 		s.openLoggerIndex = -1
@@ -152,6 +155,8 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 				//	s.openHeadersIndex = i
 			} else if t.String() == "*websocket.Conn" {
 				s.openClientIndex = i
+			} else if t.String() == "*discover.Caller" {
+				s.openCallerIndex = i
 			}
 		}
 
@@ -301,6 +306,10 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 			}
 			if ws.openClientIndex >= 0 {
 				openParms[ws.openClientIndex] = reflect.ValueOf(client)
+			}
+			if ws.openCallerIndex >= 0 {
+				caller := &discover.Caller{Request: request.Request}
+				openParms[ws.openCallerIndex] = reflect.ValueOf(caller)
 			}
 
 			for i, parm := range openParms {
