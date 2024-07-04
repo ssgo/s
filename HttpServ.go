@@ -850,7 +850,11 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 
 	if result == nil {
 		// 之前未产生结果，进行验证
-		pass, object := webAuthChecker(authLevel, requestLogger, &request.RequestURI, args, request, response, options)
+		ac := webAuthCheckers[authLevel]
+		if ac == nil {
+			ac = webAuthChecker
+		}
+		pass, object := ac(authLevel, requestLogger, &request.RequestURI, args, request, response, options)
 		if pass == false {
 			//usedTime := float32(time.Now().UnixNano()-startTime.UnixNano()) / 1e6
 			//byteArgs, _ := json.Marshal(args)

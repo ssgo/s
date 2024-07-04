@@ -60,6 +60,7 @@ var inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.L
 var outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
 var errorHandle func(interface{}, *Request, *Response) interface{}
 var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{})
+var webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{}){}
 var webAuthFailedData interface{}
 var usedSessionIdKey string
 
@@ -82,6 +83,7 @@ func resetWebServiceMemory() {
 	outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
 	errorHandle = nil
 	webAuthChecker = nil
+	webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{}){}
 	webAuthFailedData = nil
 	usedSessionIdKey = ""
 	usedDeviceIdKey = ""
@@ -212,11 +214,13 @@ func (host *HostRegister) Register(authLevel int, path string, serviceFunc inter
 func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}, memo string) {
 	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string) {
-	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
+func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+	options.Host = host.host
+	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, options)
 }
-func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string) {
-	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{Host: host.host})
+func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+	options.Host = host.host
+	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, options)
 }
 func (host *HostRegister) Unregister(method, path string) {
 	unregister(method, path, WebServiceOptions{Host: host.host})
@@ -225,6 +229,7 @@ func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, on
 	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, memo string, options WebServiceOptions) {
+	options.Host = host.host
 	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, memo, options)
 }
 func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
@@ -239,6 +244,7 @@ func (host *HostRegister) RegisterWebsocketWithOptions(authLevel int, path strin
 	onClose interface{},
 	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
 	encoder func(action string, data interface{}) interface{}, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
+	options.Host = host.host
 	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, options)
 }
 
@@ -409,6 +415,12 @@ func SetOutFilter(filter func(in map[string]interface{}, request *Request, respo
 
 func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
 	webAuthChecker = authChecker
+}
+
+func AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
+	for _, al := range authLevels {
+		webAuthCheckers[al] = authChecker
+	}
 }
 
 func SetAuthFailedData(data interface{}) {
