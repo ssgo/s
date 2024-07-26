@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -101,6 +102,7 @@ var _argots = make([]ArgotInfo, 0)
 var Config = ServiceConfig{}
 
 var accessTokens = map[string]*int{}
+var accessTokensLock = sync.RWMutex{}
 
 var _cpuOverTimes uint = 0
 var _memoryOutTimes uint = 0
@@ -139,7 +141,7 @@ func getRedis1() *redis.Redis {
 }
 
 func getRedis2() *redis.Redis {
-	if _rd == nil {
+	if _rd == nil && discover.Config.Registry != "" && discover.Config.Registry != standard.DiscoverDefaultRegistry {
 		_rd = redis.GetRedis(discover.Config.Registry, ServerLogger)
 	}
 	return _rd
@@ -237,13 +239,51 @@ func GetServerAddr() string {
 	return serverAddr
 }
 
+func SetAuthTokenLevel(authToken string, authLevel int) {
+	accessTokensLock.Lock()
+	if accessTokens == nil {
+		accessTokens = map[string]*int{}
+	}
+	accessTokens[authToken] = &authLevel
+	accessTokensLock.Unlock()
+}
+
+func GetAuthTokenLevel(authToken string) int {
+	accessTokensLock.RLock()
+	authLevel := accessTokens[authToken]
+	accessTokensLock.RUnlock()
+	if authLevel != nil {
+		return *authLevel
+	}
+	return 0
+}
+
+func GetLocalPublicIP() []string {
+	ips := make([]string, 0)
+	ipAddresses, _ := net.InterfaceAddrs()
+	for _, a := range ipAddresses {
+		an := a.(*net.IPNet)
+		if Config.IpPrefix != "" && strings.HasPrefix(an.IP.To16().String(), Config.IpPrefix) {
+			// 根据配置匹配指定网段
+			ips = append(ips, an.IP.To16().String())
+		} else if Config.IpPrefix != "" && strings.HasPrefix(an.IP.To4().String(), Config.IpPrefix) {
+			// 根据配置匹配指定网段
+			ips = append(ips, an.IP.To4().String())
+		} else if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
+			// 忽略 Docker 私有网段，进行自动匹配
+			ips = append(ips, an.IP.To4().String())
+		}
+	}
+	return ips
+}
+
 // noinspection GoUnusedParameter
 func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
 	if authLevel == 0 {
 		return true, nil
 	}
-	setAuthLevel := accessTokens[request.Header.Get("Access-Token")]
-	return setAuthLevel != nil && *setAuthLevel >= authLevel, nil
+	setAuthLevel := GetAuthTokenLevel(request.Header.Get("Access-Token"))
+	return setAuthLevel >= authLevel, nil
 }
 
 func defaultChecker(request *http.Request, response http.ResponseWriter) {
@@ -311,10 +351,15 @@ type AsyncServer struct {
 	routeHandler routeHandler
 	waited       bool
 	onStop       func()
+	onStopped    func()
 }
 
 func (as *AsyncServer) OnStop(f func()) {
 	as.onStop = f
+}
+
+func (as *AsyncServer) OnStopped(f func()) {
+	as.onStopped = f
 }
 
 func (as *AsyncServer) Wait() {
@@ -425,6 +470,9 @@ func (as *AsyncServer) stop() {
 func (as *AsyncServer) Stop() {
 	as.stop()
 	as.Wait()
+	if as.onStopped != nil {
+		as.onStopped()
+	}
 }
 
 func (as *AsyncServer) Get(path string, headers ...string) *httpclient.Result {
@@ -903,24 +951,28 @@ func (as *AsyncServer) Start() {
 	addrInfo := as.listens[0].listener.Addr().(*net.TCPAddr)
 	ip := addrInfo.IP
 	port := addrInfo.Port
+	ipStr := ip.String()
 	if !ip.IsGlobalUnicast() {
 		// 如果监听的不是外部IP，使用第一个外部IP
-		addrs, _ := net.InterfaceAddrs()
-		for _, a := range addrs {
-			an := a.(*net.IPNet)
-			// 显式匹配网段
-			if Config.IpPrefix != "" && strings.HasPrefix(an.IP.To4().String(), Config.IpPrefix) {
-				ip = an.IP.To4()
-				break
-			}
-
-			// 忽略 Docker 私有网段，匹配最后一个
-			if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
-				ip = an.IP.To4()
-			}
+		ips := GetLocalPublicIP()
+		if len(ips) > 0 {
+			ipStr = ips[0]
 		}
+		//addrs, _ := net.InterfaceAddrs()
+		//for _, a := range addrs {
+		//	an := a.(*net.IPNet)
+		//	// 显式匹配网段
+		//	if Config.IpPrefix != "" && strings.HasPrefix(an.IP.To4().String(), Config.IpPrefix) {
+		//		ip = an.IP.To4()
+		//		break
+		//	}
+		//
+		//	// 忽略 Docker 私有网段，匹配最后一个
+		//	if an.IP.IsGlobalUnicast() && !strings.HasPrefix(an.IP.To4().String(), "172.17.") {
+		//		ip = an.IP.To4()
+		//	}
+		//}
 	}
-	ipStr := ip.String()
 	if ipStr == "" || ipStr == "<nil>" {
 		ipStr = "127.0.0.1"
 	}
@@ -1085,6 +1137,28 @@ func runTimerServer(ts *timerServer) {
 	if ts.stopChan != nil {
 		ts.stopChan <- true
 	}
+}
+
+func SleepWhileRunning(duration time.Duration) {
+	intervalTimes := int(math.Ceil(float64(duration / time.Millisecond * 100)))
+	for i := 0; i < intervalTimes; i++ {
+		time.Sleep(time.Millisecond * 100)
+		if !running {
+			break
+		}
+	}
+}
+
+func RunTaskWhileRunning(duration time.Duration, taskFn func() bool) {
+	go func() {
+		SleepWhileRunning(duration)
+		for IsRunning() {
+			if taskFn() {
+				break
+			}
+			SleepWhileRunning(duration)
+		}
+	}()
 }
 
 func IsRunning() bool {

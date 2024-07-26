@@ -110,7 +110,7 @@ func tryStartPath(testFile string) string {
 		}
 	}
 
-	tryPath := path.Dir(os.Args[0])
+	tryPath := path.Dir(shellFile)
 	if u.FileExists(filepath.Join(tryPath, testFile)) {
 		// use arg0 path
 		return tryPath
@@ -120,7 +120,11 @@ func tryStartPath(testFile string) string {
 	return ""
 }
 
+var shellFile = ""
+
 func init() {
+	shellFile, _ = filepath.Abs(os.Args[0])
+
 	startPath := ""
 	if startPath == "" && len(os.Args) > 1 && strings.ContainsRune(os.Args[1], '.') {
 		startPath = tryStartPath(os.Args[1])
@@ -137,8 +141,8 @@ func init() {
 
 	if startPath != "" {
 		_ = os.Chdir(startPath)
-	} else if !strings.Contains(os.Args[0], "/go-build") {
-		_ = os.Chdir(path.Dir(os.Args[0]))
+	} else if !strings.Contains(shellFile, "/go-build") {
+		_ = os.Chdir(path.Dir(shellFile))
 	}
 	serviceInfo = serviceInfoType{pidFile: filepath.Join(startPath, ".pid")}
 	serviceInfo.load()
@@ -158,7 +162,7 @@ func CheckCmd() {
 
 		cmd := os.Args[1]
 		if cmd == "help" || cmd == "--help" {
-			fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(os.Args[0])), version)
+			fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(shellFile)), version)
 			for _, cmdInfo := range startCmds {
 				fmt.Printf("%s\t%s\n", u.Cyan(cmdInfo.Name), cmdInfo.Comment)
 			}
@@ -196,21 +200,21 @@ func CheckCmd() {
 		//}
 	}
 
-	////os.Chdir(os.Args[0][0:strings.LastIndexByte(os.Args[0], os.PathSeparator)])
-	//pos := strings.LastIndexByte(os.Args[0], os.PathSeparator)
+	////os.Chdir(shellFile[0:strings.LastIndexByte(shellFile, os.PathSeparator)])
+	//pos := strings.LastIndexByte(shellFile, os.PathSeparator)
 	//if pos == -1 {
-	//	pos = strings.LastIndexByte(os.Args[0], '/')
+	//	pos = strings.LastIndexByte(shellFile, '/')
 	//}
 	//
 	//if pos != -1 {
-	//	os.Chdir(os.Args[0][0:pos])
+	//	os.Chdir(shellFile[0:pos])
 	//}
 }
 
 //func loadPid() (string, int) {
-//	//app := os.Args[0][strings.LastIndexByte(os.Args[0], '/')+1:]
-//	app := os.Args[0]
-//	pidFile, err := os.Open("/tmp/" + strings.Replace(os.Args[0], "/", "_", 100) + ".pid")
+//	//app := shellFile[strings.LastIndexByte(shellFile, '/')+1:]
+//	app := shellFile
+//	pidFile, err := os.Open("/tmp/" + strings.Replace(shellFile, "/", "_", 100) + ".pid")
 //	if err == nil {
 //		b := make([]byte, 10)
 //		n, err := pidFile.Read(b)
@@ -255,31 +259,34 @@ func makeDockment(toFile, fromFile string) {
 
 func startProcess() {
 	if serviceInfo.pid > 0 {
-		fmt.Printf("%s	%d	is already running, stopping ...\n", os.Args[0], serviceInfo.pid)
+		fmt.Printf("%s	%d	is already running, stopping ...\n", shellFile, serviceInfo.pid)
 		stopProcess()
 	}
 
 	var cmd *exec.Cmd
 	if len(os.Args) > 2 {
-		cmd = exec.Command(os.Args[0], os.Args[2:]...)
+		cmd = exec.Command(shellFile, os.Args[2:]...)
 	} else {
-		cmd = exec.Command(os.Args[0])
+		cmd = exec.Command(shellFile)
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	_ = cmd.Start()
-
-	if !serviceInfo.exists() {
-		// 如果进程内没有产生pid文件，保存
-		serviceInfo.pid = cmd.Process.Pid
-		serviceInfo.save()
+	err := cmd.Start()
+	if err == nil {
+		if cmd.Process != nil && !serviceInfo.exists() {
+			// 如果进程内没有产生pid文件，保存
+			serviceInfo.pid = cmd.Process.Pid
+			serviceInfo.save()
+		}
+		fmt.Printf("%s	%d	is running...\n", shellFile, serviceInfo.pid)
+	} else {
+		fmt.Println("failed to start process", err.Error())
 	}
-	fmt.Printf("%s	%d	is running...\n", os.Args[0], cmd.Process.Pid)
 }
 
 func stopProcess() {
 	if serviceInfo.pid <= 0 {
-		fmt.Printf("%s	not run\n", os.Args[0])
+		fmt.Printf("%s	not run\n", shellFile)
 		return
 	}
 	cmd := exec.Command("kill", strconv.Itoa(serviceInfo.pid))
@@ -289,7 +296,7 @@ func stopProcess() {
 		fmt.Println(err)
 	}
 	serviceInfo.remove()
-	fmt.Printf("%s	%d	stopped\n", os.Args[0], cmd.Process.Pid)
+	fmt.Printf("%s	%d	stopped\n", shellFile, cmd.Process.Pid)
 }
 
 func restartProcess() {
@@ -299,9 +306,9 @@ func restartProcess() {
 }
 
 func statusProcess() {
-	fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(os.Args[0])), version)
+	fmt.Printf("%s (%s)\n\n", u.Cyan(path.Base(shellFile)), version)
 	if serviceInfo.pid <= 0 {
-		fmt.Printf("%s	not run\n", os.Args[0])
+		fmt.Printf("%s	not run\n", shellFile)
 		return
 	}
 	cmd := exec.Command("ps", "-o", "pid,user,stat,start,time,args,%cpu,%mem", "-p", strconv.Itoa(serviceInfo.pid))
@@ -314,7 +321,7 @@ func statusProcess() {
 
 func checkProcess() {
 	if serviceInfo.pid <= 0 {
-		fmt.Printf("%s	not run\n", os.Args[0])
+		fmt.Printf("%s	not run\n", shellFile)
 		os.Exit(1)
 		return
 	}
