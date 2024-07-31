@@ -27,10 +27,10 @@ func TestDoc(tt *testing.T) {
 	s.Proxy(0, "/dc1/s1", "a1", "/dc/s1")
 	s.Proxy(0, "/proxy/(.+?)", "a1", "/dc/$1")
 	//func RegisterWebsocket(authLevel int, path string,
-	//	onOpen interface{},
-	//onClose interface{},
-	//decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	//encoder func(action string, data interface{}) interface{}) *ActionRegister {
+	//	onOpen any,
+	//onClose any,
+	//decoder func(data any) (action string, request map[string]any, err error),
+	//encoder func(action string, data any) any) *ActionRegister {
 	//return RegisterWebsocketWithPriority(authLevel, 0, path, nil, onOpen, onClose, decoder, encoder, false)
 	//}
 

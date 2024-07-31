@@ -13,7 +13,7 @@ import (
 //var templates = make(map[string]*template.Template)
 //var templatesLock = sync.Mutex{}
 
-func Tpl(data interface{}, functions template.FuncMap, files ...string) string {
+func Tpl(data any, functions template.FuncMap, files ...string) string {
 	t := getTpl(functions, files...)
 	if t != nil {
 		buf := bytes.NewBuffer(make([]byte, 0))
@@ -26,7 +26,7 @@ func Tpl(data interface{}, functions template.FuncMap, files ...string) string {
 	return ""
 }
 
-func TplOut(writer io.Writer, data interface{}, functions template.FuncMap, files ...string) {
+func TplOut(writer io.Writer, data any, functions template.FuncMap, files ...string) {
 	t := getTpl(functions, files...)
 	if t != nil {
 		err := t.Execute(writer, data)
@@ -36,7 +36,7 @@ func TplOut(writer io.Writer, data interface{}, functions template.FuncMap, file
 	}
 }
 
-func MakeTpl(data interface{}, functions template.FuncMap, text string) string {
+func MakeTpl(data any, functions template.FuncMap, text string) string {
 	t := makeTpl(functions, text)
 	if t != nil {
 		buf := bytes.NewBuffer(make([]byte, 0))
@@ -49,7 +49,7 @@ func MakeTpl(data interface{}, functions template.FuncMap, text string) string {
 	return ""
 }
 
-func MakeTplOut(writer io.Writer, data interface{}, functions template.FuncMap, text string) {
+func MakeTplOut(writer io.Writer, data any, functions template.FuncMap, text string) {
 	t := makeTpl(functions, text)
 	if t != nil {
 		err := t.Execute(writer, data)
@@ -105,7 +105,7 @@ func makeTpl(functions template.FuncMap, text string) *template.Template {
 }
 
 // 为表单添加信息
-func ForForm(in interface{}) interface{} {
+func ForForm(in any) any {
 	r := forForm(reflect.ValueOf(in))
 	if r != nil {
 		return (*r).Interface()

@@ -22,6 +22,7 @@ type WebServiceOptions struct {
 	NoLog200 bool
 	Host     string
 	Ext      Map
+	Limiters []*Limiter
 }
 
 type webServiceType struct {
@@ -56,12 +57,14 @@ var webServicesList = make([]*webServiceType, 0)
 
 //var regexWebServicesLock = sync.RWMutex{}
 
-var inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
-var outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
-var errorHandle func(interface{}, *Request, *Response) interface{}
-var webAuthChecker func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{})
-var webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{}){}
-var webAuthFailedData interface{}
+var inFilters = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
+var outFilters = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
+var errorHandle func(any, *Request, *Response) any
+var webAuthChecker func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)
+var webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any){}
+var webAuthFailedData any
+var verifyFailedData any
+var limitFailedData any
 var usedSessionIdKey string
 
 // var usedClientIdKey string
@@ -70,27 +73,29 @@ var usedClientAppKey string
 var sessionIdMaker func() string
 
 // var sessionCreator func() string
-// var sessionObjects = map[*Request]map[reflect.Type]interface{}{}
-var injectObjects = map[reflect.Type]interface{}{}
-var injectFunctions = map[reflect.Type]func() interface{}{}
+// var sessionObjects = map[*Request]map[reflect.Type]any{}
+var injectObjects = map[reflect.Type]any{}
+var injectFunctions = map[reflect.Type]func() any{}
 
 func resetWebServiceMemory() {
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make([]*webServiceType, 0)
 	//webServicesLock = sync.RWMutex{}
 	webServicesList = make([]*webServiceType, 0)
-	inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
-	outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
+	inFilters = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
+	outFilters = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
 	errorHandle = nil
 	webAuthChecker = nil
-	webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]interface{}, *Request, *Response, *WebServiceOptions) (pass bool, object interface{}){}
+	webAuthCheckers = map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any){}
 	webAuthFailedData = nil
+	verifyFailedData = nil
+	limitFailedData = nil
 	usedSessionIdKey = ""
 	usedDeviceIdKey = ""
 	usedClientAppKey = ""
 	sessionIdMaker = nil
-	injectObjects = map[reflect.Type]interface{}{}
-	injectFunctions = map[reflect.Type]func() interface{}{}
+	injectObjects = map[reflect.Type]any{}
+	injectFunctions = map[reflect.Type]func() any{}
 }
 
 // 设置 SessionKey，自动在 Header 中产生，AsyncStart 的客户端支持自动传递
@@ -148,15 +153,15 @@ func (request *Request) GetSessionId() string {
 }
 
 //// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-//func SetSessionInject(request *http.Request, obj interface{}) {
+//func SetSessionInject(request *http.Request, obj any) {
 //	if sessionObjects[request] == nil {
-//		sessionObjects[request] = map[reflect.Type]interface{}{}
+//		sessionObjects[request] = map[reflect.Type]any{}
 //	}
 //	sessionObjects[request][reflect.TypeOf(obj)] = obj
 //}
 //
 //// 获取本生命周期中指定类型的 Session 对象
-//func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {
+//func GetSessionInject(request *http.Request, dataType reflect.Type) any {
 //	if sessionObjects[request] == nil {
 //		return nil
 //	}
@@ -164,15 +169,15 @@ func (request *Request) GetSessionId() string {
 //}
 
 // 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
-func SetInject(data interface{}) {
+func SetInject(data any) {
 	injectObjects[reflect.TypeOf(data)] = data
 }
-func SetInjectFunc(factory func() interface{}) {
+func SetInjectFunc(factory func() any) {
 	injectFunctions[reflect.TypeOf(factory())] = factory
 }
 
 // 获取一个注入对象
-func GetInject(dataType reflect.Type) interface{} {
+func GetInject(dataType reflect.Type) any {
 	if injectObjects[dataType] != nil {
 		return injectObjects[dataType]
 	} else if injectFunctions[dataType] != nil {
@@ -208,63 +213,63 @@ func (host *HostRegister) Static(path, rootPath string) {
 //	SetStaticFileByHost(path, data, host.host)
 //}
 
-func (host *HostRegister) Register(authLevel int, path string, serviceFunc interface{}, memo string) {
+func (host *HostRegister) Register(authLevel int, path string, serviceFunc any, memo string) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc interface{}, memo string) {
+func (host *HostRegister) Restful(authLevel int, method, path string, serviceFunc any, memo string) {
 	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+func (host *HostRegister) RegisterWithOptions(authLevel int, path string, serviceFunc any, memo string, options WebServiceOptions) {
 	options.Host = host.host
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, options)
 }
-func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+func (host *HostRegister) RestfulWithOptions(authLevel int, method, path string, serviceFunc any, memo string, options WebServiceOptions) {
 	options.Host = host.host
 	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, options)
 }
 func (host *HostRegister) Unregister(method, path string) {
 	unregister(method, path, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}, memo string) {
+func (host *HostRegister) RegisterSimpleWebsocket(authLevel int, path string, onOpen any, memo string) {
 	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{Host: host.host})
 }
-func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, memo string, options WebServiceOptions) {
+func (host *HostRegister) RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen any, memo string, options WebServiceOptions) {
 	options.Host = host.host
 	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, memo, options)
 }
 func (host *HostRegister) RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
-	onOpen interface{},
-	onClose interface{},
-	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, memo string) *ActionRegister {
+	onOpen any,
+	onClose any,
+	decoder func(data any) (action string, request map[string]any, err error),
+	encoder func(action string, data any) any, memo string) *ActionRegister {
 	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, WebServiceOptions{Host: host.host})
 }
 func (host *HostRegister) RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
-	onOpen interface{},
-	onClose interface{},
-	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
+	onOpen any,
+	onClose any,
+	decoder func(data any) (action string, request map[string]any, err error),
+	encoder func(action string, data any) any, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
 	options.Host = host.host
 	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, options)
 }
 
 // 注册服务
-func Register(authLevel int, path string, serviceFunc interface{}, memo string) {
+func Register(authLevel int, path string, serviceFunc any, memo string) {
 	Restful(authLevel, "", path, serviceFunc, memo)
 }
 
 // 注册服务
-func Restful(authLevel int, method, path string, serviceFunc interface{}, memo string) {
+func Restful(authLevel int, method, path string, serviceFunc any, memo string) {
 	RestfulWithOptions(authLevel, method, path, serviceFunc, memo, WebServiceOptions{})
 }
 
 // 注册服务
-func RegisterWithOptions(authLevel int, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+func RegisterWithOptions(authLevel int, path string, serviceFunc any, memo string, options WebServiceOptions) {
 	RestfulWithOptions(authLevel, "", path, serviceFunc, memo, options)
 }
 
 // 注册服务
-func RestfulWithOptions(authLevel int, method, path string, serviceFunc interface{}, memo string, options WebServiceOptions) {
+func RestfulWithOptions(authLevel int, method, path string, serviceFunc any, memo string, options WebServiceOptions) {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
 		logError(err.Error(), "authLevel", authLevel, "priority", options.Priority, "path", path, "method", method)
@@ -404,30 +409,38 @@ func unregister(method, path string, options WebServiceOptions) {
 }
 
 // 设置前置过滤器
-func SetInFilter(filter func(in *map[string]interface{}, request *Request, response *Response, logger *log.Logger) (out interface{})) {
+func SetInFilter(filter func(in *map[string]any, request *Request, response *Response, logger *log.Logger) (out any)) {
 	inFilters = append(inFilters, filter)
 }
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in map[string]interface{}, request *Request, response *Response, out interface{}, logger *log.Logger) (newOut interface{}, isOver bool)) {
+func SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
 	outFilters = append(outFilters, filter)
 }
 
-func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
+func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
 	webAuthChecker = authChecker
 }
 
-func AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, object interface{})) {
+func AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
 	for _, al := range authLevels {
 		webAuthCheckers[al] = authChecker
 	}
 }
 
-func SetAuthFailedData(data interface{}) {
+func SetAuthFailedData(data any) {
 	webAuthFailedData = data
 }
 
-func SetErrorHandle(myErrorHandle func(err interface{}, request *Request, response *Response) interface{}) {
+func SetVerifyFailedData(data any) {
+	verifyFailedData = data
+}
+
+func SetLimitFailedData(data any) {
+	limitFailedData = data
+}
+
+func SetErrorHandle(myErrorHandle func(err any, request *Request, response *Response) any) {
 	errorHandle = myErrorHandle
 }
 
@@ -523,12 +536,35 @@ func SetErrorHandle(myErrorHandle func(err interface{}, request *Request, respon
 //	}
 //}
 
-func doWebService(service *webServiceType, request *Request, response *Response, args map[string]interface{},
-	result interface{}, requestLogger *log.Logger, object interface{}) (webResult interface{}) {
+func doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
+	result any, requestLogger *log.Logger, object any) (webResult any) {
 	// 反射调用
 	if result != nil {
 		return result
 	}
+
+	// 限制访问频率
+	if service.options.Limiters != nil && len(service.options.Limiters) > 0 {
+		for _, l := range service.options.Limiters {
+			if ok, value := l.Check(args, request.Request, requestLogger); !ok {
+				response.WriteHeader(429)
+				if limitFailedData != nil {
+					dataStr := u.Json(limitFailedData)
+					if strings.Contains(dataStr, "{{") {
+						dataStr = strings.ReplaceAll(dataStr, "{{LIMITED_FROM}}", l.fromKey)
+						dataStr = strings.ReplaceAll(dataStr, "{{LIMITED_VALUE}}", value)
+						webResult = u.UnJsonMap(dataStr)
+					} else {
+						webResult = limitFailedData
+					}
+				} else {
+					webResult = "too many requests"
+				}
+				return
+			}
+		}
+	}
+
 	// 生成参数
 	var parms = make([]reflect.Value, service.parmsNum)
 	if service.inIndex >= 0 {
@@ -537,6 +573,24 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 		} else {
 			in := reflect.New(service.inType).Interface()
 			u.Convert(args, in)
+			// 验证参数有效性
+			if service.inType.Kind() == reflect.Struct {
+				if ok, field := VerifyStruct(in, requestLogger); !ok {
+					response.WriteHeader(400)
+					if verifyFailedData != nil {
+						dataStr := u.Json(verifyFailedData)
+						if strings.Contains(dataStr, "{{") {
+							dataStr = strings.ReplaceAll(dataStr, "{{FAILED_FIELDS}}", field)
+							webResult = u.UnJsonMap(dataStr)
+						} else {
+							webResult = verifyFailedData
+						}
+					} else {
+						webResult = field + " verify failed"
+					}
+					return
+				}
+			}
 			parms[service.inIndex] = reflect.ValueOf(in).Elem()
 		}
 	}
@@ -555,6 +609,24 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 		} else {
 			headers := reflect.New(service.headersType).Interface()
 			u.Convert(headersMap, headers)
+			// 验证参数有效性
+			if service.headersType.Kind() == reflect.Struct {
+				if ok, field := VerifyStruct(headers, requestLogger); !ok {
+					response.WriteHeader(400)
+					if verifyFailedData != nil {
+						dataStr := u.Json(verifyFailedData)
+						if strings.Contains(dataStr, "{{") {
+							dataStr = strings.ReplaceAll(dataStr, "{{FAILED_FIELDS}}", field)
+							webResult = u.UnJsonMap(dataStr)
+						} else {
+							webResult = verifyFailedData
+						}
+					} else {
+						webResult = field + " verify failed"
+					}
+					return
+				}
+			}
 			parms[service.headersIndex] = reflect.ValueOf(headers).Elem()
 		}
 	}
@@ -610,7 +682,7 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 	return
 }
 
-func getInjectObjectValueWithLogger(injectObj interface{}, requestLogger *log.Logger) reflect.Value {
+func getInjectObjectValueWithLogger(injectObj any, requestLogger *log.Logger) reflect.Value {
 	injectObjValue := reflect.ValueOf(injectObj)
 	if setLoggerMethod, found := injectObjValue.Type().MethodByName("CopyByLogger"); found && setLoggerMethod.Type.NumIn() == 2 && setLoggerMethod.Type.NumOut() == 1 && setLoggerMethod.Type.In(1).String() == "*log.Logger" && setLoggerMethod.Type.Out(0).String() == injectObjValue.Type().String() {
 		outs := setLoggerMethod.Func.Call([]reflect.Value{injectObjValue, reflect.ValueOf(requestLogger)})
@@ -637,7 +709,7 @@ func getInjectObjectValueWithLogger(injectObj interface{}, requestLogger *log.Lo
 //	}
 //}
 
-func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
+func makeCachedService(matchedServie any) (*webServiceType, error) {
 	// 类型或参数返回值个数不对
 	funcType := reflect.TypeOf(matchedServie)
 	if funcType.Kind() != reflect.Func {
@@ -690,7 +762,7 @@ func makeCachedService(matchedServie interface{}) (*webServiceType, error) {
 	return targetService, nil
 }
 
-func makeBytesResult(data interface{}) []byte {
+func makeBytesResult(data any) []byte {
 	excludeKeys := u.MakeExcludeUpperKeys(data, "")
 	bytesResult, err := json.Marshal(data)
 	if err != nil || (len(bytesResult) == 4 && string(bytesResult) == "null") {

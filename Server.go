@@ -28,9 +28,9 @@ import (
 	"time"
 )
 
-type Arr = []interface{}
+type Arr = []any
 
-type Map = map[string]interface{}
+type Map = map[string]any
 
 // var name = "Noname Server"
 var version = "unset version"
@@ -223,11 +223,11 @@ func NewTimerServer(name string, interval time.Duration, run func(*bool), start 
 //	waitFunc = f
 //}
 
-func logInfo(info string, extra ...interface{}) {
+func logInfo(info string, extra ...any) {
 	ServerLogger.Server(info, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
 }
 
-func logError(error string, extra ...interface{}) {
+func logError(error string, extra ...any) {
 	ServerLogger.ServerError(error, discover.Config.App, discover.Config.Weight, serverAddr, serverProto, serverStartTime, extra...)
 }
 
@@ -278,7 +278,7 @@ func GetLocalPublicIP() []string {
 }
 
 // noinspection GoUnusedParameter
-func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]interface{}, request *Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject interface{}) {
+func DefaultAuthChecker(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, sessionObject any) {
 	if authLevel == 0 {
 		return true, nil
 	}
@@ -478,20 +478,20 @@ func (as *AsyncServer) Stop() {
 func (as *AsyncServer) Get(path string, headers ...string) *httpclient.Result {
 	return as.Do("GET", path, nil, headers...)
 }
-func (as *AsyncServer) Post(path string, data interface{}, headers ...string) *httpclient.Result {
+func (as *AsyncServer) Post(path string, data any, headers ...string) *httpclient.Result {
 	return as.Do("POST", path, data, headers...)
 }
-func (as *AsyncServer) Put(path string, data interface{}, headers ...string) *httpclient.Result {
+func (as *AsyncServer) Put(path string, data any, headers ...string) *httpclient.Result {
 	return as.Do("PUT", path, data, headers...)
 }
-func (as *AsyncServer) Delete(path string, data interface{}, headers ...string) *httpclient.Result {
+func (as *AsyncServer) Delete(path string, data any, headers ...string) *httpclient.Result {
 	return as.Do("DELETE", path, data, headers...)
 }
 func (as *AsyncServer) Head(path string, headers ...string) *httpclient.Result {
 	return as.Do("HEAD", path, nil, headers...)
 }
 
-func (as *AsyncServer) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
+func (as *AsyncServer) Do(method, path string, data any, headers ...string) *httpclient.Result {
 	//r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", u.StringIf(as.listens[0].certFile != "" && as.listens[0].keyFile != "", "https", "http"), as.Addr, path), data, headers...)
 	//fmt.Println("= ========", serverProtoName, "[["+as.Addr+"]]")
 	r := as.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
@@ -500,7 +500,7 @@ func (as *AsyncServer) Do(method, path string, data interface{}, headers ...stri
 	//}
 	return r
 }
-func (as *AsyncServer) ManualDo(method, path string, data interface{}, headers ...string) *httpclient.Result {
+func (as *AsyncServer) ManualDo(method, path string, data any, headers ...string) *httpclient.Result {
 	r := as.clientPool.ManualDo(method, fmt.Sprintf("%s://%s%s", serverProtoName, as.Addr, path), data, headers...)
 	return r
 }
@@ -528,15 +528,15 @@ func (c *Client) Get(path string, headers ...string) *httpclient.Result {
 	return c.Do("GET", path, nil, headers...)
 }
 
-func (c *Client) Post(path string, data interface{}, headers ...string) *httpclient.Result {
+func (c *Client) Post(path string, data any, headers ...string) *httpclient.Result {
 	return c.Do("POST", path, data, headers...)
 }
 
-func (c *Client) Put(path string, data interface{}, headers ...string) *httpclient.Result {
+func (c *Client) Put(path string, data any, headers ...string) *httpclient.Result {
 	return c.Do("PUT", path, data, headers...)
 }
 
-func (c *Client) Delete(path string, data interface{}, headers ...string) *httpclient.Result {
+func (c *Client) Delete(path string, data any, headers ...string) *httpclient.Result {
 	return c.Do("DELETE", path, data, headers...)
 }
 
@@ -544,7 +544,7 @@ func (c *Client) Head(path string, headers ...string) *httpclient.Result {
 	return c.Do("HEAD", path, nil, headers...)
 }
 
-func (c *Client) Do(method, path string, data interface{}, headers ...string) *httpclient.Result {
+func (c *Client) Do(method, path string, data any, headers ...string) *httpclient.Result {
 	r := c.clientPool.Do(method, fmt.Sprintf("%s://%s%s", serverProtoName, c.addr, path), data, headers...)
 	return r
 }
@@ -775,7 +775,7 @@ func (as *AsyncServer) Start() {
 
 				if memoryCounter.Times >= 12 {
 					memoryCounter.Count()
-					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					memoryInfo := []any{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
 					if memoryPercent >= 100 {
 						logError("out of memory", memoryInfo...)
 					} else if memoryPercent >= 80 {
@@ -805,7 +805,7 @@ func (as *AsyncServer) Start() {
 					if cpuCounter.Times >= 12 {
 						cpuCounter.Count()
 						numThreads, _ := serviceProcess.NumThreads()
-						cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+						cpuInfo := []any{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
 						if cpuPercent >= 100 {
 							logError("over load of cpu", cpuInfo...)
 						} else if cpuPercent >= 80 {
@@ -837,7 +837,7 @@ func (as *AsyncServer) Start() {
 				if memoryCounter.Times >= 1 {
 					memoryUsed := byteToM(memoryStat.Sys)
 					memoryPercent := math.Round(float64(memoryUsed)/float64(Config.Memory)*10000) / 100
-					memoryInfo := []interface{}{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
+					memoryInfo := []any{"memoryUsed", memoryUsed, "limit", Config.Memory, "memoryPercent", memoryPercent, "heapInuse", byteToM(memoryStat.HeapInuse), "heapIdle", byteToM(memoryStat.HeapIdle), "stackInuse", byteToM(memoryStat.StackInuse), "heapInuse", byteToM(memoryStat.HeapInuse), "pauseTotalNs", memoryStat.PauseTotalNs, "numGC", memoryStat.NumGC, "numForcedGC", memoryStat.NumForcedGC}
 					ServerLogger.Statistic(serverId, discover.Config.App, "memoryCount", memoryCounter.StartTime, memoryCounter.EndTime, memoryCounter.Times, memoryCounter.Failed, memoryCounter.Avg, memoryCounter.Min, memoryCounter.Max, memoryInfo...)
 					memoryCounter.Reset()
 				}
@@ -846,7 +846,7 @@ func (as *AsyncServer) Start() {
 			if Config.CpuMonitor && serviceProcess != nil {
 				if cpuCounter.Times >= 1 {
 					numThreads, _ := serviceProcess.NumThreads()
-					cpuInfo := []interface{}{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
+					cpuInfo := []any{"threads", numThreads, "goroutine", runtime.NumGoroutine(), "limit", Config.Cpu}
 					ServerLogger.Statistic(serverId, discover.Config.App, "cpuCount", cpuCounter.StartTime, cpuCounter.EndTime, cpuCounter.Times, cpuCounter.Failed, cpuCounter.Avg, cpuCounter.Min, cpuCounter.Max, cpuInfo...)
 					cpuCounter.Reset()
 				}
@@ -1210,7 +1210,7 @@ func (r *CodeResult) Failed(code int, message string) {
 	r.Message = message
 }
 
-func MakeArgots(argots interface{}) {
+func MakeArgots(argots any) {
 	v := reflect.ValueOf(argots)
 	if v.Kind() != reflect.Ptr {
 		log.DefaultLogger.Error("not point on s.MakeArgots")

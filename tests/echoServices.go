@@ -14,7 +14,7 @@ type echo1Args struct {
 	Ccc string
 	Ddd float32
 	Eee bool
-	Fff interface{}
+	Fff any
 	Ggg string
 }
 
@@ -70,7 +70,7 @@ func OnEchoOpen(in struct {
 	sess.UserInfo.Age = 1
 	sess.RoomId = in.RoomId
 
-	_ = client.WriteJSON(EchoEncoder("welcome", map[string]interface{}{
+	_ = client.WriteJSON(EchoEncoder("welcome", map[string]any{
 		"token":  in.Token,
 		"roomId": in.RoomId,
 		"oldAge": sess.UserInfo.Age,
@@ -98,18 +98,18 @@ func OnEchoMessage(in struct {
 func OnEchoClose(client *websocket.Conn, sess *echoWsSession) {
 }
 
-func EchoDecoder(srcData interface{}) (string, map[string]interface{}, error) {
-	var a []interface{}
-	var m map[string]interface{}
+func EchoDecoder(srcData any) (string, map[string]any, error) {
+	var a []any
+	var m map[string]any
 	var ok bool
-	if a, ok = srcData.([]interface{}); ok {
-		if m, ok = a[1].(map[string]interface{}); ok {
+	if a, ok = srcData.([]any); ok {
+		if m, ok = a[1].(map[string]any); ok {
 			return a[0].(string), m, nil
 		}
 	}
 	return "", nil, fmt.Errorf("in data err	%s", fmt.Sprint(srcData))
 }
 
-func EchoEncoder(action string, data interface{}) interface{} {
-	return []interface{}{action, data}
+func EchoEncoder(action string, data any) any {
+	return []any{action, data}
 }

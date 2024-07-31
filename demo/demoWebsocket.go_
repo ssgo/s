@@ -34,7 +34,7 @@ func OnWsOpen(in struct {
 	sess.RoomId = in.RoomId
 	fmt.Println("===OnWsOpen===")
 
-	_ = client.WriteJSON(WsEncoder("welcome", map[string]interface{}{
+	_ = client.WriteJSON(WsEncoder("welcome", map[string]any{
 		"token":  in.Token,
 		"roomId": in.RoomId,
 		"oldAge": sess.UserInfo.Age,
@@ -59,23 +59,23 @@ func OnWsClose() {
 	fmt.Println("===OnWsClose===")
 }
 
-func WsDecoder(srcData interface{}) (string, map[string]interface{}, error) {
+func WsDecoder(srcData any) (string, map[string]any, error) {
 	fmt.Println("===WsDecoder===")
-	var a []interface{}
-	var m map[string]interface{}
+	var a []any
+	var m map[string]any
 	var ok bool
-	if a, ok = srcData.([]interface{}); ok {
-		if m, ok = a[1].(map[string]interface{}); ok {
+	if a, ok = srcData.([]any); ok {
+		if m, ok = a[1].(map[string]any); ok {
 			return a[0].(string), m, nil
 		}
 	}
 	return "", nil, fmt.Errorf("in data err	%s", fmt.Sprint(srcData))
 }
 
-func WsEncoder(action string, data interface{}) interface{} {
+func WsEncoder(action string, data any) any {
 	fmt.Println("===WsEncoder===")
 
-	return []interface{}{action, data}
+	return []any{action, data}
 }
 
 func main() {
@@ -96,7 +96,7 @@ func main() {
 	if err != nil {
 		fmt.Println("dial err is:", err)
 	}
-	r := make([]interface{}, 0)
+	r := make([]any, 0)
 	err = c.ReadJSON(&r)
 	fmt.Println("r is:", r, "err is:", err)
 

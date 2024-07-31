@@ -23,19 +23,19 @@ import (
 
 //type Request struct {
 //	http.Request
-//	injects map[reflect.Type]interface{}
+//	injects map[reflect.Type]any
 //}
 //
 //// 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-//func (request *Request) SetInject(obj interface{}) {
+//func (request *Request) SetInject(obj any) {
 //	if request.injects == nil {
-//		request.injects = map[reflect.Type]interface{}{}
+//		request.injects = map[reflect.Type]any{}
 //	}
 //	request.injects[reflect.TypeOf(obj)] = obj
 //}
 //
 //// 获取本生命周期中指定类型的 Session 对象
-//func (request *Request) GetInject(dataType reflect.Type) interface{} {
+//func (request *Request) GetInject(dataType reflect.Type) any {
 //	if request.injects == nil {
 //		return nil
 //	}
@@ -122,7 +122,7 @@ func (uploadFile *UploadFile) Content() ([]byte, error) {
 
 type Request struct {
 	*http.Request
-	contextValues map[string]interface{}
+	contextValues map[string]any
 }
 
 func (request *Request) ResetPath(path string) {
@@ -132,11 +132,11 @@ func (request *Request) ResetPath(path string) {
 	}
 }
 
-func (request *Request) Set(key string, value interface{}) {
+func (request *Request) Set(key string, value any) {
 	request.contextValues[key] = value
 }
 
-func (request *Request) Get(key string) interface{} {
+func (request *Request) Get(key string) any {
 	return request.contextValues[key]
 }
 
@@ -251,7 +251,7 @@ func (response *Response) SendFile(contentType, filename string) {
 	}
 }
 
-func (response *Response) DownloadFile(contentType, filename string, data interface{}) {
+func (response *Response) DownloadFile(contentType, filename string, data any) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -342,7 +342,7 @@ func getLogHeaders(request *http.Request) map[string]string {
 	return logHeaders
 }
 
-func parseRequestURI(request *http.Request, args *map[string]interface{}) {
+func parseRequestURI(request *http.Request, args *map[string]any) {
 	if strings.Index(request.RequestURI, request.URL.Path) == -1 && strings.LastIndex(request.RequestURI, "?") != -1 {
 		requestUrl, reqErr := url.Parse(request.RequestURI)
 		if reqErr == nil {
@@ -363,7 +363,7 @@ func parseRequestURI(request *http.Request, args *map[string]interface{}) {
 	}
 }
 
-func parseService(request *http.Request, host, requestPath string, args *map[string]interface{}) (*webServiceType, *websocketServiceType) {
+func parseService(request *http.Request, host, requestPath string, args *map[string]any) (*webServiceType, *websocketServiceType) {
 	var s *webServiceType
 	var ws *websocketServiceType
 
@@ -499,7 +499,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	var request = &Request{Request: httpRequest}
 	var response = &Response{Writer: writer, status: 200}
 	defer response.checkWriteHeader()
-	var sessionObject interface{} = nil
+	var sessionObject any = nil
 
 	requestId := ""
 	host := ""
@@ -667,7 +667,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		tc.Add("Check Static")
 	}
 
-	args := make(map[string]interface{})
+	args := make(map[string]any)
 
 	// 先看缓存中是否有 Service
 	//var s *webServiceType
@@ -723,7 +723,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				if bodyBytes[0] == 123 {
 					err = json.Unmarshal(bodyBytes, &args)
 				} else {
-					arg := new(interface{})
+					arg := new(any)
 					err = json.Unmarshal(bodyBytes, arg)
 					args["request"] = arg
 				}
@@ -787,7 +787,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	}
 
 	// 前置过滤器
-	var result interface{} = nil
+	var result any = nil
 	prevRequestURI := request.RequestURI
 	for _, filter := range inFilters {
 		result = filter(&args, request, response, requestLogger)
@@ -818,7 +818,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 
 	defer func() {
 		if err := recover(); err != nil {
-			var out interface{}
+			var out any
 			if errorHandle != nil {
 				out = errorHandle(err, request, response)
 			} else {
@@ -860,20 +860,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			//byteArgs, _ := json.Marshal(args)
 			//byteHeaders, _ := json.Marshal(logHeaders)
 			//log.Printf("REJECT	%s	%s	%s	%s	%.6f	%s	%s	%d	%s", request.RemoteAddr, request.Host, request.Method, request.RequestURI, usedTime, string(byteArgs), string(byteHeaders), authLevel, request.Proto)
+			response.WriteHeader(403)
 			if object == nil && webAuthFailedData != nil {
 				object = webAuthFailedData
 			}
 			if object == nil {
 				outLen := 0
 				if !response.changed {
-					response.WriteHeader(403)
 					response.checkWriteHeader()
 				} else {
 					outLen = response.outLen
 				}
 				writeLog(requestLogger, "REJECT", result, outLen, request.Request, response, args, &startTime, authLevel, nil)
 			} else {
-				var outData interface{}
+				var outData any
 				var outLen int
 				outBytes, outContentType := makeOutput(object)
 				if outContentType != "" {
@@ -992,7 +992,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	}
 }
 
-func makeOutput(result interface{}) (byteResult []byte, contentType string) {
+func makeOutput(result any) (byteResult []byte, contentType string) {
 	outType := reflect.TypeOf(result)
 	if outType == nil {
 		return []byte{}, ""
@@ -1016,7 +1016,7 @@ func makeOutput(result interface{}) (byteResult []byte, contentType string) {
 //	return encryptLogFields[strings.ToLower(strings.Replace(k, "-", "", 3))]
 //}
 //
-//func encryptField(value interface{}) string {
+//func encryptField(value any) string {
 //	v := u.String(value)
 //	if len(v) > 12 {
 //		return v[0:3] + "***" + v[len(v)-3:]
@@ -1031,7 +1031,7 @@ func makeOutput(result interface{}) (byteResult []byte, contentType string) {
 //	}
 //}
 
-func writeLog(logger *log.Logger, logName string, result interface{}, outLen int, request *http.Request, response *Response, args map[string]interface{}, startTime *time.Time, authLevel int, extraInfo Map) {
+func writeLog(logger *log.Logger, logName string, result any, outLen int, request *http.Request, response *Response, args map[string]any, startTime *time.Time, authLevel int, extraInfo Map) {
 	if Config.NoLogGets && request.Method == "GET" {
 		return
 	}
@@ -1067,16 +1067,16 @@ func writeLog(logger *log.Logger, logName string, result interface{}, outLen int
 		//}
 	}
 
-	var loggableRequestArgs map[string]interface{}
+	var loggableRequestArgs map[string]any
 	if args != nil {
 		fixedArgs := makeLogableData(logger, reflect.ValueOf(args), nil, Config.LogInputArrayNum, Config.LogInputFieldSize, 1).Interface()
-		if v, ok := fixedArgs.(map[string]interface{}); ok {
+		if v, ok := fixedArgs.(map[string]any); ok {
 			loggableRequestArgs = v
 		} else {
-			loggableRequestArgs = map[string]interface{}{"data": args}
+			loggableRequestArgs = map[string]any{"data": args}
 		}
 	} else {
-		loggableRequestArgs = map[string]interface{}{}
+		loggableRequestArgs = map[string]any{}
 	}
 
 	fixedResult := ""

@@ -44,7 +44,7 @@ func TestUpload(tt *testing.T) {
 	defer os.Remove("2.txt")
 	c := httpclient.GetClient(time.Second * 10)
 	c.DownloadPartSize = 10
-	r, errors := c.MPost("http://"+as.Addr+"/upload", map[string]string{"Tag1": "tag1", "Tag2": "tag2"}, map[string]interface{}{"file1": "1.txt", "file2": "2.txt"})
+	r, errors := c.MPost("http://"+as.Addr+"/upload", map[string]string{"Tag1": "tag1", "Tag2": "tag2"}, map[string]any{"file1": "1.txt", "file2": "2.txt"})
 	t.Test(r.Error == nil && r.String() == "true", "Upload", r.String(), errors)
 
 	r = c.Get("http://" + as.Addr + "/download1")

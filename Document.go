@@ -21,8 +21,8 @@ type Api struct {
 	AuthLevel int
 	Priority  int
 	Method    string
-	In        interface{}
-	Out       interface{}
+	In        any
+	Out       any
 	NoBody    bool
 	NoLog200  bool
 	Host      string
@@ -196,7 +196,7 @@ func MakeDocument() ([]Api, []ArgotInfo) {
 // 生成文档并存储到 json 文件中
 func MakeJsonDocument() string {
 	api, argots := MakeDocument()
-	data, err := json.Marshal(map[string]interface{}{
+	data, err := json.Marshal(map[string]any{
 		"api":    api,
 		"argots": argots,
 	})
@@ -248,7 +248,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 		if !Config.KeepKeyCase {
 			u.FixUpperCase(data2, nil)
 		}
-		var in2 interface{}
+		var in2 any
 		_ = json.Unmarshal(data2, &in2)
 		api[i].In = in2
 
@@ -269,7 +269,7 @@ func MakeHtmlDocumentFromFile(title, toFile, fromFile string) string {
 		if !Config.KeepKeyCase {
 			u.FixUpperCase(data3, nil)
 		}
-		var out3 interface{}
+		var out3 any
 		_ = json.Unmarshal(data3, &out3)
 		api[i].Out = out3
 	}
@@ -391,7 +391,7 @@ func getTags(tag string) map[string]string {
 	return tags
 }
 
-func getType(t reflect.Type, name string, tags *map[string]string) interface{} {
+func getType(t reflect.Type, name string, tags *map[string]string) any {
 	if t == nil {
 		return ""
 	}
@@ -439,14 +439,14 @@ func getType(t reflect.Type, name string, tags *map[string]string) interface{} {
 		}
 		return outs
 	case reflect.Map:
-		//return map[string]interface{}{u.String(getType(t.Key())): getType(t.Elem())}
+		//return map[string]any{u.String(getType(t.Key())): getType(t.Elem())}
 		//fmt.Println("     ====2", t.Key().String())
-		//return map[string]interface{}{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name+"."+u.GetLowerName(t.Key().String()), tags)}
-		return map[string]interface{}{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name, tags)}
+		//return map[string]any{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name+"."+u.GetLowerName(t.Key().String()), tags)}
+		return map[string]any{u.String(getType(t.Key(), "", nil)): getType(t.Elem(), name, tags)}
 		//return fmt.Sprintf("map[%s]%s", getType(t.Key()), getType(t.Elem()))
 	case reflect.Slice:
 		//fmt.Println("     ====3", t.Elem().String())
-		return []interface{}{getType(t.Elem(), name, tags)}
+		return []any{getType(t.Elem(), name, tags)}
 		//return fmt.Sprint("[]", getType(t.Elem()))
 	case reflect.Interface:
 		return "Any"
@@ -455,7 +455,7 @@ func getType(t reflect.Type, name string, tags *map[string]string) interface{} {
 	}
 }
 
-func isMap(arg interface{}) bool {
+func isMap(arg any) bool {
 	if arg == nil {
 		return false
 	}
@@ -467,7 +467,7 @@ func isMap(arg interface{}) bool {
 	return argKind == reflect.Map || argKind == reflect.Struct
 }
 
-func toText(arg interface{}) string {
+func toText(arg any) string {
 	t := reflect.TypeOf(arg)
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()

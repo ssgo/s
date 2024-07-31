@@ -206,22 +206,22 @@ getInfo 方法中调用 s1 时会根据 redis 中注册的节点信息负载均�
 
 ```go
 // 注册服务
-func Register(authLevel uint, name string, serviceFunc interface{}) {}
+func Register(authLevel uint, name string, serviceFunc any) {}
 
 // 注册以正则匹配的服务
-func RegisterByRegex(name string, service interface{}){}
+func RegisterByRegex(name string, service any){}
 
 // 设置前置过滤器
-func SetInFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) (out interface{})) {}
+func SetInFilter(filter func(in *map[string]any, request *http.Request, response *http.ResponseWriter) (out any)) {}
 
 // 设置后置过滤器
-func SetOutFilter(filter func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, out interface{}) (newOut interface{}, isOver bool)) {}
+func SetOutFilter(filter func(in *map[string]any, request *http.Request, response *http.ResponseWriter, out any) (newOut any, isOver bool)) {}
 
 // 注册身份认证模块
-func SetAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]interface{}) bool) {}
+func SetAuthChecker(authChecker func(authLevel uint, url *string, request *map[string]any) bool) {}
 
 // 设置panic错误处理方法
-func SetErrorHandle(myErrorHandle func(err interface{}, request *http.Request, response *http.ResponseWriter) interface{})
+func SetErrorHandle(myErrorHandle func(err any, request *http.Request, response *http.ResponseWriter) any)
 
 
 // 默认启动HTTP/2.0服务（若未配置证书将工作在No SSL模式）
@@ -237,11 +237,11 @@ func (as *AsyncServer) Stop() {}
 
 // 调用异步方式启动的服务
 func (as *AsyncServer) Get(path string, headers ... string) *Result {}
-func (as *AsyncServer) Post(path string, data interface{}, headers ... string) *Result {}
-func (as *AsyncServer) Put(path string, data interface{}, headers ... string) *Result {}
-func (as *AsyncServer) Head(path string, data interface{}, headers ... string) *Result {}
-func (as *AsyncServer) Delete(path string, data interface{}, headers ... string) *Result {}
-func (as *AsyncServer) Do(path string, data interface{}, headers ... string) *Result {}
+func (as *AsyncServer) Post(path string, data any, headers ... string) *Result {}
+func (as *AsyncServer) Put(path string, data any, headers ... string) *Result {}
+func (as *AsyncServer) Head(path string, data any, headers ... string) *Result {}
+func (as *AsyncServer) Delete(path string, data any, headers ... string) *Result {}
+func (as *AsyncServer) Do(path string, data any, headers ... string) *Result {}
 
 ```
 
@@ -442,14 +442,14 @@ func main() {
 	s.Restful(1, "POST", "/auth_test", authTest)
 	s.Restful(2, "PUT", "/auth_test", authTest)
     //前置过滤器
-	s.SetInFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter) interface{} {
+	s.SetInFilter(func(in *map[string]any, request *http.Request, response *http.ResponseWriter) any {
 		(*in)["Filter1"] = "see"
 		(*in)["filter2"] = 100
 		(*response).Header().Set("content-type", "application/json")
 		return nil
 	})
     //身份认证
-	s.SetAuthChecker(func(authLevel uint, url *string, in *map[string]interface{}, request *http.Request) bool {
+	s.SetAuthChecker(func(authLevel uint, url *string, in *map[string]any, request *http.Request) bool {
 		token := request.Header.Get("Token")
 		switch authLevel {
 		case 1:
@@ -460,7 +460,7 @@ func main() {
 		return false
 	})
     //后置过滤器
-	s.SetOutFilter(func(in *map[string]interface{}, request *http.Request, response *http.ResponseWriter, result interface{}) (interface{}, bool) {
+	s.SetOutFilter(func(in *map[string]any, request *http.Request, response *http.ResponseWriter, result any) (any, bool) {
 		data := result.(actionFilter)
 		data.Filter2 = data.Filter2 + 100
 		return data, false
@@ -619,16 +619,16 @@ s.Start()
 ```go
 // 注册Websocket服务
 func RegisterWebsocket(authLevel uint, name string, updater *websocket.Upgrader,
-	onOpen interface{},
-	onClose interface{},
-	decoder func(data interface{}) (action string, request *map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}) *ActionRegister {}
+	onOpen any,
+	onClose any,
+	decoder func(data any) (action string, request *map[string]any, err error),
+	encoder func(action string, data any) any) *ActionRegister {}
 
 // 注册Websocket Action
-func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, action interface{}) {}
+func (ar *ActionRegister) RegisterAction(authLevel uint, actionName string, action any) {}
 
 // 注册针对 Action 的认证模块
-func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]interface{}, sess interface{}) bool) {}
+func SetActionAuthChecker(authChecker func(authLevel uint, url *string, action *string, request *map[string]any, sess any) bool) {}
 
 ```
 
@@ -709,10 +709,10 @@ func SetSessionKey(inSessionKey string) {}
 func GetSessionKey() string {}
 
 // 设置一个生命周期在 Request 中的对象，请求中可以使用对象类型注入参数方便调用
-func SetSessionInject(request *http.Request, obj interface{}) {}
+func SetSessionInject(request *http.Request, obj any) {}
 
 // 获取本生命周期中指定类型的 Session 对象
-func GetSessionInject(request *http.Request, dataType reflect.Type) interface{} {}
+func GetSessionInject(request *http.Request, dataType reflect.Type) any {}
 ```
 
 基于 Http Header 传递 SessionId（不推荐使用Cookie）
@@ -741,10 +741,10 @@ ai := s.GetSessionInject(req, reflect.TypeOf(actionIn{})).(actionIn)
 
 ```go
 // 设置一个注入对象，请求中可以使用对象类型注入参数方便调用
-func SetInject(obj interface{}) {}
+func SetInject(obj any) {}
 
 // 获取一个注入对象
-func GetInject(dataType reflect.Type) interface{} {}
+func GetInject(dataType reflect.Type) any {}
 ```
 
 注入对象可以跨请求体
@@ -783,7 +783,7 @@ func main() {
     s.ResetAllSets()
     s.Register(0, "/panic_test", panicFunc)
     
-    s.SetErrorHandle(func(err interface{}, req *http.Request, rsp *http.ResponseWriter) interface{} {
+    s.SetErrorHandle(func(err any, req *http.Request, rsp *http.ResponseWriter) any {
         return s.Map{"msg": "defined", "code": "30889", "panic": fmt.Sprintf("%s", err)}
     })
     as := s.AsyncStart()
@@ -1101,18 +1101,18 @@ cli设置环境变量(set/export) > 配置文件
 
 // 调用已注册的服务，根据权重负载均衡
 func (caller *Caller) Get(app, path string, headers ... string) *Result {}
-func (caller *Caller) Post(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Put(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Head(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Delete(app, path string, data interface{}, headers ... string) *Result {}
-func (caller *Caller) Do(app, path string, data interface{}, headers ... string) *Result {}
+func (caller *Caller) Post(app, path string, data any, headers ... string) *Result {}
+func (caller *Caller) Put(app, path string, data any, headers ... string) *Result {}
+func (caller *Caller) Head(app, path string, data any, headers ... string) *Result {}
+func (caller *Caller) Delete(app, path string, data any, headers ... string) *Result {}
+func (caller *Caller) Do(app, path string, data any, headers ... string) *Result {}
 ```
 
 ## 负载均衡算法
 
 ```go
 // 指定节点调用已注册的服务，并返回本次使用的节点
-func (caller *Caller) DoWithNode(method, app, withNode, path string, data interface{}, headers ... string) (*Result, string) {}
+func (caller *Caller) DoWithNode(method, app, withNode, path string, data any, headers ... string) (*Result, string) {}
 
 // 设置一个负载均衡算法
 func SetLoadBalancer(lb LoadBalancer) {}

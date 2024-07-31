@@ -7,7 +7,7 @@ import (
 )
 
 type memoryCache struct {
-	value     interface{}
+	value     any
 	seconds   int64
 	cacheTime int64
 	locker    sync.Mutex
@@ -17,7 +17,7 @@ var memoryCaches = map[string]*memoryCache{}
 var memoryCacheLocker = sync.Mutex{}
 var memoryCacheStarted bool
 
-func CacheByMemory(key string, seconds int64, maker func() interface{}) interface{} {
+func CacheByMemory(key string, seconds int64, maker func() any) any {
 	memoryCacheLocker.Lock()
 	cache := memoryCaches[key]
 	if cache == nil {

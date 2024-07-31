@@ -24,12 +24,12 @@ func TestEchoWS(tt *testing.T) {
 	c, _, err := websocket.DefaultDialer.Dial("ws://"+as.Addr+"/echoService/abc-123/99", nil)
 	t.Test(err == nil, "Connect", err)
 
-	r := make([]interface{}, 0)
+	r := make([]any, 0)
 	err = c.ReadJSON(&r)
 	t.Test(err == nil, "Read welcome", err)
 	action, ok := r[0].(string)
 	t.Test(ok, "Read welcome", err)
-	data, ok := r[1].(map[string]interface{})
+	data, ok := r[1].(map[string]any)
 	t.Test(ok, "Read welcome", err)
 
 	t.Test(action == "welcome" && data["token"] == "abc-123" && data["roomId"].(float64) == 99 && data["oldAge"].(float64) == 1, "Welcome", r, c, err)
@@ -43,7 +43,7 @@ func TestEchoWS(tt *testing.T) {
 		t.Test(err == nil, "Read age", err)
 		action, ok := r[0].(string)
 		t.Test(ok, "Read age", err)
-		data, ok := r[1].(map[string]interface{})
+		data, ok := r[1].(map[string]any)
 		t.Test(ok, "Read age", err)
 
 		t.Test(action == "echo" && int(data["oldAge"].(float64)) == oldAge && int(data["newAge"].(float64)) == newAge, "Echo age back", r, oldAge, newAge, err)
@@ -89,7 +89,7 @@ func BenchmarkWSEcho(b *testing.B) {
 				continue
 			}
 
-			r := make([]interface{}, 0)
+			r := make([]any, 0)
 			err = c.ReadJSON(&r)
 			if err != nil {
 				b.Error("Read welcome error", err)
@@ -106,7 +106,7 @@ func BenchmarkWSEcho(b *testing.B) {
 				}
 				err = c.ReadJSON(&r)
 				action := r[0].(string)
-				data := r[1].(map[string]interface{})
+				data := r[1].(map[string]any)
 				if err != nil && action == "echo" && int(data["oldAge"].(float64)) == oldAge && int(data["newAge"].(float64)) == newAge {
 					b.Error("Read echo error", err)
 					continue
@@ -141,7 +141,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 		return
 	}
 
-	r := make([]interface{}, 0)
+	r := make([]any, 0)
 	err = c.ReadJSON(&r)
 	if err != nil {
 		b.Error("Read welcome error", err)
@@ -159,7 +159,7 @@ func BenchmarkWSEchoAction(b *testing.B) {
 		}
 		err = c.ReadJSON(&r)
 		action := r[0].(string)
-		data := r[1].(map[string]interface{})
+		data := r[1].(map[string]any)
 		if err != nil && action != "echo" && int(data["oldAge"].(float64)) != oldAge && int(data["newAge"].(float64)) != newAge {
 			b.Log(r)
 			b.Error("Read echo error", err)

@@ -42,8 +42,8 @@ type websocketServiceType struct {
 	closeSessionIndex     int
 	closeFuncType         reflect.Type
 	closeFuncValue        reflect.Value
-	decoder               func(interface{}) (string, map[string]interface{}, error)
-	encoder               func(string, interface{}) interface{}
+	decoder               func(any) (string, map[string]any, error)
+	encoder               func(string, any) any
 	actions               map[string]*websocketActionType
 	isSimple              bool
 	options               WebServiceOptions
@@ -76,7 +76,7 @@ var websocketServicesList = make([]*websocketServiceType, 0)
 
 //var regexWebsocketServicesLock = sync.RWMutex{}
 
-var webSocketActionAuthChecker func(int, *string, *string, map[string]interface{}, *Request, interface{}) bool
+var webSocketActionAuthChecker func(int, *string, *string, map[string]any, *Request, any) bool
 
 func resetWebSocketMemory() {
 	websocketServices = make(map[string]*websocketServiceType)
@@ -86,28 +86,28 @@ func resetWebSocketMemory() {
 }
 
 // 注册Websocket服务
-func RegisterSimpleWebsocket(authLevel int, path string, onOpen interface{}, memo string) {
+func RegisterSimpleWebsocket(authLevel int, path string, onOpen any, memo string) {
 	RegisterSimpleWebsocketWithOptions(authLevel, path, onOpen, memo, WebServiceOptions{})
 }
 
-func RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen interface{}, memo string, options WebServiceOptions) {
+func RegisterSimpleWebsocketWithOptions(authLevel int, path string, onOpen any, memo string, options WebServiceOptions) {
 	RegisterWebsocketWithOptions(authLevel, path, nil, onOpen, nil, nil, nil, true, memo, options)
 }
 
 func RegisterWebsocket(authLevel int, path string, updater *websocket.Upgrader,
-	onOpen interface{},
-	onClose interface{},
-	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, memo string) *ActionRegister {
+	onOpen any,
+	onClose any,
+	decoder func(data any) (action string, request map[string]any, err error),
+	encoder func(action string, data any) any, memo string) *ActionRegister {
 	return RegisterWebsocketWithOptions(authLevel, path, updater, onOpen, onClose, decoder, encoder, false, memo, WebServiceOptions{})
 }
 
 // 注册Websocket服务
 func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket.Upgrader,
-	onOpen interface{},
-	onClose interface{},
-	decoder func(data interface{}) (action string, request map[string]interface{}, err error),
-	encoder func(action string, data interface{}) interface{}, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
+	onOpen any,
+	onClose any,
+	decoder func(data any) (action string, request map[string]any, err error),
+	encoder func(action string, data any) any, isSimple bool, memo string, options WebServiceOptions) *ActionRegister {
 
 	s := new(websocketServiceType)
 	s.isSimple = isSimple
@@ -224,10 +224,10 @@ func RegisterWebsocketWithOptions(authLevel int, path string, updater *websocket
 	return &ActionRegister{websocketName: path, websocketServiceType: s}
 }
 
-func (ar *ActionRegister) RegisterAction(authLevel int, actionName string, action interface{}, memo string) {
+func (ar *ActionRegister) RegisterAction(authLevel int, actionName string, action any, memo string) {
 	ar.RegisterActionWithPriority(authLevel, 0, actionName, action, memo)
 }
-func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, actionName string, action interface{}, memo string) {
+func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, actionName string, action any, memo string) {
 	a := new(websocketActionType)
 	a.authLevel = authLevel
 	a.priority = priority
@@ -261,11 +261,11 @@ func (ar *ActionRegister) RegisterActionWithPriority(authLevel, priority int, ac
 	ar.websocketServiceType.actions[actionName] = a
 }
 
-func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *string, in map[string]interface{}, request *Request, sess interface{}) bool) {
+func SetActionAuthChecker(authChecker func(authLevel int, url *string, action *string, in map[string]any, request *Request, sess any) bool) {
 	webSocketActionAuthChecker = authChecker
 }
 
-func doWebsocketService(ws *websocketServiceType, request *Request, response *Response, authLevel int, args map[string]interface{}, startTime *time.Time, requestLogger *log.Logger, sessionObject interface{}) {
+func doWebsocketService(ws *websocketServiceType, request *Request, response *Response, authLevel int, args map[string]any, startTime *time.Time, requestLogger *log.Logger, sessionObject any) {
 	//byteArgs, _ := json.Marshal(args)
 	//byteHeaders, _ := json.Marshal(headers)
 
@@ -345,14 +345,14 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 
 		if !ws.isSimple {
 			for {
-				msg := new(interface{})
+				msg := new(any)
 				err := client.ReadJSON(msg)
 				if err != nil {
 					break
 				}
 
 				var actionName string
-				var messageData map[string]interface{}
+				var messageData map[string]any
 				if ws.decoder != nil {
 					actionName, messageData, err = ws.decoder(*msg)
 					if err != nil {
@@ -367,14 +367,14 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 					}
 				} else {
 					actionName = ""
-					mapMsg, isMap := (*msg).(map[string]interface{})
+					mapMsg, isMap := (*msg).(map[string]any)
 					if isMap {
 						messageData = mapMsg
 						if messageData["action"] != "" {
 							actionName = u.String(messageData["action"])
 						}
 					} else {
-						messageData = map[string]interface{}{"data": *msg}
+						messageData = map[string]any{"data": *msg}
 					}
 				}
 				// 异步调用 action 处理
@@ -472,7 +472,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 	}
 }
 
-func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *Request, data map[string]interface{}, sess reflect.Value, requestLogger *log.Logger, sessionObject interface{}) (string, interface{}, int, error) {
+func doWebsocketAction(ws *websocketServiceType, actionName string, action *websocketActionType, client *websocket.Conn, request *Request, data map[string]any, sess reflect.Value, requestLogger *log.Logger, sessionObject any) (string, any, int, error) {
 	var messageParms = make([]reflect.Value, action.parmsNum)
 	if action.inType != nil {
 		in := reflect.New(action.inType).Interface()
@@ -512,7 +512,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 
 	outs := action.funcValue.Call(messageParms)
 	var outAction string
-	var outData interface{}
+	var outData any
 	var outLen int
 	if len(outs) > 0 {
 		outAction = actionName
@@ -529,13 +529,13 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 			outBytes, err = json.Marshal(ws.encoder(outAction, outData))
 		} else {
 			outDataType := reflect.TypeOf(outData)
-			var outDataMap map[string]interface{}
+			var outDataMap map[string]any
 			if outDataType.Kind() == reflect.Map && outDataType.Elem().Kind() == reflect.Interface {
-				outDataMap = outData.(map[string]interface{})
+				outDataMap = outData.(map[string]any)
 			} else if outDataType.Kind() == reflect.Struct {
 				u.Convert(outData, &outDataMap)
 			} else {
-				outDataMap = map[string]interface{}{}
+				outDataMap = map[string]any{}
 				outDataMap["data"] = outData
 			}
 			outDataMap["action"] = outAction

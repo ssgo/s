@@ -36,13 +36,13 @@ func ResetAllSets() {
 	statics = make(map[string]*string)
 	usedSessionIdKey = ""
 	//sessionCreator = nil
-	//sessionObjects = map[*http.Request]map[reflect.Type]interface{}{}
-	injectObjects = map[reflect.Type]interface{}{}
+	//sessionObjects = map[*http.Request]map[reflect.Type]any{}
+	injectObjects = map[reflect.Type]any{}
 
 	webServices = make(map[string]*webServiceType)
 	regexWebServices = make([]*webServiceType, 0)
-	inFilters = make([]func(*map[string]interface{}, *Request, *Response, *log.Logger) interface{}, 0)
-	outFilters = make([]func(map[string]interface{}, *Request, *Response, interface{}, *log.Logger) (interface{}, bool), 0)
+	inFilters = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
+	outFilters = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
 
 	websocketServices = make(map[string]*websocketServiceType)
 	regexWebsocketServices = make([]*websocketServiceType, 0)
@@ -87,7 +87,7 @@ func ResetAllSets() {
 ////	return testRequest("POST", path, nil)
 ////}
 //
-//func TestService(path string, args Map) interface{} {
+//func TestService(path string, args Map) any {
 //
 //	argsObjectBytes, _ := json.Marshal(args)
 //
@@ -97,7 +97,7 @@ func ResetAllSets() {
 //		return nil
 //	}
 //
-//	var resultObject interface{}
+//	var resultObject any
 //	err = json.Unmarshal(result, &resultObject)
 //	if err != nil {
 //		fmt.Println("Unmarshal", err)
@@ -128,7 +128,7 @@ func B(tb *testing.B) *Testing {
 	t.tb = tb
 	return t
 }
-func (t *Testing) Test(tests bool, comment string, addons ...interface{}) {
+func (t *Testing) Test(tests bool, comment string, addons ...any) {
 	if !tests {
 		fmt.Println("  \x1b[0;41m失败\x1b[0m", comment, u.JsonP(addons), ".")
 		if t.tt != nil {
