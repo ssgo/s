@@ -571,7 +571,9 @@ func Init() {
 
 	config.LoadConfig("service", &Config)
 
-	accessTokens = Config.AccessTokens
+	for k, v := range Config.AccessTokens {
+		SetAuthTokenLevel(k, *v)
+	}
 	Config.AccessTokens = nil
 
 	if Config.KeepaliveTimeout <= 0 {
