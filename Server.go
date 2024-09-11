@@ -77,6 +77,7 @@ type ServiceConfig struct {
 	CookieScope                   string              // 启用Session时Cookie的有效范围，host|domain|topDomain，默认值为host
 	IdServer                      string              // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
 	KeepKeyCase                   bool                // 是否保持Key的首字母大小写？默认一律使用小写
+	IndexFiles                    []string            // 访问静态文件时的索引文件，默认为 index.html
 }
 
 type CertSet struct {
@@ -659,6 +660,10 @@ func Init() {
 
 	if Config.CookieScope == "" {
 		Config.CookieScope = "host"
+	}
+
+	if Config.IndexFiles == nil {
+		Config.IndexFiles = []string{"index.html"}
 	}
 
 	// CPU和内存限制
