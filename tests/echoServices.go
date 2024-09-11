@@ -8,7 +8,7 @@ import (
 	"github.com/ssgo/s"
 )
 
-type echo1Args struct {
+type Echo1Args struct {
 	Aaa int `check ^\d+$`
 	Bbb string
 	Ccc string
@@ -18,15 +18,15 @@ type echo1Args struct {
 	Ggg string
 }
 
-type echo2Args struct {
-	echo1Args
+type Echo2Args struct {
+	Echo1Args
 	FilterTag  string
 	FilterTag2 int
 }
 
-func Echo1(in echo1Args, headers struct{ CID string }) (out struct {
-	//func Echo1(in echo1Args, headers map[string]string) (out struct {
-	In      echo1Args
+func Echo1(in Echo1Args, headers struct{ CID string }) (out struct {
+	//func Echo1(in Echo1Args, headers map[string]string) (out struct {
+	In      Echo1Args
 	Headers struct{ CID string }
 }) {
 	//c.Call("lesson", "/getList", s.Map{"id": 100})
@@ -35,7 +35,7 @@ func Echo1(in echo1Args, headers struct{ CID string }) (out struct {
 	return
 }
 
-func Echo2(req *http.Request, in echo2Args) echo2Args {
+func Echo2(req *http.Request, in Echo2Args) Echo2Args {
 	return in
 }
 

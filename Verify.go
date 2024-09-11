@@ -78,7 +78,7 @@ func VerifyStruct(in any, logger *log.Logger) (ok bool, field string) {
 			// 不校验空对象
 			continue
 		}
-		if ft.Anonymous {
+		if ft.Anonymous && fv.CanInterface() {
 			// 处理继承
 			ok, field = VerifyStruct(fv.Interface(), logger)
 			if !ok {

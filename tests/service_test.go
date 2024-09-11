@@ -47,7 +47,7 @@ func TestEchos(tt *testing.T) {
 		"ggg": 223,
 	}).Map()
 
-	t.Test(u.Float64(d["aaa"]) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", d)
+	t.Test(u.Float64(d["aaa"]) == 11 && d["bbb"] == "_o_" && d["ddd"] == 101.123 && d["eee"] == true && d["fff"] == nil, "[Echo2] Data2", u.JsonP(d), ".")
 
 	a := as.Post("/echo3?a=1", s.Map{"name": "Star"}).Arr()
 	t.Test(ok, "[Echo3] Data1", a)
@@ -79,7 +79,7 @@ func TestFilters(tt *testing.T) {
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1000, "[Test InFilter 2] Response", d)
 
 	s.SetOutFilter(func(in map[string]any, request *s.Request, response *s.Response, result any, logger *log.Logger) (any, bool) {
-		data := result.(echo2Args)
+		data := result.(Echo2Args)
 		data.FilterTag2 = data.FilterTag2 + 100
 		return data, false
 	})
@@ -88,7 +88,7 @@ func TestFilters(tt *testing.T) {
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1100, "[Test OutFilters 1] Response", d)
 
 	s.SetOutFilter(func(in map[string]any, request *s.Request, response *s.Response, result any, logger *log.Logger) (any, bool) {
-		data := result.(echo2Args)
+		data := result.(Echo2Args)
 		//fmt.Println(" ***************", data.FilterTag2+100)
 		return s.Map{
 			"filterTag":  in["filterTag"],
@@ -100,7 +100,7 @@ func TestFilters(tt *testing.T) {
 	t.Test(d["filterTag"] == "Abc" && d["filterTag2"].(float64) == 1200, "[Test OutFilters 2] Response", d)
 
 	s.SetInFilter(func(in *map[string]any, request *s.Request, response *s.Response, logger *log.Logger) any {
-		return echo2Args{
+		return Echo2Args{
 			FilterTag:  (*in)["filterTag"].(string),
 			FilterTag2: (*in)["filterTag2"].(int) + 100,
 		}

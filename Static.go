@@ -260,7 +260,7 @@ func processStatic(requestPath string, request *http.Request, response *Response
 	//if strings.HasSuffix(filePath, string(os.PathSeparator)) {
 	//	filePath += "index.html"
 	//}
-	if u.GetFileInfo(filePath).IsDir {
+	if info := u.GetFileInfo(filePath); info != nil && info.IsDir {
 		for _, indexFile := range Config.IndexFiles {
 			f := filepath.Join(filePath, indexFile)
 			if u.FileExists(f) {
