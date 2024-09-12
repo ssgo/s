@@ -992,6 +992,7 @@ func (as *AsyncServer) Start() {
 		as.stop()
 		return
 	}
+	logInfo("started discover")
 
 	for _, ts := range timerServers {
 		logInfo("starting timer server", "name", ts.name, "interval", ts.intervalDuration/time.Millisecond)

@@ -205,7 +205,7 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 				"uri":    request.RequestURI,
 			})
 			discover.AddExternalApp(app, u.String(Config.RedirectTimeout))
-			discover.Restart()
+			//discover.Restart()
 		}
 	}
 	//fmt.Println("    ^^^^%%%%%%%", app, discover.Config.Calls[app])
