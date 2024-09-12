@@ -78,6 +78,7 @@ type ServiceConfig struct {
 	IdServer                      string              // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
 	KeepKeyCase                   bool                // 是否保持Key的首字母大小写？默认一律使用小写
 	IndexFiles                    []string            // 访问静态文件时的索引文件，默认为 index.html
+	IndexDir                      bool                // 访问目录时显示文件列表
 }
 
 type CertSet struct {

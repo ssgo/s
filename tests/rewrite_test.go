@@ -34,7 +34,7 @@ func TestRewrite(tt *testing.T) {
 	s.Rewrite("/r5/(.+?)/(.+?)", "/echo/$1?s2=$2")
 	s.Rewrite("/r6/(.+?)/(.+?)", "/show/$1/$2")
 
-	_ = os.Setenv("SERVICE_LISTEN", ":18811")
+	_ = os.Setenv("SERVICE_LISTEN", ":18801")
 	config.ResetConfigEnv()
 	s.Init()
 	as := s.AsyncStart()

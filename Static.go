@@ -149,7 +149,6 @@ func findRootPath(staticConfig map[string]*string, requestPath string) (filePath
 
 func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
 	baseHost := strings.SplitN(request.Host, ":", 2)[0]
-
 	//if staticsFileByHost[request.Host] != nil && staticsFileByHost[request.Host][requestPath] != nil {
 	//	fileBuf = staticsFileByHost[request.Host][requestPath]
 	//} else if baseHost != request.Host && staticsFileByHost[baseHost] != nil && staticsFileByHost[baseHost][requestPath] != nil {
@@ -260,11 +259,14 @@ func processStatic(requestPath string, request *http.Request, response *Response
 	//if strings.HasSuffix(filePath, string(os.PathSeparator)) {
 	//	filePath += "index.html"
 	//}
-	if info := u.GetFileInfo(filePath); info != nil && info.IsDir {
+	info := u.GetFileInfo(filePath)
+	if info != nil && info.IsDir {
 		for _, indexFile := range Config.IndexFiles {
 			f := filepath.Join(filePath, indexFile)
-			if u.FileExists(f) {
+			info2 := u.GetFileInfo(f)
+			if info2 != nil {
 				filePath = f
+				info = info2
 				break
 			}
 		}
@@ -279,6 +281,15 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		http.ServeContent(response, request, filepath.Base(filePath), serverStartTime, bytes.NewReader(mf.Data))
 		outLen = len(mf.Data)
 		return true, filePath
+	}
+
+	if info == nil {
+		return false, filePath
+	}
+
+	// 不支持列出文件内容
+	if info.IsDir && !Config.IndexDir {
+		return false, filePath
 	}
 
 	//fileInfo, err := os.Stat(filePath)
