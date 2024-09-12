@@ -640,15 +640,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		tc.Add("Check Rewrite")
 	}
 
-	// 处理 ProxyBy
-	if processProxy(request, response, &startTime, requestLogger) {
-		return
-	}
-
-	if Config.StatisticTime {
-		tc.Add("Check Proxy")
-	}
-
 	//var requestPath string
 	//pos := strings.LastIndex(request.RequestURI, "?")
 	//if pos != -1 {
@@ -665,6 +656,15 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 
 	if Config.StatisticTime {
 		tc.Add("Check Static")
+	}
+
+	// 处理 ProxyBy
+	if processProxy(request, response, &startTime, requestLogger) {
+		return
+	}
+
+	if Config.StatisticTime {
+		tc.Add("Check Proxy")
 	}
 
 	args := make(map[string]any)
