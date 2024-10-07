@@ -9,12 +9,12 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/ssgo/config v1.7.7
 	github.com/ssgo/discover v1.7.8
-	github.com/ssgo/httpclient v1.7.7
+	github.com/ssgo/httpclient v1.7.8
 	github.com/ssgo/log v1.7.7
 	github.com/ssgo/redis v1.7.7
 	github.com/ssgo/standard v1.7.7
-	github.com/ssgo/u v1.7.7
-	golang.org/x/net v0.29.0
+	github.com/ssgo/u v1.7.9
+	golang.org/x/net v0.30.0
 )
 
 require (
@@ -26,7 +26,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -43,42 +43,54 @@ func SetWorkPath(p string) {
 }
 
 type ServiceConfig struct {
-	Listen                        string              // 监听端口（|隔开多个监听）（,隔开多个选项）（如果不指定IP则监听在0.0.0.0，如果不指定端口则使用h2c协议监听在随机端口，80端口默认使用http协议，443端口默认使用https协议），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
-	SSL                           map[string]*CertSet // SSL证书配置，key为域名，value为cert和key的文件路径
-	KeepaliveTimeout              int                 // 连接允许空闲的最大时间，单位ms，默认值：15000
-	NoLogGets                     bool                // 不记录GET请求的日志
-	NoLogHeaders                  string              // 不记录请求头中包含的这些字段，多个字段用逗号分隔，默认不记录：Accept,Accept-Encoding,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests
-	LogInputArrayNum              int                 // 请求字段中容器类型（数组、Map）在日志打印个数限制 默认为10个，多余的数据将不再日志中记录
-	LogInputFieldSize             int                 // 请求字段中单个字段在日志打印长度限制 默认为500个字符，多余的数据将不再日志中记录
-	NoLogOutputFields             string              // 不记录响应字段中包含的这些字段（key名），多个字段用逗号分隔
-	LogOutputArrayNum             int                 // 响应字段中容器类型（数组、Map）在日志打印个数限制 默认为3个，多余的数据将不再日志中记录
-	LogOutputFieldSize            int                 // 响应字段中单个字段在日志打印长度限制 默认为100个字符，多余的数据将不再日志中记录
-	LogWebsocketAction            bool                // 记录Websocket中每个Action的请求日志，默认不记录
-	Compress                      bool                // 是否启用压缩，默认不启用
-	CompressMinSize               int                 // 小于设定值的应答内容将不进行压缩，默认值：1024
-	CompressMaxSize               int                 // 大于设定值的应答内容将不进行压缩，默认值：4096000
-	CheckDomain                   string              // 心跳检测时使用域名，，默认使用IP地址，心跳检测使用 HEAD /__CHECK__ 请求，应答 299 表示正常，593 表示异常
-	AccessTokens                  map[string]*int     // 请求接口时使用指定的Access-Token进行验证，值为Token对应的auth-level
-	RedirectTimeout               int                 // proxy和discover发起请求时的超时时间，单位ms，默认值：10000
-	AcceptXRealIpWithoutRequestId bool                // 是否允许头部没有携带请求ID的X-Real-IP信息，默认不允许（防止伪造客户端IP）
-	StatisticTime                 bool                // 是否开启请求时间统计，默认不开启
-	StatisticTimeInterval         int                 // 统计时间间隔，单位ms，默认值：10000
-	Fast                          bool                // 是否启用快速模式（为了追求性能牺牲一部分特性），默认不启用
-	MaxUploadSize                 int64               // 最大上传文件大小（multipart/form-data请求的总空间），单位字节，默认值：104857600
-	IpPrefix                      string              // discover服务发现时指定使用的IP网段，默认排除 172.17.（Docker）
-	Cpu                           int                 // CPU占用的核数，默认为0，即不做限制
-	Memory                        int                 // 内存（单位M），默认为0，即不做限制
-	CpuMonitor                    bool                // 在日志中记录CPU使用情况，默认不开启
-	MemoryMonitor                 bool                // 在日志中记录内存使用情况，默认不开启
-	CpuLimitValue                 uint                // CPU超过最高占用值（10-100）超过次数将自动重启（如果CpuMonitor开启的话），默认100
-	MemoryLimitValue              uint                // 内存超过最高占用值（10-100）超过次数将自动重启（如果MemoryMonitor开启的话），默认95
-	CpuLimitTimes                 uint                // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
-	MemoryLimitTimes              uint                // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
-	CookieScope                   string              // 启用Session时Cookie的有效范围，host|domain|topDomain，默认值为host
-	IdServer                      string              // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
-	KeepKeyCase                   bool                // 是否保持Key的首字母大小写？默认一律使用小写
-	IndexFiles                    []string            // 访问静态文件时的索引文件，默认为 index.html
-	IndexDir                      bool                // 访问目录时显示文件列表
+	Listen string              // 监听端口（|隔开多个监听）（,隔开多个选项）（如果不指定IP则监听在0.0.0.0，如果不指定端口则使用h2c协议监听在随机端口，80端口默认使用http协议，443端口默认使用https协议），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
+	SSL    map[string]*CertSet // SSL证书配置，key为域名，value为cert和key的文件路径
+	//KeepaliveTimeout              int                 // 连接允许空闲的最大时间，单位ms，默认值：15000
+	NoLogGets                     bool            // 不记录GET请求的日志
+	NoLogHeaders                  string          // 不记录请求头中包含的这些字段，多个字段用逗号分隔，默认不记录：Accept,Accept-Encoding,Cache-Control,Pragma,Connection,Upgrade-Insecure-Requests
+	LogInputArrayNum              int             // 请求字段中容器类型（数组、Map）在日志打印个数限制 默认为10个，多余的数据将不再日志中记录
+	LogInputFieldSize             int             // 请求字段中单个字段在日志打印长度限制 默认为500个字符，多余的数据将不再日志中记录
+	NoLogOutputFields             string          // 不记录响应字段中包含的这些字段（key名），多个字段用逗号分隔
+	LogOutputArrayNum             int             // 响应字段中容器类型（数组、Map）在日志打印个数限制 默认为3个，多余的数据将不再日志中记录
+	LogOutputFieldSize            int             // 响应字段中单个字段在日志打印长度限制 默认为100个字符，多余的数据将不再日志中记录
+	LogWebsocketAction            bool            // 记录Websocket中每个Action的请求日志，默认不记录
+	Compress                      bool            // 是否启用压缩，默认不启用
+	CompressMinSize               int             // 小于设定值的应答内容将不进行压缩，默认值：1024
+	CompressMaxSize               int             // 大于设定值的应答内容将不进行压缩，默认值：4096000
+	CheckDomain                   string          // 心跳检测时使用域名，，默认使用IP地址，心跳检测使用 HEAD /__CHECK__ 请求，应答 299 表示正常，593 表示异常
+	AccessTokens                  map[string]*int // 请求接口时使用指定的Access-Token进行验证，值为Token对应的auth-level
+	RedirectTimeout               int             // proxy和discover发起请求时的超时时间，单位ms，默认值：10000
+	AcceptXRealIpWithoutRequestId bool            // 是否允许头部没有携带请求ID的X-Real-IP信息，默认不允许（防止伪造客户端IP）
+	StatisticTime                 bool            // 是否开启请求时间统计，默认不开启
+	StatisticTimeInterval         int             // 统计时间间隔，单位ms，默认值：10000
+	Fast                          bool            // 是否启用快速模式（为了追求性能牺牲一部分特性），默认不启用
+	MaxUploadSize                 int64           // 最大上传文件大小（multipart/form-data请求的总空间），单位字节，默认值：104857600
+	IpPrefix                      string          // discover服务发现时指定使用的IP网段，默认排除 172.17.（Docker）
+	Cpu                           int             // CPU占用的核数，默认为0，即不做限制
+	Memory                        int             // 内存（单位M），默认为0，即不做限制
+	CpuMonitor                    bool            // 在日志中记录CPU使用情况，默认不开启
+	MemoryMonitor                 bool            // 在日志中记录内存使用情况，默认不开启
+	CpuLimitValue                 uint            // CPU超过最高占用值（10-100）超过次数将自动重启（如果CpuMonitor开启的话），默认100
+	MemoryLimitValue              uint            // 内存超过最高占用值（10-100）超过次数将自动重启（如果MemoryMonitor开启的话），默认95
+	CpuLimitTimes                 uint            // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
+	MemoryLimitTimes              uint            // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
+	CookieScope                   string          // 启用Session时Cookie的有效范围，host|domain|topDomain，默认值为host
+	IdServer                      string          // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
+	KeepKeyCase                   bool            // 是否保持Key的首字母大小写？默认一律使用小写
+	IndexFiles                    []string        // 访问静态文件时的索引文件，默认为 index.html
+	IndexDir                      bool            // 访问目录时显示文件列表
+	ReadTimeout                   int             // 读取请求的超时时间，单位ms
+	ReadHeaderTimeout             int             // 读取请求头的超时时间，单位ms
+	WriteTimeout                  int             // 响应写入的超时时间，单位ms
+	IdleTimeout                   int             // 连接空闲超时时间，单位ms
+	MaxHeaderBytes                int             // 请求头的最大字节数
+	MaxHandlers                   int             // 每个连接的最大处理程序数量
+	MaxConcurrentStreams          uint32          // 每个连接的最大并发流数量
+	MaxDecoderHeaderTableSize     uint32          // 解码器头表的最大大小
+	MaxEncoderHeaderTableSize     uint32          // 编码器头表的最大大小
+	MaxReadFrameSize              uint32          // 单个帧的最大读取大小
+	MaxUploadBufferPerConnection  int32           // 每个连接的最大上传缓冲区大小
+	MaxUploadBufferPerStream      int32           // 每个流的最大上传缓冲区大小
 }
 
 type CertSet struct {
@@ -345,6 +357,7 @@ type Listen struct {
 type AsyncServer struct {
 	startChan    chan bool
 	stopChan     chan bool
+	closeChan    chan os.Signal
 	listens      []Listen
 	Addr         string
 	Proto        string
@@ -470,7 +483,13 @@ func (as *AsyncServer) stop() {
 }
 
 func (as *AsyncServer) Stop() {
-	as.stop()
+	//as.stop()
+	if as.closeChan != nil {
+		signal.Stop(as.closeChan)
+		as.closeChan <- syscall.SIGTERM
+	} else {
+		as.stop()
+	}
 	as.Wait()
 	if as.onStopped != nil {
 		as.onStopped()
@@ -578,9 +597,9 @@ func Init() {
 	}
 	Config.AccessTokens = nil
 
-	if Config.KeepaliveTimeout <= 0 {
-		Config.KeepaliveTimeout = 15000
-	}
+	//if Config.KeepaliveTimeout <= 0 {
+	//	Config.KeepaliveTimeout = 15000
+	//}
 
 	if Config.CompressMinSize <= 0 {
 		Config.CompressMinSize = 1024
@@ -948,11 +967,11 @@ func (as *AsyncServer) Start() {
 
 	as.stopChan = make(chan bool, len(as.listens))
 
-	closeChan := make(chan os.Signal, 1)
+	as.closeChan = make(chan os.Signal, 1)
 	//signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM)
-	signal.Notify(closeChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(as.closeChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	go func() {
-		<-closeChan
+		<-as.closeChan
 		as.stop()
 	}()
 
@@ -1055,14 +1074,25 @@ func (as *AsyncServer) Start() {
 						}
 					},
 				},
-			}
-			if Config.KeepaliveTimeout > 0 {
-				srv.IdleTimeout = time.Duration(Config.KeepaliveTimeout) * time.Millisecond
+				ReadTimeout:       time.Duration(Config.ReadTimeout) * time.Millisecond,
+				ReadHeaderTimeout: time.Duration(Config.ReadHeaderTimeout) * time.Millisecond,
+				WriteTimeout:      time.Duration(Config.WriteTimeout) * time.Millisecond,
+				IdleTimeout:       time.Duration(Config.IdleTimeout) * time.Millisecond,
+				MaxHeaderBytes:    Config.MaxHeaderBytes,
 			}
 
 			if listen.protocol == "h2" || listen.protocol == "h2c" {
 				//srv.TLSConfig = &tls.Config{NextProtos: []string{"http/2", "http/1.1"}}
-				s2 := &http2.Server{}
+				s2 := &http2.Server{
+					MaxHandlers:                  Config.MaxHandlers,
+					MaxConcurrentStreams:         Config.MaxConcurrentStreams,
+					MaxDecoderHeaderTableSize:    Config.MaxDecoderHeaderTableSize,
+					MaxEncoderHeaderTableSize:    Config.MaxEncoderHeaderTableSize,
+					MaxReadFrameSize:             Config.MaxReadFrameSize,
+					IdleTimeout:                  time.Duration(Config.IdleTimeout) * time.Millisecond,
+					MaxUploadBufferPerConnection: Config.MaxUploadBufferPerConnection,
+					MaxUploadBufferPerStream:     Config.MaxUploadBufferPerStream,
+				}
 				err := http2.ConfigureServer(srv, s2)
 				if err != nil {
 					logError(err.Error())
