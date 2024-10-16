@@ -4,11 +4,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/log"
-	"github.com/ssgo/standard"
-	"github.com/ssgo/u"
-	"golang.org/x/net/websocket"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -19,6 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ssgo/discover"
+	"github.com/ssgo/log"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
+	"golang.org/x/net/websocket"
 )
 
 //type Request struct {
@@ -496,7 +497,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		}()
 	}
 
-	var request = &Request{Request: httpRequest}
+	var request = &Request{Request: httpRequest, contextValues: map[string]any{}}
 	var response = &Response{Writer: writer, status: 200}
 	defer response.checkWriteHeader()
 	var sessionObject any = nil

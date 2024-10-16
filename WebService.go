@@ -3,16 +3,17 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/log"
-	"github.com/ssgo/standard"
-	"github.com/ssgo/u"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/gorilla/websocket"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/log"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
 )
 
 type WebServiceOptions struct {
@@ -542,6 +543,8 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 	if result != nil {
 		return result
 	}
+
+	request.Set("registerTag", fmt.Sprint(service.options.Host, service.method, service.path))
 
 	// 限制访问频率
 	if service.options.Limiters != nil && len(service.options.Limiters) > 0 {
