@@ -124,6 +124,7 @@ func (uploadFile *UploadFile) Content() ([]byte, error) {
 type Request struct {
 	*http.Request
 	contextValues map[string]any
+	Id            string
 }
 
 func (request *Request) ResetPath(path string) {
@@ -142,6 +143,7 @@ func (request *Request) Get(key string) any {
 }
 
 type Response struct {
+	Id            string
 	Writer        http.ResponseWriter
 	status        int
 	outLen        int
@@ -512,7 +514,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		}
 
 		// 产生 X-Request-ID
-		requestId = xHeader(standard.DiscoverHeaderRequestId, request.Request, u.UniqueId)
+		requestId = xHeader(standard.DiscoverHeaderRequestId, request.Request, UniqueId)
 
 		// 真实的用户IP，通过 X-Real-IP 续传
 		xHeader(standard.DiscoverHeaderClientIp, request.Request, func() string {
@@ -605,10 +607,12 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			tc.Add("Make Headers")
 		}
 	} else {
-		requestId = u.UniqueId()
+		requestId = UniqueId()
 		host = request.Host
 	}
 
+	request.Id = requestId
+	response.Id = requestId
 	requestLogger := log.New(requestId)
 	if Config.Fast {
 		if Config.StatisticTime {

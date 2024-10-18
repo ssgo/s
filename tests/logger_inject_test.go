@@ -1,13 +1,14 @@
 package tests
 
 import (
-	"github.com/ssgo/redis"
-	"github.com/ssgo/standard"
-	"github.com/ssgo/u"
 	"net/http"
 	"testing"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/ssgo/redis"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
+
+	// _ "github.com/go-sql-driver/mysql"
 	"github.com/ssgo/log"
 	"github.com/ssgo/s"
 )

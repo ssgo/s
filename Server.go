@@ -463,7 +463,7 @@ func resetServerMemory() {
 	_rdStarted = false
 	noLogHeaders = map[string]bool{}
 	noLogOutputFields = map[string]bool{}
-	serverId = u.UniqueId()
+	serverId = UniqueId()
 	serverStartTime = time.Now()
 	serverAddr = ""
 	serverProto = "http"
@@ -736,7 +736,7 @@ func Start() {
 }
 
 func (as *AsyncServer) Start() {
-	// ServerLogger = log.New(serverId)
+	ServerLogger = log.New(serverId)
 	CheckCmd()
 
 	log.Start()

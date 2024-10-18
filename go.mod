@@ -3,12 +3,11 @@ module github.com/ssgo/s
 go 1.18
 
 require (
-	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gomodule/redigo v1.9.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/ssgo/config v1.7.7
-	github.com/ssgo/discover v1.7.8
+	github.com/ssgo/discover v1.7.9
 	github.com/ssgo/httpclient v1.7.8
 	github.com/ssgo/log v1.7.7
 	github.com/ssgo/redis v1.7.7
@@ -18,7 +17,6 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
