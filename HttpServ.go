@@ -537,13 +537,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		// SessionId
 		if usedSessionIdKey != "" {
 			// 优先从 Header 中读取
-			sessionId := request.Header.Get(usedSessionIdKey)
-			if sessionId == "" {
-				// 尝试从 Cookie 中读取
-				if cookie, err := request.Cookie(usedSessionIdKey); err == nil {
-					sessionId = cookie.Value
-				}
-			}
+			sessionId := request.GetSessionId()
 			if sessionId == "" {
 				// 自动生成 SessionId
 				if sessionIdMaker != nil {

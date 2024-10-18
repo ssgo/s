@@ -4,16 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/process"
-	"github.com/ssgo/config"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/httpclient"
-	"github.com/ssgo/log"
-	"github.com/ssgo/redis"
-	"github.com/ssgo/standard"
-	"github.com/ssgo/u"
-	"golang.org/x/net/http2"
 	"math"
 	"net"
 	"net/http"
@@ -26,6 +16,17 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/process"
+	"github.com/ssgo/config"
+	"github.com/ssgo/discover"
+	"github.com/ssgo/httpclient"
+	"github.com/ssgo/log"
+	"github.com/ssgo/redis"
+	"github.com/ssgo/standard"
+	"github.com/ssgo/u"
+	"golang.org/x/net/http2"
 )
 
 type Arr = []any
@@ -182,7 +183,7 @@ var noLogOutputFields = map[string]bool{}
 
 var serverId = u.UniqueId()
 var serverStartTime = time.Now()
-var ServerLogger *log.Logger
+var ServerLogger = log.New(serverId)
 
 var serverAddr string
 var serverProto = "http"
@@ -441,7 +442,7 @@ func (as *AsyncServer) Wait() {
 
 		// 最后关闭日志服务
 		logInfo("logger stopped")
-		ServerLogger = nil
+		// ServerLogger = nil
 		log.Stop()
 		log.Wait()
 	}
@@ -735,7 +736,7 @@ func Start() {
 }
 
 func (as *AsyncServer) Start() {
-	ServerLogger = log.New(serverId)
+	// ServerLogger = log.New(serverId)
 	CheckCmd()
 
 	log.Start()
