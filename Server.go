@@ -587,9 +587,7 @@ func AsyncStart() *AsyncServer {
 
 func Init() {
 	inited = true
-	if workPath != "" {
-		_ = os.Chdir(workPath)
-	}
+	initStarter()
 
 	config.LoadConfig("service", &Config)
 

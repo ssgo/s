@@ -2,7 +2,6 @@ package s
 
 import (
 	"fmt"
-	"github.com/ssgo/u"
 	"os"
 	"os/exec"
 	"path"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ssgo/u"
 
 	"github.com/ssgo/httpclient"
 )
@@ -122,29 +123,31 @@ func tryStartPath(testFile string) string {
 
 var shellFile = ""
 
-func init() {
+func initStarter() {
 	shellFile, _ = filepath.Abs(os.Args[0])
 
-	startPath := ""
-	if startPath == "" && len(os.Args) > 1 && strings.ContainsRune(os.Args[1], '.') {
-		startPath = tryStartPath(os.Args[1])
-	}
-	if startPath == "" && len(os.Args) > 2 && strings.ContainsRune(os.Args[2], '.') {
-		startPath = tryStartPath(os.Args[2])
-	}
-	if startPath == "" {
-		startPath = tryStartPath("env.yml")
-	}
-	if startPath == "" {
-		startPath = tryStartPath("env.json")
-	}
+	if workPath == "" {
+		if workPath == "" && len(os.Args) > 1 && strings.ContainsRune(os.Args[1], '.') {
+			workPath = tryStartPath(os.Args[1])
+		}
+		if workPath == "" && len(os.Args) > 2 && strings.ContainsRune(os.Args[2], '.') {
+			workPath = tryStartPath(os.Args[2])
+		}
+		if workPath == "" {
+			workPath = tryStartPath("env.yml")
+		}
+		if workPath == "" {
+			workPath = tryStartPath("env.json")
+		}
 
-	if startPath != "" {
-		_ = os.Chdir(startPath)
-	} else if !strings.Contains(shellFile, "/go-build") {
-		_ = os.Chdir(path.Dir(shellFile))
+		if workPath == "" && !strings.Contains(shellFile, "/go-build") {
+			workPath = path.Dir(shellFile)
+		}
 	}
-	serviceInfo = serviceInfoType{pidFile: filepath.Join(startPath, ".pid")}
+	if workPath != "" {
+		_ = os.Chdir(workPath)
+	}
+	serviceInfo = serviceInfoType{pidFile: filepath.Join(workPath, ".pid")}
 	serviceInfo.load()
 
 	//if len(os.Args) > 1 {
