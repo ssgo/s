@@ -585,11 +585,20 @@ func AsyncStart() *AsyncServer {
 	return as
 }
 
+var configInited = false
+
+func InitConfig() {
+	configInited = true
+	config.LoadConfig("service", &Config)
+}
+
 func Init() {
 	inited = true
 	initStarter()
 
-	config.LoadConfig("service", &Config)
+	if !configInited {
+		InitConfig()
+	}
 
 	for k, v := range Config.AccessTokens {
 		SetAuthTokenLevel(k, *v)
