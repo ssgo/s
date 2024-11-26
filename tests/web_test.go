@@ -2,13 +2,14 @@ package tests
 
 import (
 	"fmt"
-	"github.com/ssgo/httpclient"
-	"github.com/ssgo/u"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ssgo/httpclient"
+	"github.com/ssgo/u"
 
 	"github.com/ssgo/s"
 )
@@ -98,6 +99,7 @@ func TestWelcomeWithHttp1(tt *testing.T) {
 	_ = os.Setenv("service_listen", ":11822,http")
 	s.ResetAllSets()
 	s.Register(0, "/", Welcome, "")
+	s.Config.Listen = ":11822,http"
 	as := s.AsyncStart()
 
 	r := as.Get("/")

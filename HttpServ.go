@@ -648,7 +648,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	//}
 	requestPath := request.URL.Path
 	// 处理静态文件
-	processStaticOK, staticFile := processStatic(requestPath, request.Request, response, &startTime, requestLogger)
+	processStaticOK, staticFile := processStatic(requestPath, request, response, &startTime, requestLogger)
 	if processStaticOK {
 		return
 	}

@@ -2,13 +2,15 @@ package s
 
 import (
 	"fmt"
-	redigo "github.com/gomodule/redigo/redis"
-	"github.com/ssgo/redis"
-	"github.com/ssgo/u"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	redigo "github.com/gomodule/redigo/redis"
+	"github.com/ssgo/redis"
+	"github.com/ssgo/u"
 )
 
 var uidServerDate string
@@ -316,6 +318,10 @@ func UniqueId() string {
 	return string(uniqueId())
 }
 
+func UniqueId12() string {
+	return catUniqueId(12)
+}
+
 func UniqueId14() string {
 	return catUniqueId(14)
 }
@@ -387,41 +393,21 @@ func makeId(space string, idMaker func() string) string {
 		id = idMaker()
 		key := fmt.Sprint("ID", space, id[0:2])
 		field := id[2:]
-		if rd1 == nil || !rd1.HEXISTS(key, field) {
-			if rd1 != nil {
-				// 存储到Redis
-				rd1.HSET(key, field, "")
-			}
-
-			// 存储到磁盘
-			idFilePaths := make([]string, 0)
-			idFilePaths = append(idFilePaths, "data", "ids", id[0:2], id[2:4])
-			idFilePath := strings.Join(idFilePaths, string(os.PathSeparator))
-			u.CheckPath(idFilePath)
-
-			// 文件锁(Windows不支持syscall，使用线程锁)
-			fileLocksLock.Lock()
-			if fileLocks[idFilePath] == nil {
-				fileLocks[idFilePath] = new(sync.Mutex)
-			}
-			lock := fileLocks[idFilePath]
-			fileLocksLock.Unlock()
-
-			lock.Lock()
-			fd, err := os.OpenFile(idFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-			if err != nil {
-				logError("can't save id to disk", "id", id, "err", err.Error())
+		if rd1 != nil {
+			if rd1.HEXISTS(key, field) {
+				continue
 			} else {
-				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_EX)
-				_, err2 := fd.WriteString(id + "\n")
-				//_ = syscall.Flock(int(fd.Fd()), syscall.LOCK_UN)
-				_ = fd.Close()
-				if err2 != nil {
-					logError("can't write id to disk", "id", id, "err", err2.Error())
-				}
+				rd1.HSET(key, field, "")
+				return id
 			}
-			lock.Unlock()
-			break
+		} else {
+			idFile := filepath.Join("data", "ids", id[0:2], id[2:4], id)
+			if u.FileExists(idFile) {
+				continue
+			} else {
+				_ = u.WriteFile(idFile, "")
+				return id
+			}
 		}
 	}
 	return id

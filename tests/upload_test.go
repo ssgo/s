@@ -1,21 +1,23 @@
 package tests
 
 import (
+	"os"
+	"testing"
+	"time"
+
 	"github.com/ssgo/httpclient"
 	"github.com/ssgo/log"
 	"github.com/ssgo/s"
 	"github.com/ssgo/u"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestUpload(tt *testing.T) {
 	t := s.T(tt)
 
+	time.Sleep(500 * time.Millisecond)
 	file1Tag := ""
 	file1Buf := make([]byte, 0)
-	_ = os.Setenv("service_listen", ":,http")
+	// _ = os.Setenv("service_listen", ":,http")
 	s.ResetAllSets()
 	s.Restful(0, "POST", "/upload", func(in struct {
 		Tag1, Tag2   string
@@ -42,10 +44,10 @@ func TestUpload(tt *testing.T) {
 	u.WriteFile("2.txt", "012345678901234567890123456789012345678901234")
 	defer os.Remove("1.txt")
 	defer os.Remove("2.txt")
-	c := httpclient.GetClient(time.Second * 10)
+	c := httpclient.GetClientH2C(time.Second * 10)
 	c.DownloadPartSize = 10
 	r, errors := c.MPost("http://"+as.Addr+"/upload", map[string]string{"Tag1": "tag1", "Tag2": "tag2"}, map[string]any{"file1": "1.txt", "file2": "2.txt"})
-	t.Test(r.Error == nil && r.String() == "true", "Upload", r.String(), errors)
+	t.Test(r.Error == nil && r.String() == "true", "Upload", u.BRed(r.Error), u.Red(r.String()), errors)
 
 	r = c.Get("http://" + as.Addr + "/download1")
 	defer os.RemoveAll("downloads")
@@ -53,6 +55,7 @@ func TestUpload(tt *testing.T) {
 
 	r, err := c.Download("222.txt", "http://"+as.Addr+"/downloads/22.txt", nil)
 	defer os.RemoveAll("222.txt")
+
 	buf2, err := u.ReadFile("222.txt")
 	t.Test(r.Error == nil && err == nil && buf2 == "012345678901234567890123456789012345678901234", "Download Uploaded 2", buf2, err, r.Error)
 }

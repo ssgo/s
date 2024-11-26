@@ -3,13 +3,14 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ssgo/discover"
-	"github.com/ssgo/log"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ssgo/discover"
+	"github.com/ssgo/log"
 
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/u"
@@ -323,7 +324,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 							isset = true
 						}
 					}
-					if isset == false {
+					if !isset {
 						openParms[i] = reflect.New(st).Elem()
 					}
 				}
@@ -388,7 +389,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 
 				//printableMsg, _ := json.Marshal(messageData)
 				if webSocketActionAuthChecker != nil {
-					if webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) == false {
+					if !webSocketActionAuthChecker(action.authLevel, &request.RequestURI, &actionName, messageData, request, sessionValue) {
 						logInMsg := makeLogableData(requestLogger, reflect.ValueOf(messageData), noLogOutputFields, Config.LogOutputArrayNum, Config.LogOutputFieldSize, 1).Interface()
 						writeLog(requestLogger, "WSREJECT", nil, 0, request.Request, response, args, startTime, authLevel, Map{
 							"inAction":  actionName,
@@ -457,7 +458,7 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 								isset = true
 							}
 						}
-						if isset == false {
+						if !isset {
 							closeParms[i] = reflect.New(st).Elem()
 						}
 					}
@@ -465,10 +466,9 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 
 				ws.closeFuncValue.Call(closeParms)
 			}
+			_ = client.Close()
+			writeLog(requestLogger, "WSCLOSE", nil, 0, request.Request, response, args, startTime, authLevel, nil)
 		}
-
-		_ = client.Close()
-		writeLog(requestLogger, "WSCLOSE", nil, 0, request.Request, response, args, startTime, authLevel, nil)
 	}
 }
 
@@ -504,7 +504,7 @@ func doWebsocketAction(ws *websocketServiceType, actionName string, action *webs
 					}
 				}
 			}
-			if isset == false {
+			if !isset {
 				messageParms[i] = reflect.New(st).Elem()
 			}
 		}

@@ -1,15 +1,18 @@
 package s
 
 import (
-	"bytes"
-	"github.com/ssgo/log"
-	"github.com/ssgo/u"
+	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 )
 
 var statics = make(map[string]*string)
@@ -147,7 +150,7 @@ func findRootPath(staticConfig map[string]*string, requestPath string) (filePath
 	return filePath
 }
 
-func processStatic(requestPath string, request *http.Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
+func processStatic(requestPath string, request *Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
 	baseHost := strings.SplitN(request.Host, ":", 2)[0]
 	//if staticsFileByHost[request.Host] != nil && staticsFileByHost[request.Host][requestPath] != nil {
 	//	fileBuf = staticsFileByHost[request.Host][requestPath]
@@ -272,17 +275,6 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		}
 	}
 
-	// 从内存中查找
-	mf := u.ReadFileFromMemory(filePath)
-	if mf != nil {
-		if mf.Compressed {
-			response.Header().Set("Content-Encoding", "gzip")
-		}
-		http.ServeContent(response, request, filepath.Base(filePath), serverStartTime, bytes.NewReader(mf.Data))
-		outLen = len(mf.Data)
-		return true, filePath
-	}
-
 	if info == nil {
 		return false, filePath
 	}
@@ -292,50 +284,181 @@ func processStatic(requestPath string, request *http.Request, response *Response
 		return false, filePath
 	}
 
-	//fileInfo, err := os.Stat(filePath)
-	//if err != nil {
-	//	return false
-	//}
-	//
-	////if strings.HasSuffix(filePath, "/index.html") {
-	////	filePath = filePath[len(filePath)-11:]
-	////}
-	//
-	////http.ServeFile(response, request, *rootPath+requestPath)
-	//
-	//if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
-	//	zipWriter := NewGzipResponseWriter(response)
-	//	http.ServeFile(zipWriter, request, *rootPath+requestPath)
-	//	zipWriter.Close()
-	//} else {
-	//	http.ServeFile(response, request, *rootPath+requestPath)
-	//}
-
-	//writeLog(requestLogger, "STATIC", nil, int(fileInfo.Size()), request, response, nil, headers, startTime, 0, nil)
-
-	size, err := ResponseStatic(filePath, request, response)
-	if err != nil {
-		return false, filePath
+	response.Header().Set("Last-Modified", info.ModTime.UTC().Format(http.TimeFormat))
+	if request.Method == http.MethodHead {
+		response.Header().Set("Content-Length", u.String(info.Size))
+		return true, filePath
 	}
-	outLen = size
 
-	writeLog(requestLogger, "STATIC", nil, outLen, request, response, nil, startTime, 0, Map{"file": filePath})
+	// 检查If-Modified-Since头
+	if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
+		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
+			if !info.ModTime.After(t) {
+				response.WriteHeader(http.StatusNotModified)
+				return true, filePath
+			}
+		}
+	}
+
+	rangeStart := int64(0)
+	rangeEnd := int64(0)
+	useRange := false
+	rangeHeader := request.Header.Get("Range")
+	if rangeHeader != "" {
+		if !strings.HasPrefix(rangeHeader, "bytes=") {
+			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			return true, filePath
+		}
+		rangeSpec := strings.TrimPrefix(rangeHeader, "bytes=")
+		parts := strings.Split(rangeSpec, "-")
+		if len(parts) != 2 {
+			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			return true, filePath
+		}
+
+		start, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || start < 0 {
+			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			return true, filePath
+		}
+
+		var end int64
+		if parts[1] != "" {
+			end, err = strconv.ParseInt(parts[1], 10, 64)
+			if err != nil || end < start {
+				http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+				return true, filePath
+			}
+		} else {
+			end = info.Size - 1
+		}
+
+		if start >= info.Size {
+			http.Error(response, "Range not satisfiable", http.StatusRequestedRangeNotSatisfiable)
+			return true, filePath
+		}
+
+		if end >= info.Size {
+			end = info.Size - 1
+		}
+
+		rangeStart = start
+		rangeEnd = end
+		useRange = true
+	}
+
+	// 从内存中查找
+	mf := u.ReadFileFromMemory(filePath)
+	var outData []byte
+	if mf != nil {
+		if useRange {
+			outData = mf.GetData()[rangeStart : rangeEnd+1]
+		} else {
+			if len(outFilters) == 0 && !useRange {
+				// 直接返回数据（优化内存文件性能）
+				if mf.Compressed {
+					response.Header().Set("Content-Encoding", "gzip")
+				}
+
+				ctype := mime.TypeByExtension(filepath.Ext(filePath))
+				if ctype == "" {
+					ctype = http.DetectContentType(mf.GetData()[0:512])
+				}
+				response.Header().Set("Content-Length", u.String(len(mf.Data)))
+				response.Header().Set("Content-Type", ctype)
+
+				// http.ServeContent(response, request, filepath.Base(filePath), serverStartTime, bytes.NewReader(mf.Data))
+				response.Write(mf.Data)
+				writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
+				return true, filePath
+			} else {
+				outData = mf.GetData()
+			}
+		}
+	}
+
+	if outData == nil {
+		if useRange {
+			if fp, err := os.Open(filePath); err == nil {
+				fp.Seek(rangeStart, 0)
+				outData = make([]byte, rangeEnd-rangeStart+1)
+				_, _ = io.ReadFull(fp, outData)
+				fp.Close()
+			}
+		} else {
+			outData = u.ReadFileBytesN(filePath)
+		}
+	}
+	ctype := mime.TypeByExtension(filepath.Ext(filePath))
+	if ctype == "" {
+		ctype = http.DetectContentType(outData[0:512])
+	}
+	response.Header().Set("Content-Type", ctype)
+
+	if len(outFilters) > 0 {
+		for _, filter := range outFilters {
+			newResult, done := filter(map[string]any{}, request, response, outData, requestLogger)
+			if newResult != nil {
+				outData = u.Bytes(newResult)
+			}
+			if done {
+				break
+			}
+		}
+	}
+	// size, err := ResponseStatic(filePath, request, response)
+	// if err != nil {
+	// 	return false, filePath
+	// }
+
+	outLen = len(outData)
+	if Config.Compress && outLen >= Config.CompressMinSize && outLen <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+		if buf, err := u.Gzip(outData); err == nil {
+			response.Header().Set("Content-Encoding", "gzip")
+			outData = buf
+			outLen = len(outData)
+		}
+	}
+	response.Header().Set("Content-Length", u.String(outLen))
+	response.Write(outData)
+
+	writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 	return true, filePath
 }
 
-func ResponseStatic(filePath string, request *http.Request, response *Response) (int, error) {
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return 0, err
-	}
+// func ResponseStatic(filePath string, request *http.Request, response *Response) (int, error) {
+// 	fileInfo, err := os.Stat(filePath)
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
-		zipWriter := NewGzipResponseWriter(response)
-		http.ServeFile(zipWriter, request, filePath)
-		zipWriter.Close()
-	} else {
-		http.ServeFile(response, request, filePath)
-	}
+// 	if len(outFilters) > 0 {
+// 		// 后置过滤器
+// 		buffer := bytes.Buffer{}
+// 		mw := io.MultiWriter(response, &buffer)
+// 		http.ServeFile(mw, request, filePath)
+// 		zipWriter.Close()
 
-	return int(fileInfo.Size()), nil
-}
+// 		for _, filter := range outFilters {
+// 			newResult, done := filter(args, request, response, result, requestLogger)
+// 			if newResult != nil {
+// 				result = newResult
+// 			}
+// 			if done {
+// 				break
+// 			}
+// 		}
+// 		if Config.StatisticTime {
+// 			tc.Add("Out Filter")
+// 		}
+// 	} else {
+// 		if Config.Compress && int(fileInfo.Size()) >= Config.CompressMinSize && int(fileInfo.Size()) <= Config.CompressMaxSize && strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+// 			zipWriter := NewGzipResponseWriter(response)
+// 			http.ServeFile(zipWriter, request, filePath)
+// 			zipWriter.Close()
+// 		} else {
+// 			http.ServeFile(response, request, filePath)
+// 		}
+// 	}
+// 	return int(fileInfo.Size()), nil
+// }
