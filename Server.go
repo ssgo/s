@@ -475,7 +475,9 @@ func resetServerMemory() {
 
 func (as *AsyncServer) stop() {
 	for _, listen := range as.listens {
-		_ = listen.listener.Close()
+		if listen.listener != nil {
+			_ = listen.listener.Close()
+		}
 	}
 	if as.onStop != nil {
 		as.onStop()

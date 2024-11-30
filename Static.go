@@ -362,7 +362,11 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 
 				ctype := mime.TypeByExtension(filepath.Ext(filePath))
 				if ctype == "" {
-					ctype = http.DetectContentType(mf.GetData()[0:512])
+					csize := 512
+					if len(outData) < csize {
+						csize = len(outData)
+					}
+					ctype = http.DetectContentType(mf.GetData()[0:csize])
 				}
 				response.Header().Set("Content-Length", u.String(len(mf.Data)))
 				response.Header().Set("Content-Type", ctype)
@@ -391,7 +395,11 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 	}
 	ctype := mime.TypeByExtension(filepath.Ext(filePath))
 	if ctype == "" {
-		ctype = http.DetectContentType(outData[0:512])
+		csize := 512
+		if len(outData) < csize {
+			csize = len(outData)
+		}
+		ctype = http.DetectContentType(outData[0:csize])
 	}
 	response.Header().Set("Content-Type", ctype)
 

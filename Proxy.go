@@ -3,16 +3,17 @@ package s
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/ssgo/httpclient"
-	"github.com/ssgo/log"
-	"github.com/ssgo/u"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/ssgo/httpclient"
+	"github.com/ssgo/log"
+	"github.com/ssgo/u"
 
 	"github.com/ssgo/discover"
 )
@@ -298,6 +299,21 @@ var updater = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 }}
 
 func proxyWebsocketRequest(app, path string, request *Request, response *Response, requestHeaders map[string]string, requestLogger *log.Logger) int {
+	sendHeader := http.Header{}
+	for k, vv := range request.Header {
+		if k != "Connection" && k != "Upgrade" && !strings.Contains(k, "Sec-Websocket-") {
+			sendHeader.Set(k, vv[0])
+		}
+	}
+
+	sendHeader.Set("Host", request.Host)
+
+	for k, v := range requestHeaders {
+		if k != "Connection" && k != "Upgrade" && !strings.Contains(k, "Sec-Websocket-") {
+			sendHeader.Set(k, v)
+		}
+	}
+
 	srcConn, err := updater.Upgrade(response.Writer, request.Request, nil)
 	if err != nil {
 		requestLogger.Error(err.Error(), Map{
@@ -349,18 +365,6 @@ func proxyWebsocketRequest(app, path string, request *Request, response *Respons
 			})
 			//log.Printf("PROXY	parsing websocket address	%s", err.Error())
 			return 0
-		}
-
-		sendHeader := http.Header{}
-		for k, vv := range request.Header {
-			if k != "Connection" && k != "Upgrade" && !strings.Contains(k, "Sec-Websocket-") {
-				sendHeader.Set(k, vv[0])
-			}
-		}
-		sendHeader.Set("Host", request.Host)
-
-		for k, v := range requestHeaders {
-			sendHeader.Set(k, v)
 		}
 
 		//for i := 1; i < len(requestHeaders); i += 2 {

@@ -504,6 +504,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 	defer response.checkWriteHeader()
 	var sessionObject any = nil
 
+	headerSetSessionId := ""
+	headerSetDeviceId := ""
 	requestId := ""
 	host := ""
 	//var logHeaders map[string]string
@@ -539,7 +541,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		// SessionId
 		if usedSessionIdKey != "" {
 			// 优先从 Header 中读取
-			sessionId := request.GetSessionId()
+			// sessionId := GetSessionId(request, response)
+			sessionId := request.Header.Get(usedSessionIdKey)
+			if sessionId == "" {
+				if ck, err := request.Cookie(usedSessionIdKey); err == nil {
+					sessionId = ck.Value
+					if sessionId != "" {
+						headerSetSessionId = sessionId
+					}
+				}
+			}
+			if sessionId == "" {
+				sessionId = request.Header.Get(standard.DiscoverHeaderSessionId)
+			}
+
 			if sessionId == "" {
 				// 自动生成 SessionId
 				if sessionIdMaker != nil {
@@ -557,7 +572,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 					cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
 				}
 				http.SetCookie(response, &cookie)
-				response.Header().Set(usedSessionIdKey, sessionId)
+				headerSetSessionId = sessionId
+				// response.Header().Set(usedSessionIdKey, sessionId)
 			}
 			// 为了在服务间调用时续传 SessionId
 			request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
@@ -571,7 +587,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				// 尝试从 Cookie 中读取
 				if cookie, err := request.Cookie(usedDeviceIdKey); err == nil {
 					deviceId = cookie.Value
+					if deviceId != "" {
+						headerSetDeviceId = deviceId
+					}
 				}
+			}
+			if deviceId == "" {
+				deviceId = request.Header.Get(standard.DiscoverHeaderDeviceId)
 			}
 			if deviceId == "" {
 				// 自动生成 DeviceId
@@ -588,7 +610,8 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				}
 
 				http.SetCookie(response, &cookie)
-				response.Header().Set(usedDeviceIdKey, deviceId)
+				headerSetDeviceId = deviceId
+				// response.Header().Set(usedDeviceIdKey, deviceId)
 			}
 			// 为了在服务间调用时续传 DeviceId
 			request.Header.Set(standard.DiscoverHeaderDeviceId, deviceId)
@@ -664,6 +687,13 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 
 	if Config.StatisticTime {
 		tc.Add("Check Proxy")
+	}
+
+	if headerSetSessionId != "" {
+		response.Header().Set(usedSessionIdKey, headerSetSessionId)
+	}
+	if headerSetDeviceId != "" {
+		response.Header().Set(usedDeviceIdKey, headerSetDeviceId)
 	}
 
 	args := make(map[string]any)
