@@ -76,6 +76,8 @@ type ServiceConfig struct {
 	CpuLimitTimes                 uint            // CPU超过最高占用值超过次数（1-100）将报警（如果CpuMonitor开启的话），默认6（即30秒内连续6次）
 	MemoryLimitTimes              uint            // 内存超过最高占用值超过次数（1-100）将报警（如果MemoryMonitor开启的话），默认6（即30秒内连续6次）
 	CookieScope                   string          // 启用Session时Cookie的有效范围，host|domain|topDomain，默认值为host
+	SessionWithoutCookie          bool            // Session禁用Cookie保持，默认使用Cookie
+	DeviceWithoutCookie           bool            // 设备ID禁用Cookie保持，默认使用Cookie
 	IdServer                      string          // 用s.UniqueId、s.Id来生成唯一ID（雪花算法）时所需的redis服务器连接，如果不指定将不能实现跨服务的全局唯一
 	KeepKeyCase                   bool            // 是否保持Key的首字母大小写？默认一律使用小写
 	IndexFiles                    []string        // 访问静态文件时的索引文件，默认为 index.html

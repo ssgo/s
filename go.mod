@@ -12,8 +12,8 @@ require (
 	github.com/ssgo/log v1.7.7
 	github.com/ssgo/redis v1.7.7
 	github.com/ssgo/standard v1.7.7
-	github.com/ssgo/u v1.7.11
-	golang.org/x/net v0.31.0
+	github.com/ssgo/u v1.7.13
+	golang.org/x/net v0.32.0
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -543,7 +543,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			// 优先从 Header 中读取
 			// sessionId := GetSessionId(request, response)
 			sessionId := request.Header.Get(usedSessionIdKey)
-			if sessionId == "" {
+			if sessionId == "" && !Config.SessionWithoutCookie {
 				if ck, err := request.Cookie(usedSessionIdKey); err == nil {
 					sessionId = ck.Value
 					if sessionId != "" {
@@ -562,16 +562,18 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				} else {
 					sessionId = UniqueId20()
 				}
-				cookie := http.Cookie{
-					Name:     usedSessionIdKey,
-					Value:    sessionId,
-					Path:     "/",
-					HttpOnly: true,
+				if !Config.SessionWithoutCookie {
+					cookie := http.Cookie{
+						Name:     usedSessionIdKey,
+						Value:    sessionId,
+						Path:     "/",
+						HttpOnly: true,
+					}
+					if Config.CookieScope != "host" {
+						cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
+					}
+					http.SetCookie(response, &cookie)
 				}
-				if Config.CookieScope != "host" {
-					cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
-				}
-				http.SetCookie(response, &cookie)
 				headerSetSessionId = sessionId
 				// response.Header().Set(usedSessionIdKey, sessionId)
 			}
@@ -583,7 +585,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		if usedDeviceIdKey != "" {
 			// 优先从 Header 中读取
 			deviceId := request.Header.Get(usedDeviceIdKey)
-			if deviceId == "" {
+			if deviceId == "" && !Config.SessionWithoutCookie {
 				// 尝试从 Cookie 中读取
 				if cookie, err := request.Cookie(usedDeviceIdKey); err == nil {
 					deviceId = cookie.Value
@@ -598,18 +600,20 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			if deviceId == "" {
 				// 自动生成 DeviceId
 				deviceId = UniqueId20()
-				cookie := http.Cookie{
-					Name:     usedDeviceIdKey,
-					Value:    deviceId,
-					Path:     "/",
-					Expires:  time.Now().AddDate(10, 0, 0),
-					HttpOnly: true,
-				}
-				if Config.CookieScope != "host" {
-					cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
-				}
+				if !Config.SessionWithoutCookie {
+					cookie := http.Cookie{
+						Name:     usedDeviceIdKey,
+						Value:    deviceId,
+						Path:     "/",
+						Expires:  time.Now().AddDate(10, 0, 0),
+						HttpOnly: true,
+					}
+					if Config.CookieScope != "host" {
+						cookie.Domain = GetDomainWithScope(request.Request, Config.CookieScope)
+					}
 
-				http.SetCookie(response, &cookie)
+					http.SetCookie(response, &cookie)
+				}
 				headerSetDeviceId = deviceId
 				// response.Header().Set(usedDeviceIdKey, deviceId)
 			}
