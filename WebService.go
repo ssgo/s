@@ -144,7 +144,7 @@ func SetSessionIdMaker(maker func() string) {
 // 获取 SessionId
 func GetSessionId(request *http.Request) string {
 	sessionId := request.Header.Get(usedSessionIdKey)
-	if sessionId == "" {
+	if sessionId == "" && !Config.SessionWithoutCookie {
 		if ck, err := request.Cookie(usedSessionIdKey); err == nil {
 			sessionId = ck.Value
 		}
