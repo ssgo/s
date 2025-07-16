@@ -748,6 +748,7 @@ func Start() {
 
 func (as *AsyncServer) Start() {
 	ServerLogger = log.New(serverId)
+	initStarter()
 	CheckCmd()
 
 	log.Start()

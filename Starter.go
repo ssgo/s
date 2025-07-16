@@ -125,7 +125,6 @@ var shellFile = ""
 
 func initStarter() {
 	shellFile, _ = filepath.Abs(os.Args[0])
-
 	if workPath == "" {
 		if workPath == "" && len(os.Args) > 1 && strings.ContainsRune(os.Args[1], '.') {
 			workPath = tryStartPath(os.Args[1])
@@ -283,7 +282,7 @@ func startProcess() {
 		}
 		fmt.Printf("%s	%d	is running...\n", shellFile, serviceInfo.pid)
 	} else {
-		fmt.Println("failed to start process", err.Error())
+		fmt.Println("failed to start process", err.Error(), shellFile, os.Args[2:])
 	}
 }
 
