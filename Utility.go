@@ -57,7 +57,7 @@ func uniqueId() []byte {
 		rd1 := getRedis1()
 		var rdConn1 redigo.Conn
 		if rd1 != nil {
-			rdConn1 = rd1.GetConnection()
+			rdConn1, _ = rd1.GetConnection()
 		}
 		makeServerIndexTimes := 0
 		makeServerIndexOk := false

@@ -7,7 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/ssgo/config v1.7.9
-	github.com/ssgo/discover v1.7.9
+	github.com/ssgo/discover v1.7.10
 	github.com/ssgo/httpclient v1.7.8
 	github.com/ssgo/log v1.7.7
 	github.com/ssgo/redis v1.7.8
