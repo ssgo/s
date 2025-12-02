@@ -186,6 +186,7 @@ var noLogOutputFields = map[string]bool{}
 var serverId = u.UniqueId()
 var serverStartTime = time.Now()
 var ServerLogger = log.New(serverId)
+var DontStartLogAuto bool
 
 var serverAddr string
 var serverProto = "http"
@@ -442,11 +443,13 @@ func (as *AsyncServer) Wait() {
 		serviceInfo.remove()
 		logInfo("stopped")
 
-		// 最后关闭日志服务
-		logInfo("logger stopped")
-		// ServerLogger = nil
-		log.Stop()
-		log.Wait()
+		if !DontStartLogAuto {
+			// 最后关闭日志服务
+			logInfo("logger stopped")
+			// ServerLogger = nil
+			log.Stop()
+			log.Wait()
+		}
 	}
 }
 
@@ -751,8 +754,10 @@ func (as *AsyncServer) Start() {
 	initStarter()
 	CheckCmd()
 
-	log.Start()
-	logInfo("logger started")
+	if !DontStartLogAuto {
+		log.Start()
+		logInfo("logger started")
+	}
 
 	// document must after registers
 	//if inDocumentMode {
