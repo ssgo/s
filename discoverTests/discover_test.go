@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/ssgo/config"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/ssgo/config"
 
 	"github.com/gorilla/websocket"
 	"github.com/ssgo/discover"
@@ -34,13 +35,13 @@ func TestBase(tt *testing.T) {
 			out.Name = "s1"
 		}
 		return
-	})
+	}, "")
 
 	s.Register(1, "/dc/c1", func(in struct{ Aaa int }, c *discover.Caller) string {
 		r := struct{ Name string }{}
 		_ = c.Post("ax", "/dc/sx", in).To(&r)
 		return r.Name
-	})
+	}, "")
 
 	i := 0
 	s.Register(2, "/dc/s2", func(response http.ResponseWriter) string {
@@ -51,16 +52,16 @@ func TestBase(tt *testing.T) {
 		}
 		response.WriteHeader(200)
 		return "OK"
-	})
+	}, "")
 
-	ws := s.RegisterWebsocket(1, "/dc/ws", nil, nil, nil, nil, nil)
+	ws := s.RegisterWebsocket(1, "/dc/ws", nil, nil, nil, nil, nil, "")
 	ws.RegisterAction(0, "hello", func(in struct{ Name string }) (out struct{ Name string }) {
 		out.Name = in.Name + "!"
 		return
-	})
+	}, "")
 
-	s.Proxy("/dc1/s1", "a1", "/dc/s1")
-	s.Proxy("/proxy/(.+?)", "a1", "/dc/$1")
+	s.Proxy(0, "/dc1/s1", "a1", "/dc/s1")
+	s.Proxy(0, "/proxy/(.+?)", "a1", "/dc/$1")
 
 	_ = os.Setenv("DISCOVER_APP", "a1")
 	_ = os.Setenv("DISCOVER_WEIGHT", "100")

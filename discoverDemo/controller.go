@@ -18,7 +18,7 @@ func getFullNameController(in struct{ Name string }, c *discover.Caller) (out st
 }
 
 func main() {
-	s.Register(1, "/{name}/fullName", getFullNameController)
+	s.Register(1, "/{name}/fullName", getFullNameController, "")
 	s.Start()
 }
 

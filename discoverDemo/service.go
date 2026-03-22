@@ -8,7 +8,7 @@ func getFullNameService(in struct{ Name string }) (out struct{ FullName string }
 }
 
 func main() {
-	s.Register(1, "/{name}/fullName", getFullNameService)
+	s.Register(1, "/{name}/fullName", getFullNameService, "")
 	s.Start()
 }
 

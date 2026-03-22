@@ -597,9 +597,17 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			if deviceId == "" {
 				deviceId = request.Header.Get(standard.DiscoverHeaderDeviceId)
 			}
+			needSetDeviceIdByCookie := false
 			if deviceId == "" {
 				// 自动生成 DeviceId
 				deviceId = UniqueId20()
+				needSetDeviceIdByCookie = true
+				headerSetDeviceId = deviceId
+			} else if u.GlobalRand1.Intn(100) < 5 {
+				// 浏览器有时间限制所以5%的概率进行续期
+				needSetDeviceIdByCookie = true
+			}
+			if needSetDeviceIdByCookie {
 				if !Config.SessionWithoutCookie {
 					cookie := http.Cookie{
 						Name:     usedDeviceIdKey,
@@ -614,7 +622,6 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 
 					http.SetCookie(response, &cookie)
 				}
-				headerSetDeviceId = deviceId
 				// response.Header().Set(usedDeviceIdKey, deviceId)
 			}
 			// 为了在服务间调用时续传 DeviceId

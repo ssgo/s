@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/ssgo/u"
 	"os"
 	"testing"
+
+	"github.com/ssgo/u"
 
 	"github.com/ssgo/s"
 )
@@ -23,7 +24,7 @@ func benchmarkForHttpClient(tb *testing.B, httpVersion int) {
 	s.Register(0, "/s1", func() (out struct{ Name string }) {
 		out.Name = "s1"
 		return
-	})
+	}, "")
 	as := s.AsyncStart()
 	defer as.Stop()
 
