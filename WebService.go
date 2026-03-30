@@ -58,6 +58,7 @@ var webServicesList = make([]*webServiceType, 0)
 
 //var regexWebServicesLock = sync.RWMutex{}
 
+var staticRewriters = make([]func(string, *Request, *Response, *log.Logger) string, 0)
 var inFilters = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
 var outFilters = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
 var errorHandle func(any, *Request, *Response) any
@@ -83,6 +84,7 @@ func resetWebServiceMemory() {
 	regexWebServices = make([]*webServiceType, 0)
 	//webServicesLock = sync.RWMutex{}
 	webServicesList = make([]*webServiceType, 0)
+	staticRewriters = make([]func(string, *Request, *Response, *log.Logger) string, 0)
 	inFilters = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
 	outFilters = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
 	errorHandle = nil
@@ -412,6 +414,11 @@ func unregister(method, path string, options WebServiceOptions) {
 		}
 		webServicesLock.Unlock()
 	}
+}
+
+// 设置静态文件重写器
+func SetStaticRewriter(rewriter func(path string, request *Request, response *Response, logger *log.Logger) string) {
+	staticRewriters = append(staticRewriters, rewriter)
 }
 
 // 设置前置过滤器

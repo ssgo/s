@@ -183,8 +183,21 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 		return false, "[no root path matched]"
 	}
 
+	if len(staticRewriters) > 0 {
+		for _, rewriter := range staticRewriters {
+			if filePath1 := rewriter(filePath, request, response, requestLogger); filePath1 != "" {
+				filePath = filePath1
+			}
+		}
+	}
+
 	info := u.GetFileInfo(filePath)
 	if info != nil && info.IsDir {
+		if !strings.HasSuffix(requestPath, "/") {
+			response.WriteHeader(301)
+			response.Header().Set("Location", requestPath+"/")
+			return true, filePath + "/"
+		}
 		for _, indexFile := range Config.IndexFiles {
 			f := filepath.Join(filePath, indexFile)
 			info2 := u.GetFileInfo(f)
