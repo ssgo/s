@@ -150,118 +150,39 @@ func findRootPath(staticConfig map[string]*string, requestPath string) (filePath
 	return filePath
 }
 
-func processStatic(requestPath string, request *Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
-	baseHost := strings.SplitN(request.Host, ":", 2)[0]
-	//if staticsFileByHost[request.Host] != nil && staticsFileByHost[request.Host][requestPath] != nil {
-	//	fileBuf = staticsFileByHost[request.Host][requestPath]
-	//} else if baseHost != request.Host && staticsFileByHost[baseHost] != nil && staticsFileByHost[baseHost][requestPath] != nil {
-	//	fileBuf = staticsFileByHost[baseHost][requestPath]
-	//} else if staticsFiles[requestPath] != nil {
-	//	fileBuf = staticsFiles[requestPath]
-	//}
-
-	outLen := 0
+func GetStaticPath(requestPath, host string) string {
+	baseHost := strings.SplitN(host, ":", 2)[0]
 	filePath := ""
 	staticsByHostLock.RLock()
 	staticsLen := len(statics)
 	staticsByHostLen := len(staticsByHost)
-	requestStaticsByFullHost := staticsByHost[request.Host]
+	requestStaticsByFullHost := staticsByHost[host]
 	requestStaticsByBaseHost := staticsByHost[baseHost]
 	staticsByHostLock.RUnlock()
 	if staticsLen == 0 && staticsByHostLen == 0 {
-		return false, "[no statics config]"
+		return ""
 	}
 
-	if requestStaticsByFullHost != nil && len(requestStaticsByFullHost) > 0 {
-		//fmt.Println(">>>>1", requestPath, request.Host, requestStaticsByFullHost)
+	if len(requestStaticsByFullHost) > 0 {
 		filePath = findRootPath(requestStaticsByFullHost, requestPath)
 	}
-	if filePath == "" && baseHost != request.Host && requestStaticsByBaseHost != nil && len(requestStaticsByBaseHost) > 0 {
-		//fmt.Println(">>>>2", requestPath, baseHost, requestStaticsByBaseHost)
+	if filePath == "" && baseHost != host && requestStaticsByBaseHost != nil && len(requestStaticsByBaseHost) > 0 {
 		filePath = findRootPath(requestStaticsByBaseHost, requestPath)
 	}
 
-	//var rootPath *string
-	//if requestStaticsByHost != nil {
-	//	// 从虚拟主机设置中匹配
-	//	rootPath = requestStaticsByHost[requestPath]
-	//	if rootPath == nil && strings.ContainsRune(request.Host, ':') {
-	//		fixedHost := strings.SplitN(request.Host, ":", 2)[1]
-	//		staticsByHostLock.RLock()
-	//		fixedStaticsByHost := staticsByHost[fixedHost]
-	//		staticsByHostLock.RUnlock()
-	//
-	//		if fixedStaticsByHost != nil {
-	//			rootPath = fixedStaticsByHost[requestPath]
-	//		}
-	//	}
-	//}
-	//// 去掉端口匹配
-	//if rootPath == nil && baseHost != request.Host {
-	//	staticsByHostLock.RLock()
-	//	baseStaticsByHost := staticsByHost[baseHost]
-	//	staticsByHostLock.RUnlock()
-	//	fmt.Println(1000, baseHost, baseStaticsByHost)
-	//	if baseStaticsByHost == nil {
-	//
-	//	}
-	//	//if baseStaticsByHost != nil {
-	//	//	// 从虚拟主机设置中匹配
-	//	//	rootPath = baseStaticsByHost[requestPath]
-	//	//	fmt.Println(10001, requestPath, rootPath)
-	//	//	if rootPath == nil && strings.ContainsRune(baseHost, ':') {
-	//	//		fixedHost := strings.SplitN(baseHost, ":", 2)[1]
-	//	//		staticsByHostLock.RLock()
-	//	//		fixedStaticsByHost := staticsByHost[fixedHost]
-	//	//		staticsByHostLock.RUnlock()
-	//	//		fmt.Println(10002, fixedHost, fixedStaticsByHost)
-	//	//		if fixedStaticsByHost != nil {
-	//	//			rootPath = fixedStaticsByHost[requestPath]
-	//	//			fmt.Println(10003, requestPath, rootPath)
-	//	//		}
-	//	//	}
-	//	//}
-	//}
-
 	if filePath == "" {
-		//fmt.Println(">>>>3", requestPath, statics)
 		filePath = findRootPath(statics, requestPath)
 	}
+	return filePath
+}
+
+func processStatic(requestPath string, request *Request, response *Response, startTime *time.Time, requestLogger *log.Logger) (bool, string) {
+	outLen := 0
+	filePath := GetStaticPath(requestPath, request.Host)
 	if filePath == "" {
 		return false, "[no root path matched]"
 	}
 
-	//if rootPath == nil {
-	//	// 从全局设置中匹配
-	//	staticsByHostLock.RLock()
-	//	rootPath = statics[requestPath]
-	//	staticsByHostLock.RUnlock()
-	//	fmt.Println(111, requestPath, rootPath)
-	//	if rootPath == nil {
-	//		staticsByHostLock.RLock()
-	//		for p1, p2 := range statics {
-	//			fmt.Println(222, requestPath, p1)
-	//			if strings.HasPrefix(requestPath, p1) {
-	//				rootPath = p2
-	//				requestPath = requestPath[len(p1):]
-	//				break
-	//			}
-	//		}
-	//		staticsByHostLock.RUnlock()
-	//	} else {
-	//		//requestPath = requestPath[len(requestPath):]
-	//		//fmt.Println(111, requestPath, rootPath)
-	//	}
-	//}
-	//
-	//if rootPath == nil {
-	//	return false, "[no root path config]"
-	//}
-	//
-	//filePath = *rootPath + requestPath
-	//if strings.HasSuffix(filePath, string(os.PathSeparator)) {
-	//	filePath += "index.html"
-	//}
 	info := u.GetFileInfo(filePath)
 	if info != nil && info.IsDir {
 		for _, indexFile := range Config.IndexFiles {
