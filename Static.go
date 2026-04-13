@@ -227,7 +227,7 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 	// 检查If-Modified-Since头
 	if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
-			if !info.ModTime.After(t) {
+			if !info.ModTime.Truncate(time.Second).After(t.Truncate(time.Second)) {
 				response.WriteHeader(http.StatusNotModified)
 				return true, filePath
 			}
