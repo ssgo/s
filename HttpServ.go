@@ -185,6 +185,9 @@ func (response *Response) Write(bytes []byte) (int, error) {
 func (response *Response) WriteString(s string) (int, error) {
 	return response.Write([]byte(s))
 }
+func (response *Response) GetStatusCode() int {
+	return response.status
+}
 func (response *Response) WriteHeader(code int) {
 	response.changed = true
 	response.status = code

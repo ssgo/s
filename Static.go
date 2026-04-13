@@ -183,19 +183,12 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 		return false, "[no root path matched]"
 	}
 
-	if len(staticRewriters) > 0 {
-		for _, rewriter := range staticRewriters {
-			if filePath1 := rewriter(filePath, request, response, requestLogger); filePath1 != "" {
-				filePath = filePath1
-			}
-		}
-	}
-
 	info := u.GetFileInfo(filePath)
 	if info != nil && info.IsDir {
 		if !strings.HasSuffix(requestPath, "/") {
 			response.WriteHeader(301)
 			response.Header().Set("Location", requestPath+"/")
+			writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 			return true, filePath + "/"
 		}
 		for _, indexFile := range Config.IndexFiles {
@@ -213,6 +206,16 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 		return false, filePath
 	}
 
+	no304 := false
+	if len(staticRewriters) > 0 {
+		for _, rewriter := range staticRewriters {
+			if filePath1 := rewriter(filePath, request, response, requestLogger); filePath1 != "" {
+				filePath = filePath1
+				no304 = true // rewrited will not check If-Modified-Since
+			}
+		}
+	}
+
 	// 不支持列出文件内容
 	if info.IsDir && !Config.IndexDir {
 		return false, filePath
@@ -221,15 +224,19 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 	response.Header().Set("Last-Modified", info.ModTime.UTC().Format(http.TimeFormat))
 	if request.Method == http.MethodHead {
 		response.Header().Set("Content-Length", u.String(info.Size))
+		writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 		return true, filePath
 	}
 
 	// 检查If-Modified-Since头
-	if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
-		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
-			if !info.ModTime.Truncate(time.Second).After(t.Truncate(time.Second)) {
-				response.WriteHeader(http.StatusNotModified)
-				return true, filePath
+	if !no304 {
+		if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
+			if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
+				if !info.ModTime.Truncate(time.Second).After(t.Truncate(time.Second)) {
+					response.WriteHeader(http.StatusNotModified)
+					writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
+					return true, filePath
+				}
 			}
 		}
 	}
@@ -241,18 +248,21 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 	if rangeHeader != "" {
 		if !strings.HasPrefix(rangeHeader, "bytes=") {
 			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 			return true, filePath
 		}
 		rangeSpec := strings.TrimPrefix(rangeHeader, "bytes=")
 		parts := strings.Split(rangeSpec, "-")
 		if len(parts) != 2 {
 			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 			return true, filePath
 		}
 
 		start, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil || start < 0 {
 			http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 			return true, filePath
 		}
 
@@ -261,6 +271,7 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 			end, err = strconv.ParseInt(parts[1], 10, 64)
 			if err != nil || end < start {
 				http.Error(response, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+				writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 				return true, filePath
 			}
 		} else {
@@ -269,6 +280,7 @@ func processStatic(requestPath string, request *Request, response *Response, sta
 
 		if start >= info.Size {
 			http.Error(response, "Range not satisfiable", http.StatusRequestedRangeNotSatisfiable)
+			writeLog(requestLogger, "STATIC", nil, outLen, request.Request, response, nil, startTime, 0, Map{"file": filePath})
 			return true, filePath
 		}
 
