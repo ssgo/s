@@ -186,7 +186,7 @@ func processProxy(request *Request, response *Response, startTime *time.Time, re
 		apps := make([]string, 0)
 		err := json.Unmarshal([]byte(*proxyToApp), &app)
 		if err == nil {
-			n := u.GlobalRand1.Intn(len(apps))
+			n := u.GlobalRand2.IntN(len(apps))
 			app = apps[n]
 		}
 	}

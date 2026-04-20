@@ -519,7 +519,9 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 		}
 
 		// 产生 X-Request-ID
-		requestId = xHeader(standard.DiscoverHeaderRequestId, request.Request, UniqueId)
+		requestId = xHeader(standard.DiscoverHeaderRequestId, request.Request, func() string {
+			return MakeId(12)
+		})
 
 		// 真实的用户IP，通过 X-Real-IP 续传
 		xHeader(standard.DiscoverHeaderClientIp, request.Request, func() string {
@@ -563,7 +565,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 				if sessionIdMaker != nil {
 					sessionId = sessionIdMaker()
 				} else {
-					sessionId = UniqueId20()
+					sessionId = MakeId(14)
 				}
 				if !Config.SessionWithoutCookie {
 					cookie := http.Cookie{
@@ -603,10 +605,10 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			needSetDeviceIdByCookie := false
 			if deviceId == "" {
 				// 自动生成 DeviceId
-				deviceId = UniqueId20()
+				deviceId = MakeId(14)
 				needSetDeviceIdByCookie = true
 				headerSetDeviceId = deviceId
-			} else if u.GlobalRand1.Intn(100) < 5 {
+			} else if u.GlobalRand2.IntN(100) < 5 {
 				// 浏览器有时间限制所以5%的概率进行续期
 				needSetDeviceIdByCookie = true
 			}
@@ -644,7 +646,7 @@ func (rh *routeHandler) ServeHTTP(writer http.ResponseWriter, httpRequest *http.
 			tc.Add("Make Headers")
 		}
 	} else {
-		requestId = UniqueId()
+		requestId = MakeId(12)
 		host = request.Host
 	}
 

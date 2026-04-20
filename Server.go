@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/ssgo/config"
 	"github.com/ssgo/discover"
 	"github.com/ssgo/httpclient"
@@ -138,8 +138,10 @@ func GetCPUMemoryStat() (uint, uint) {
 //	WithSSL     bool
 //}
 
-var _rd *redis.Redis
-var _rd2 *redis.Redis
+var _idServerRedis *redis.Redis
+var _discoverRedis *redis.Redis
+var _pubSubRedis *redis.Redis
+var _makeIdRedis *redis.Redis
 var _rdStarted bool
 
 //func SetName(serverName string) {
@@ -150,32 +152,61 @@ func SetVersion(serverVersion string) {
 	version = serverVersion
 }
 
-func getRedis1() *redis.Redis {
-	if _rd == nil && Config.IdServer != "" {
-		_rd = redis.GetRedis(Config.IdServer, ServerLogger)
+// func getRedis1() *redis.Redis {
+// 	if _rd == nil && Config.IdServer != "" {
+// 		_rd = redis.GetRedis(Config.IdServer, ServerLogger)
+// 	}
+// 	return getRedis2()
+// }
+
+func getIdServerRedis() *redis.Redis {
+	if (_idServerRedis == nil || _idServerRedis.Error != nil) && Config.IdServer != "" {
+		_idServerRedis = redis.GetRedis(Config.IdServer, ServerLogger)
 	}
-	return getRedis2()
+	if _idServerRedis != nil && _idServerRedis.Error == nil {
+		return _idServerRedis
+	}
+	return nil
 }
 
-func getRedis2() *redis.Redis {
-	if _rd == nil && discover.Config.Registry != "" && discover.Config.Registry != standard.DiscoverDefaultRegistry {
-		_rd = redis.GetRedis(discover.Config.Registry, ServerLogger)
+func getDiscoverRedis() *redis.Redis {
+	if (_discoverRedis == nil || _discoverRedis.Error != nil) && discover.Config.Registry != "" {
+		_discoverRedis = redis.GetRedis(discover.Config.Registry, ServerLogger)
 	}
-	return _rd
+	if _discoverRedis != nil && _discoverRedis.Error == nil {
+		return _discoverRedis
+	}
+	return nil
 }
 
-func getPubSubRedis2() *redis.Redis {
-	if _rd2 == nil {
-		rd := getRedis2()
-		if rd == nil {
-			return nil
+func getRedisForMakeId() *redis.Redis {
+	if _makeIdRedis == nil {
+		_makeIdRedis = getIdServerRedis()
+		if _makeIdRedis == nil {
+			_makeIdRedis = getDiscoverRedis()
 		}
-		confForPubSub := *rd.Config
-		confForPubSub.IdleTimeout = -1
-		confForPubSub.ReadTimeout = -1
-		_rd2 = redis.NewRedis(&confForPubSub, ServerLogger)
 	}
-	return _rd2
+	return _makeIdRedis
+}
+
+func getRedisForPubSub() *redis.Redis {
+	if _pubSubRedis == nil {
+		_pubSubRedis = getDiscoverRedis()
+		if _pubSubRedis == nil {
+			_pubSubRedis = getIdServerRedis()
+		}
+		if _pubSubRedis != nil {
+			confForPubSub := *_pubSubRedis.Config
+			confForPubSub.IdleTimeout = -1
+			confForPubSub.ReadTimeout = -1
+			return redis.NewRedis(&confForPubSub, ServerLogger)
+		}
+	}
+	if _pubSubRedis != nil && !_rdStarted {
+		_rdStarted = true
+		_pubSubRedis.Start()
+	}
+	return _pubSubRedis
 }
 
 var noLogHeaders = map[string]bool{}
@@ -183,7 +214,7 @@ var noLogHeaders = map[string]bool{}
 // var encryptLogFields = map[string]bool{}
 var noLogOutputFields = map[string]bool{}
 
-var serverId = u.UniqueId()
+var serverId = u.MakeId(12)
 var serverStartTime = time.Now()
 var ServerLogger = log.New(serverId)
 var DontStartLogAuto bool
@@ -405,8 +436,9 @@ func (as *AsyncServer) Wait() {
 		}
 
 		// 停止Redis推送服务
-		if _rd != nil && _rdStarted {
-			_rd.Stop()
+		if _pubSubRedis != nil && _rdStarted {
+			_pubSubRedis.Stop()
+			_pubSubRedis = nil
 		}
 
 		as.waited = true
@@ -437,7 +469,7 @@ func (as *AsyncServer) Wait() {
 		resetRewriteMemory()
 		resetStarterMemory()
 		resetStaticMemory()
-		resetUtilityMemory()
+		// resetUtilityMemory()
 		resetServerMemory()
 
 		serviceInfo.remove()
@@ -463,12 +495,13 @@ func resetServerMemory() {
 	accessTokens = map[string]*int{}
 	_cpuOverTimes = 0
 	_memoryOutTimes = 0
-	_rd = nil
-	_rd2 = nil
+	_idServerRedis = nil
+	_discoverRedis = nil
+	_pubSubRedis = nil
 	_rdStarted = false
 	noLogHeaders = map[string]bool{}
 	noLogOutputFields = map[string]bool{}
-	serverId = UniqueId()
+	serverId = MakeId(12)
 	serverStartTime = time.Now()
 	serverAddr = ""
 	serverProto = "http"
@@ -597,6 +630,8 @@ var configInited = false
 func InitConfig() {
 	configInited = true
 	config.LoadConfig("service", &Config)
+	serverId = MakeId(12)
+	ServerLogger = log.New(serverId)
 }
 
 func Init() {
@@ -1294,37 +1329,18 @@ func MakeArgots(argots any) {
 	}
 }
 
-// var redisLock = sync.Mutex{}
 func Subscribe(channel string, reset func(), received func([]byte)) bool {
-	if !_rdStarted {
-		//redisLock.Lock()
-		_rdStarted = true
-		//redisLock.Unlock()
-		if rd2 := getPubSubRedis2(); rd2 != nil {
-			rd2.Start()
-		}
-	}
-
-	if rd2 := getPubSubRedis2(); rd2 != nil {
-		return rd2.Subscribe(channel, reset, received)
-	} else {
+	rd := getRedisForPubSub()
+	if rd == nil {
 		return false
 	}
+	return rd.Subscribe(channel, reset, received)
 }
 
 func Publish(channel, data string) bool {
-	if !_rdStarted {
-		//redisLock.Lock()
-		_rdStarted = true
-		//redisLock.Unlock()
-		if rd2 := getPubSubRedis2(); rd2 != nil {
-			rd2.Start()
-		}
-	}
-
-	if rd2 := getPubSubRedis2(); rd2 != nil {
-		return rd2.PUBLISH(channel, data)
-	} else {
+	rd := getRedisForPubSub()
+	if rd == nil {
 		return false
 	}
+	return rd.PUBLISH(channel, data)
 }
